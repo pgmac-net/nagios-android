@@ -1,0 +1,3 @@
+# No backend: the app polls Nagios directly
+
+The app talks straight to the user's Nagios over HTTPS with basic auth, optionally behind Cloudflare Access via a service token. Notifications come from WorkManager polling (15 minute Android floor), not push. Rejected: a relay service that polls Nagios and pushes via FCM. It would give real push, but adds a server component to run and secure, a Google Play Services dependency (which blocks F-Droid), and ends the "point it at any Nagios" simplicity. Consequence: alert latency is up to ~15 minutes; users who need faster alerting keep their existing notification channels. Revisit only if that latency proves unacceptable.
