@@ -1,0 +1,25 @@
+# Gradle / Android
+.gradle/
+build/
+/captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+*.apk
+*.aab
+
+# Signing material - never commit
+*.jks
+*.keystore
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Claude Code worktrees
+.claude/worktrees/
