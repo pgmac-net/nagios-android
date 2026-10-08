@@ -1,0 +1,43 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":disableDependencyDashboard",
+    ":semanticCommitsDisabled",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["before 9am on monday"],
+  "timezone": "Australia/Brisbane",
+  "automerge": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Kotlin, KSP and the Compose compiler plugin must move together",
+      "matchPackageNames": ["org.jetbrains.kotlin**", "com.google.devtools.ksp**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "kotlin"
+    },
+    {
+      "description": "AGP and the Gradle wrapper have a compatibility matrix",
+      "matchPackageNames": ["com.android.application", "com.android.tools.build**", "gradle"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "agp-gradle"
+    },
+    {
+      "description": "AndroidX, including the Compose BOM",
+      "matchPackageNames": ["androidx.**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "androidx"
+    },
+    {
+      "description": "GitHub Actions, pinned by commit SHA",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
+      "groupName": "github-actions"
+    }
+  ]
+}

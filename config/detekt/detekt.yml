@@ -1,0 +1,23 @@
+# Overrides on top of detekt's defaults (buildUponDefaultConfig = true).
+# No baseline: the codebase starts clean and stays clean.
+
+config:
+  warningsAsErrors: true
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ["Composable"]
+
+style:
+  MagicNumber:
+    ignoreAnnotated: ["Composable", "Preview"]
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+  UnusedPrivateMember:
+    ignoreAnnotated: ["Preview"]
+
+complexity:
+  LongParameterList:
+    ignoreAnnotated: ["Composable"]
+  LongMethod:
+    ignoreAnnotated: ["Composable"]

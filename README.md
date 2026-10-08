@@ -2,7 +2,7 @@
 
 A modern Android client for [Nagios Core](https://www.nagios.org/): see what is broken, acknowledge it, schedule downtime, look at the graphs, and keep a status widget on your home screen.
 
-> **Status: design phase.** No app code yet. The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).
+> **Status: scaffold only.** The project builds and launches a placeholder screen; no features yet. The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).
 
 Nagwatch is an independent open-source project. It is **not affiliated with, endorsed by, or sponsored by Nagios Enterprises, LLC**. "Nagios" is a registered trademark of Nagios Enterprises, LLC and is used here only to describe compatibility.
 
@@ -21,7 +21,19 @@ No backend, no Play Services, no telemetry. Talks straight to your Nagios. Requi
 
 Signed APKs on GitHub Releases. F-Droid planned after v1 stabilises. No Google Play listing planned.
 
+## Building
+
+Needs a full JDK 21 and the Android SDK. Then:
+
+```
+./gradlew assembleDebug
+```
+
+The APK lands in `app/build/outputs/apk/debug/`. Details, checks and conventions are in [`docs/development.md`](docs/development.md); contribution rules are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Project docs
+
+- [`docs/development.md`](docs/development.md) - building, checks, CI
 
 - [`docs/design.md`](docs/design.md) - v1 design
 - [`docs/adr/`](docs/adr/) - architecture decision records

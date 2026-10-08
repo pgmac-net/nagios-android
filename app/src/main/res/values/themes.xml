@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <!-- Window theme only; all real theming is Compose (ui/theme). -->
+    <style name="Theme.Nagwatch" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
