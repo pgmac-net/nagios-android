@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   scorecard:
-    uses: pgmac-net/pg-actions/.github/workflows/scorecard-public.yml@456c8c833b68d9a99b3f51dd7cbb3aaee28bdf04 # main
+    uses: pgmac-net/pg-actions/.github/workflows/scorecard-public.yml@d3a732bb8777bd5cebd5cd3e406e06a4a6e033ac # main
     permissions:
       security-events: write
       contents: read
