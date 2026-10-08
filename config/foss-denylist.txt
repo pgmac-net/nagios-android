@@ -1,0 +1,36 @@
+# Maven group prefixes that must never appear on a shipped classpath,
+# directly or transitively. One prefix per line; a prefix matches the group
+# itself and any sub-group (com.google.firebase matches com.google.firebase.foo).
+#
+# These are here because they are proprietary, or need proprietary Google
+# services at runtime, or are trackers/crash reporters. F-Droid rejects them,
+# and Nagwatch promises none of them. Licence problems are caught separately
+# by Licensee; this list catches artifacts whose licence looks fine but whose
+# behaviour is not.
+#
+# Adding to this list needs no discussion. Removing from it does.
+
+# Google Play Services and friends
+com.google.android.gms
+com.google.firebase
+com.google.android.play
+com.google.mlkit
+com.android.billingclient
+com.android.installreferrer
+
+# Crash reporting and analytics
+com.crashlytics
+io.sentry
+com.bugsnag
+com.microsoft.appcenter
+com.mixpanel
+com.amplitude
+com.appsflyer
+com.adjust
+com.flurry
+com.newrelic
+
+# Other vendor platforms
+com.facebook
+com.huawei.hms
+com.huawei.agconnect

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <string name="app_name" translatable="false">Nagwatch</string>
+    <string name="placeholder_tagline">A client for Nagios Core</string>
+    <string name="placeholder_version">Version %1$s</string>
+    <string name="placeholder_status">Nothing to see yet. The app is being built.</string>
+</resources>

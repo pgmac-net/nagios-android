@@ -1,0 +1,20 @@
+# OpenSSF Scorecard, via the shared pgmac-net workflow. Not a required check.
+name: Scorecard
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "0 16 * * 0" # 02:00 AEST Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scorecard:
+    uses: pgmac-net/pg-actions/.github/workflows/scorecard-public.yml@456c8c833b68d9a99b3f51dd7cbb3aaee28bdf04 # main
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
