@@ -16,6 +16,12 @@
   },
   "packageRules": [
     {
+      "description": "The CI JDK must match jvmToolchain() in app/build.gradle.kts. A new JDK major is one deliberate change to both, never a Renovate PR on its own.",
+      "matchDepNames": ["java-jdk"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Kotlin, KSP and the Compose compiler plugin must move together",
       "matchPackageNames": ["org.jetbrains.kotlin**", "com.google.devtools.ksp**"],
       "matchUpdateTypes": ["minor", "patch"],

@@ -50,7 +50,7 @@ A real-device launch is checked by hand: download the `nagwatch-debug-apk` artif
 
 `.github/workflows/ci.yml` has three jobs, `build`, `lint` and `foss`, on GitHub-hosted runners. **Those job names are required status checks** on `main`, set in `pgmac-net/terraform-github`. Rename one there first, or every merge blocks.
 
-Actions are pinned by commit SHA and kept current by Renovate. `scorecard.yml` and `dependency-submission.yml` run on `main` only and are not required.
+Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `jvmToolchain()` in `app/build.gradle.kts`; Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `scorecard.yml` and `dependency-submission.yml` run on `main` only and are not required.
 
 ## Layout
 
