@@ -26,8 +26,9 @@ import okhttp3.HttpUrl
  * tripping on one or two records, exhausts the budget and the original error
  * is reported instead of being hammered.
  *
- * So is the list itself: how many pages there are is the server's say, so a
- * list that never ends is cut off at [maxRecords] and reported as too large.
+ * So is the list itself, because its size is the server's say: a response
+ * holding more records than were asked for is refused, and a list that never
+ * ends is cut off at [maxRecords]. Both are reported as too large.
  */
 internal class ResilientListFetcher(
     private val api: NagiosApi,
@@ -56,11 +57,12 @@ internal class ResilientListFetcher(
                 is NagiosResult.Failure -> return page
 
                 is NagiosResult.Success -> {
+                    // The server decides when the list ends. One that never sends a short
+                    // page (ignoring `start`, say) must not be followed forever. Checked
+                    // before the page is kept, so the list never grows past the ceiling.
+                    if (records.size + page.value.size > maxRecords) return TOO_LARGE
                     records += page.value
                     if (page.value.size < pageSize) return NagiosResult.Success(records)
-                    // The server decides when the list ends. One that never sends a short
-                    // page (ignoring `start`, say) must not be followed forever.
-                    if (records.size >= maxRecords) return NagiosResult.Failure(NagiosError.ResponseTooLarge)
                     start += pageSize
                 }
             }
@@ -122,8 +124,15 @@ internal class ResilientListFetcher(
                 add("count" to count.toString())
             }
             return when (val response = api.query(cgiBase, STATUS_CGI, params)) {
-                is NagiosResult.Success -> NagiosResult.Success(parse(response.value))
                 is NagiosResult.Failure -> response
+
+                is NagiosResult.Success -> {
+                    // Checked on every response, before anything is kept: a server that
+                    // ignores `count` could otherwise hand back a whole list per request,
+                    // including from each half of a search.
+                    val records = parse(response.value)
+                    if (records.size > count) TOO_LARGE else NagiosResult.Success(records)
+                }
             }
         }
     }
@@ -138,6 +147,8 @@ internal class ResilientListFetcher(
 
         /** Far above any real install's host or problem count; a ceiling, not a target. */
         const val MAX_RECORDS = 50_000
+
+        private val TOO_LARGE = NagiosResult.Failure(NagiosError.ResponseTooLarge)
 
         /** Internal marker so a spent budget surfaces as the error that started the search. */
         private val OVER_BUDGET = NagiosResult.Failure(NagiosError.Http(code = 0))

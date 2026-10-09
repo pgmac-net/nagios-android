@@ -144,7 +144,29 @@ class ResilientListFetcherTest {
         val result = fetch(pageSize = 10, maxRecords = 50)
 
         assertEquals(NagiosError.ResponseTooLarge, result.errorOrFail())
-        assertEquals("stops as soon as the ceiling is reached", 5, server.requestCount)
+        assertEquals("five pages fill the ceiling; the sixth is refused", 6, server.requestCount)
+    }
+
+    @Test
+    fun `a response holding more records than were asked for is refused at once`() {
+        // Ignores `count`: the whole list comes back for every request.
+        server.respond { request ->
+            page(Window(start = 0, count = 1_000, details = request.param("details") == "true"), 1_000, emptySet())
+        }
+
+        val result = fetch(pageSize = 10)
+
+        assertEquals(NagiosError.ResponseTooLarge, result.errorOrFail())
+        assertEquals("refused on the first response, nothing kept", 1, server.requestCount)
+    }
+
+    @Test
+    fun `a list of exactly the ceiling is returned, one more is not`() {
+        serve(total = 50)
+        assertEquals(50, fetch(pageSize = 10, maxRecords = 50).valueOrFail().size)
+
+        serve(total = 51)
+        assertEquals(NagiosError.ResponseTooLarge, fetch(pageSize = 10, maxRecords = 50).errorOrFail())
     }
 
     @Test
