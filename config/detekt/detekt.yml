@@ -16,8 +16,19 @@ style:
   UnusedPrivateMember:
     ignoreAnnotated: ["Preview"]
 
+  # Result-returning code reads best as a run of guard clauses ("?: return failure").
+  # Guard clauses are exempt; the limit still catches returns scattered through a body.
+  ReturnCount:
+    max: 3
+    excludeGuardClauses: true
+
 complexity:
   LongParameterList:
     ignoreAnnotated: ["Composable"]
+    # Settings holders have many optional fields; only required ones count.
+    ignoreDefaultParameters: true
+  TooManyFunctions:
+    # Small private helpers are how the parsers stay readable; count the API surface.
+    ignorePrivate: true
   LongMethod:
     ignoreAnnotated: ["Composable"]

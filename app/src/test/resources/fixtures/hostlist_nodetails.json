@@ -1,0 +1,28 @@
+{
+  "format_version": 0,
+  "result": {
+    "query_time": 1791540236000,
+    "cgi": "statusjson.cgi",
+    "user": "nagwatch",
+    "query": "hostlist",
+    "query_status": "released",
+    "program_start": 1791538672000,
+    "last_data_update": 1791540232000,
+    "type_code": 0,
+    "type_text": "Success",
+    "message": ""
+  },
+  "data": {
+    "selectors": {},
+    "hostlist": {
+      "host01": "up",
+      "host02": "up",
+      "host03": "up",
+      "host04": "up",
+      "host05": "up",
+      "host06": "up",
+      "host07": "up",
+      "host08": "up"
+    }
+  }
+}

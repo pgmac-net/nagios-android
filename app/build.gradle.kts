@@ -64,6 +64,10 @@ android {
             all { test ->
                 // Robolectric's file-descriptor shadowing reaches into a JDK-internal package.
                 test.jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
+                // Opt-in test against a real Nagios; see docs/development.md. Never set in CI.
+                val live = providers.gradleProperty("nagwatchLive").getOrElse("false")
+                test.systemProperty("nagwatch.live", live)
+                test.testLogging.showStandardStreams = live == "true"
             }
         }
     }
@@ -128,6 +132,9 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
@@ -139,4 +146,6 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.okhttp.tls)
 }

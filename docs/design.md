@@ -1,6 +1,6 @@
 # Nagwatch v1 design
 
-Status: **locked for v1** (2026-10-08). Source: pgmac-net/homelabia#210. Change by PR to this file; record hard-to-reverse changes as ADRs. Terms are defined in [`../CONTEXT.md`](../CONTEXT.md).
+Status: **locked for v1** (2026-10-08; sections 4 and 5 revised 2026-10-09 from measurements in M1). Source: pgmac-net/homelabia#210. Change by PR to this file; record hard-to-reverse changes as ADRs. Terms are defined in [`../CONTEXT.md`](../CONTEXT.md).
 
 ## 1. Goals and non-goals
 
@@ -50,26 +50,34 @@ Status: **locked for v1** (2026-10-08). Source: pgmac-net/homelabia#210. Change 
 
 A profile holds:
 
-- Display name, base URL (e.g. `https://nagios.example.org/nagios`; CGI path derived as `{base}/cgi-bin/`, overridable)
+- Display name, base URL (e.g. `https://nagios.example.org/nagios`). The CGI directory is found on connect by trying `{base}/cgi-bin/` then `{base}/nagios/cgi-bin/`; a pasted CGI directory is used as it is. The result is stored so later polls skip the search
 - Username and password (HTTP basic auth)
 - **Cloudflare Access** section: Client ID, Client Secret. Sent as `CF-Access-Client-Id` and `CF-Access-Client-Secret` on every request
 - **Custom headers**: list of name/value pairs for other proxies
 - nagiosgraph: enabled toggle, base URL template (default `{base}/cgi-bin/`)
 - Polling: enabled, interval (15 min default and minimum), unhandled-only filter
-- Custom CA certificate (optional, for private CAs)
+- Private CAs: the app trusts system **and user-installed** CA certificates (network security config), so a private CA installed in Android Settings just works. There is no in-app CA import in v1 and there is never an "ignore TLS errors" switch
 
-Secrets (password, Client Secret, header values) are encrypted at rest with a Keystore-held key and excluded from Android backup. Cleartext `http://` is refused unless the user explicitly enables it per profile, with a warning.
+Secrets (password, Client Secret, header values) are encrypted at rest with a Keystore-held key and excluded from Android backup. Cleartext `http://` is refused unless the user explicitly enables it per profile, with a warning; Cloudflare Access credentials are never sent over `http://` at all ([ADR 0004](adr/0004-cleartext-permitted-in-manifest-enforced-in-app.md)). Redirects are never followed: credentials go only to the origin the user configured.
 
 **Error classification** (shown distinctly, never a generic failure):
 
-| Condition | Message |
-|---|---|
-| Redirect to `*.cloudflareaccess.com`, or 403 with Access markers | Cloudflare Access rejected the credentials |
-| 401 | Nagios rejected the username/password |
-| TLS error | Certificate problem (with detail) |
-| Timeout / DNS / no route | Instance unreachable |
-| 200 with unparseable body | Not a Nagios JSON CGI (wrong base URL or CGI path?) |
-| `result.type_text` not Success | Nagios error, message shown |
+| Condition | Error class | Message |
+|---|---|---|
+| Redirect to `*.cloudflareaccess.com`; `WWW-Authenticate: Cloudflare-Access`; 403 from Cloudflare | `AccessRejected` | Cloudflare Access rejected the credentials |
+| 401 | `BadCredentials` | Nagios rejected the username/password |
+| 403 from the origin | `Forbidden` | This user is not allowed to see that |
+| TLS failure | `Certificate` | Certificate problem (with detail; hint about installing a private CA) |
+| DNS failure, connection refused, timeout | `Unreachable` (with reason) | Instance unreachable |
+| 404, HTML, or JSON without a Nagios `result` block | `NotNagios` | Not a Nagios JSON CGI (wrong base URL?) |
+| 200 with `result.type_code` not 0 | `Api` | Nagios error, its own message shown |
+| `http://` without the opt-in | `CleartextRefused` | Unencrypted HTTP is not enabled for this profile |
+| `http://` with Access credentials | `AccessOverCleartext` | Access credentials are never sent unencrypted |
+| Any other redirect | `Redirected` | The server redirected to X; use that URL |
+| A response over 8 MiB, or a list that never ends | `ResponseTooLarge` | The server sent more than the app will accept |
+| Other HTTP status, typically 5xx | `Http` | Server error |
+
+When a host has several addresses, every connection attempt is considered and a TLS failure takes precedence over "refused": it means something did answer.
 
 ## 5. Nagios API contract
 
@@ -77,15 +85,39 @@ All reads go through `statusjson.cgi` / `objectjson.cgi` (JSON). All writes go t
 
 ### Reads
 
+Measured against Nagios Core 4.5.9 with a read-only user (2026-10-09). Sanitised captures are in `app/src/test/resources/fixtures/`.
+
 | Need | Call |
 |---|---|
-| Version / health check on connect | `statusjson.cgi?query=programstatus` |
-| Counts for badge/widget | `statusjson.cgi?query=hostcount` and `query=servicecount` |
-| Problem lists | `statusjson.cgi?query=hostlist&details=true` and `query=servicelist&details=true`, filtered by status |
-| Detail | `query=host` / `query=service` with `hostname` (and `servicedescription`) |
-| Comments / downtimes | `query=commentlist`, `query=downtimelist` |
+| Connect check, version | `statusjson.cgi?query=programstatus` |
+| Every host | `query=hostlist&details=true` |
+| Services in a problem state | `query=servicelist&details=true&servicestatus=warning critical unknown` |
+| Detail (M2) | `query=host` / `query=service` with `hostname` (and `servicedescription`) |
+| Comments / downtimes (M2) | `query=commentlist`, `query=downtimelist` |
 
-Exact filter parameters (`hoststatus`, `servicestatus`, `hostprops`, `serviceprops` for acknowledged/downtime) must be validated against a live instance in M1. M1 captures real responses as MockWebServer fixtures; this section is then updated to match.
+Every list request also sends `formatoptions=enumerate` and is paged with `start` / `count`.
+
+What the measurements showed:
+
+- **There is no server-side "unhandled" filter.** The JSON CGI has no `serviceprops` / `hostprops`. Unhandled is computed in the app (`ProblemClassifier`) from `problem_has_been_acknowledged` and `scheduled_downtime_depth`, which only exist with `details=true`. A service's own downtime depth does not reflect its host's downtime, which is why every host is fetched.
+- **States are bitmask integers by default** (ok 2, warning 4, unknown 8, critical 16). `formatoptions=enumerate` returns words, which is what the app parses.
+- **Times are epoch milliseconds**, with 0 meaning never.
+- **Lists nest** host -> service -> detail. Hosts with no matching service are still emitted, as empty objects.
+- **Errors arrive as HTTP 200** with a non-zero `result.type_code`. The body is always checked.
+- **List order is stable**: the same `start` / `count` window selects the same records with and without details.
+- **The CGI directory varies by install**; `/nagios/cgi-bin/` and `/cgi-bin/` were both seen.
+
+#### One bad record can crash the CGI
+
+A service whose plugin output contains non-ASCII text makes `statusjson.cgi` answer **HTTP 500** for any `details=true` window that includes it. The same record without details is fine. One broken check must not blind the app, least of all when that check is the one alarming, so list fetches go through `ResilientListFetcher`:
+
+1. Page through the list with details. A healthy server costs nothing extra.
+2. On a 5xx, first confirm the same window works without details. If it does not, the server is failing in general: report the error and stop.
+3. Otherwise halve the window until the failing record is alone, and fetch that one without details.
+
+That record is returned **degraded** (name and state only), shown as "details unavailable", and counted as unhandled because nothing proves otherwise. The search is bounded (40 extra requests, 5 degraded records per list); past that the server error is reported. The search is repeated on each poll: list positions shift as states change, so a remembered position cannot be trusted.
+
+How much is fetched is the server's decision, so it is bounded rather than trusted: a single response is capped at 8 MiB, and a list is cut off at 50,000 records (a server that never sends a short page would otherwise be followed forever). Both report `ResponseTooLarge`.
 
 ### Writes (`cmd.cgi`)
 
@@ -227,7 +259,7 @@ Cache is replaced per poll for a profile; there is no history in v1.
 
 - Credentials and tokens never logged. Debug logging redacts headers.
 - No analytics, no crash reporter, no third-party network calls; the only traffic is to the user's profile hosts.
-- Backups exclude secrets. Optional custom CA trusted per profile, not globally.
+- Backups exclude secrets. User-installed CAs are trusted (section 4); the trade-off is that a CA the user or a device-management profile installed can also inspect this app's traffic, as with any browser on the device.
 - Cloudflare Access service tokens are long-lived static secrets. The README recommends a dedicated token with a short expiry and a dedicated Nagios user with only the command permissions the user wants the phone to have.
 - Release signing key is held by the maintainer outside the repo, backed up, and supplied to CI as a GitHub Actions secret. Losing it means installs cannot be upgraded.
 
@@ -247,10 +279,9 @@ Cache is replaced per poll for a profile; there is no history in v1.
 
 Build iteratively: each milestone is a runnable app, so feasibility is shown early and direction can change.
 
-Outside this repo: a follow-up in `pgmac-net/homelabia` to publish the maintainer's Nagios through the Cloudflare tunnel behind an Access policy with a service token, which is what makes the app usable off the home network.
+Outside this repo: pgmac-net/homelabia#211. The maintainer's Nagios is already published behind Cloudflare Access; what is missing for off-network use is a Service Auth policy and a service token on that Access application. (An earlier revision of this document said the instance was internal-only. That was wrong.)
 
 ## 13. Open questions
 
-- Exact `statusjson.cgi` filter parameters for "unhandled" (M1, against a live instance).
 - Whether Nagios Core versions older than 4.4 return the fields the detail screen needs (M1 fixtures; raise the minimum version if not).
 - Whether Android 8-11 devices need a different widget fallback, since dynamic colour and some Glance behaviour need Android 12 (M5).

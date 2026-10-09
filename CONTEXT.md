@@ -13,8 +13,20 @@ A host in DOWN or UNREACHABLE, or a service in WARNING, CRITICAL or UNKNOWN.
 _Avoid_: Alert, incident, issue
 
 **Unhandled problem**:
-A problem that is not acknowledged and not in scheduled downtime. This is the headline number everywhere (badge, widget, notifications).
+A problem that is not acknowledged, not in scheduled downtime (its own or its host's), and not a service on a host that is itself down. This is the headline number everywhere (badge, widget, notifications). Soft problems and problems with checks or notifications disabled are still unhandled; they are marked, not hidden.
 _Avoid_: Open problem, active alert
+
+**Rolled-up problem**:
+A service problem on a host that is itself DOWN or UNREACHABLE. It is shown under the host problem and never counted on its own: the host problem stands in for it.
+_Avoid_: Child problem, suppressed
+
+**Soft problem**:
+A problem Nagios is still retrying (attempt 2 of 3, say) and has not notified about yet. Shown and counted, with a marker.
+_Avoid_: Pending problem (PENDING means never checked)
+
+**Degraded record**:
+A host or service Nagios could not serialise in full, so only its name and state are known. Shown as "details unavailable" and treated as unhandled.
+_Avoid_: Broken service, partial record
 
 **Acknowledgement**:
 A Nagios record that someone has seen a problem. Stops repeat notifications.
