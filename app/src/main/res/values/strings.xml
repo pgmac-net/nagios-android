@@ -2,7 +2,71 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <resources>
     <string name="app_name" translatable="false">Nagwatch</string>
-    <string name="placeholder_tagline">A client for Nagios Core</string>
-    <string name="placeholder_version">Version %1$s</string>
-    <string name="placeholder_status">Nothing to see yet. The app is being built.</string>
+    <string name="app_version">Nagwatch %1$s</string>
+
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_replace">Replace</string>
+
+    <string name="profiles_title">Profiles</string>
+    <string name="profiles_add">Add profile</string>
+    <string name="profiles_empty_title">No profiles yet</string>
+    <string name="profiles_empty_text">A profile is a connection to one Nagios instance. Add one to get started.</string>
+    <string name="profiles_cleartext_marker">Unencrypted HTTP</string>
+
+    <string name="profile_new">New profile</string>
+    <string name="profile_edit">Edit profile</string>
+    <string name="profile_name">Name</string>
+    <string name="profile_url">Nagios URL</string>
+    <string name="profile_url_hint">For example https://nagios.example.org/nagios</string>
+    <string name="profile_username">Username</string>
+    <string name="profile_password">Password</string>
+    <string name="profile_secret_saved">%1$s: saved</string>
+    <string name="profile_cleartext_warning">This URL is not encrypted. Your username and password are sent in a form anyone on the network path can read. Only use it on a network you trust.</string>
+    <string name="profile_allow_cleartext">Allow unencrypted HTTP for this profile</string>
+    <string name="profile_access_title">Cloudflare Access</string>
+    <string name="profile_access_hint">Optional. A service token, for a Nagios behind Cloudflare Access. Requires an https URL.</string>
+    <string name="profile_access_client_id">Client ID</string>
+    <string name="profile_access_client_secret">Client secret</string>
+    <string name="profile_headers_title">Custom headers</string>
+    <string name="profile_headers_hint">Optional. Extra headers for other proxies. Values are stored encrypted, like passwords.</string>
+    <string name="profile_header_name">Header name</string>
+    <string name="profile_header_value">Header value</string>
+    <string name="profile_header_add">Add header</string>
+    <string name="profile_header_remove">Remove header</string>
+    <string name="profile_test">Test connection</string>
+    <string name="profile_test_running">Connecting…</string>
+    <string name="profile_test_success">Connected. Nagios %1$s.</string>
+    <string name="profile_credentials_unavailable">The saved credentials for this profile can no longer be read. This happens after restoring a device. Enter them again and save.</string>
+    <string name="profile_delete_title">Delete profile?</string>
+    <string name="profile_delete_text">“%1$s” and its saved credentials will be removed from this device.</string>
+
+    <string name="problem_name_required">Give the profile a name.</string>
+    <string name="problem_url_required">Enter the Nagios URL.</string>
+    <string name="problem_url_invalid">That is not a valid http or https URL.</string>
+    <string name="problem_username_required">Enter a username.</string>
+    <string name="problem_password_required">Enter a password.</string>
+    <string name="problem_cleartext_not_allowed">This is an unencrypted http URL. Turn on “Allow unencrypted HTTP” to use it, or use https.</string>
+    <string name="problem_access_over_cleartext">Cloudflare Access credentials are never sent over unencrypted http. Use an https URL, or remove them.</string>
+    <string name="problem_access_incomplete">Cloudflare Access needs both a client ID and a client secret.</string>
+    <string name="problem_header_name_invalid">A header name may only contain letters, digits and - _ . and similar symbols.</string>
+    <string name="problem_header_name_reserved">That header is set by Nagwatch from the fields above and cannot be overridden.</string>
+    <string name="problem_header_value_required">Each header needs a value.</string>
+
+    <string name="error_access_rejected">Cloudflare Access rejected the request. Check the client ID and secret, and that the service token is allowed by the Access policy and has not expired.</string>
+    <string name="error_bad_credentials">Nagios rejected the username or password.</string>
+    <string name="error_forbidden">The server refused access for this user.</string>
+    <string name="error_certificate">The server\'s certificate is not trusted: %1$s. If your Nagios uses a private certificate authority, install its certificate in Android Settings under Security.</string>
+    <string name="error_unreachable_dns">The server name could not be found. Check the URL and your network connection.</string>
+    <string name="error_unreachable_refused">Nothing is accepting connections at that address. Check the URL and port, and that you are on the right network.</string>
+    <string name="error_unreachable_timeout">The server did not answer in time.</string>
+    <string name="error_unreachable_other">Could not reach the server: %1$s</string>
+    <string name="error_not_nagios">Something answered, but it is not Nagios. Check the URL; it should be the address of the Nagios web interface.</string>
+    <string name="error_nagios_api">Nagios reported an error: %1$s</string>
+    <string name="error_cleartext_refused">This profile uses unencrypted http, which is not enabled for it.</string>
+    <string name="error_access_over_cleartext">Cloudflare Access credentials are never sent over unencrypted http.</string>
+    <string name="error_redirected">The server redirected to %1$s. Use that address as the URL instead.</string>
+    <string name="error_response_too_large">The server sent more data than Nagwatch will accept.</string>
+    <string name="error_http">The server reported an error (HTTP %1$d).</string>
 </resources>

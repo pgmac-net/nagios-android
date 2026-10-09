@@ -104,6 +104,12 @@ tasks.register("resolveAndLockAll") {
     }
 }
 
+ksp {
+    // The schema of every database version is committed (app/schemas) so migrations can be tested.
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.generateKotlin", "true")
+}
+
 licensee {
     // GPL-3.0-compatible permissive licences only. Add one by PR, with the
     // dependency that needs it and why. See CONTRIBUTING.md.
@@ -135,6 +141,13 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+    implementation(libs.navigation.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
@@ -146,6 +159,7 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.okhttp.tls)
 }
