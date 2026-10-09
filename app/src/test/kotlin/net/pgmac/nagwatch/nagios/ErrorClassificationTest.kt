@@ -2,12 +2,17 @@
 
 package net.pgmac.nagwatch.nagios
 
+import java.net.ConnectException
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLHandshakeException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import net.pgmac.nagwatch.nagios.NagiosError.Unreachable.Reason
+import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
+import net.pgmac.nagwatch.nagios.http.NagiosApi
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
@@ -129,6 +134,28 @@ class ErrorClassificationTest {
     }
 
     @Test
+    fun `a response over the size limit is refused without being read into memory whole`() {
+        server.respond { ok("""{"result": {"type_code": 0}, "padding": "${"x".repeat(4_096)}"}""") }
+        val settings = settingsFor(server.url("/"))
+        val client = testHttpClient { addInterceptor(ConnectionInterceptor(settings)) }
+        val api = NagiosApi(client, TEST_JSON, Dispatchers.IO, maxBodyBytes = 1_024)
+
+        val result = runBlocking { api.query(server.url("/cgi-bin/"), "statusjson.cgi", emptyList()) }
+
+        assertEquals(NagiosError.ResponseTooLarge, result.errorOrFail())
+    }
+
+    @Test
+    fun `a response just under the size limit is read normally`() {
+        server.respond { ok("""{"result": {"type_code": 0}}""") }
+        val settings = settingsFor(server.url("/"))
+        val client = testHttpClient { addInterceptor(ConnectionInterceptor(settings)) }
+        val api = NagiosApi(client, TEST_JSON, Dispatchers.IO, maxBodyBytes = 1_024)
+
+        runBlocking { api.query(server.url("/cgi-bin/"), "statusjson.cgi", emptyList()) }.valueOrFail()
+    }
+
+    @Test
     fun `nothing listening is unreachable, refused`() {
         val url = server.url("/")
         server.close()
@@ -175,6 +202,25 @@ class ErrorClassificationTest {
         } finally {
             tlsServer.close()
         }
+    }
+
+    @Test
+    fun `a certificate failure on a later address is not hidden by a refusal on the first`() {
+        // What OkHttp throws for a dual-stack host: the first attempt, others suppressed.
+        val firstAttempt = ConnectException("Failed to connect to localhost/[0:0:0:0:0:0:0:1]:8443")
+        firstAttempt.addSuppressed(SSLHandshakeException("PKIX path building failed"))
+
+        val error = testApi().classify(firstAttempt)
+
+        assertEquals(NagiosError.Certificate("PKIX path building failed"), error)
+    }
+
+    @Test
+    fun `a refusal on every address stays unreachable`() {
+        val firstAttempt = ConnectException("Failed to connect to [::1]:8443")
+        firstAttempt.addSuppressed(ConnectException("Failed to connect to 127.0.0.1:8443"))
+
+        assertEquals(Reason.REFUSED, (testApi().classify(firstAttempt) as NagiosError.Unreachable).reason)
     }
 
     private fun connectError(): NagiosError =

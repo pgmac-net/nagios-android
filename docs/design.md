@@ -74,7 +74,10 @@ Secrets (password, Client Secret, header values) are encrypted at rest with a Ke
 | `http://` without the opt-in | `CleartextRefused` | Unencrypted HTTP is not enabled for this profile |
 | `http://` with Access credentials | `AccessOverCleartext` | Access credentials are never sent unencrypted |
 | Any other redirect | `Redirected` | The server redirected to X; use that URL |
+| A response over 8 MiB, or a list that never ends | `ResponseTooLarge` | The server sent more than the app will accept |
 | Other HTTP status, typically 5xx | `Http` | Server error |
+
+When a host has several addresses, every connection attempt is considered and a TLS failure takes precedence over "refused": it means something did answer.
 
 ## 5. Nagios API contract
 
@@ -113,6 +116,8 @@ A service whose plugin output contains non-ASCII text makes `statusjson.cgi` ans
 3. Otherwise halve the window until the failing record is alone, and fetch that one without details.
 
 That record is returned **degraded** (name and state only), shown as "details unavailable", and counted as unhandled because nothing proves otherwise. The search is bounded (40 extra requests, 5 degraded records per list); past that the server error is reported. The search is repeated on each poll: list positions shift as states change, so a remembered position cannot be trusted.
+
+How much is fetched is the server's decision, so it is bounded rather than trusted: a single response is capped at 8 MiB, and a list is cut off at 50,000 records (a server that never sends a short page would otherwise be followed forever). Both report `ResponseTooLarge`.
 
 ### Writes (`cmd.cgi`)
 

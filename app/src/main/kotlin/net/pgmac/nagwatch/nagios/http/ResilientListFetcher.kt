@@ -25,12 +25,16 @@ import okhttp3.HttpUrl
  * The extra work is bounded. A server that is broken in general, rather than
  * tripping on one or two records, exhausts the budget and the original error
  * is reported instead of being hammered.
+ *
+ * So is the list itself: how many pages there are is the server's say, so a
+ * list that never ends is cut off at [maxRecords] and reported as too large.
  */
 internal class ResilientListFetcher(
     private val api: NagiosApi,
     private val pageSize: Int = PAGE_SIZE,
     private val maxExtraRequests: Int = MAX_EXTRA_REQUESTS,
     private val maxDegraded: Int = MAX_DEGRADED,
+    private val maxRecords: Int = MAX_RECORDS,
 ) {
     /**
      * @param filters query parameters that select the list (e.g. `servicestatus`);
@@ -54,6 +58,9 @@ internal class ResilientListFetcher(
                 is NagiosResult.Success -> {
                     records += page.value
                     if (page.value.size < pageSize) return NagiosResult.Success(records)
+                    // The server decides when the list ends. One that never sends a short
+                    // page (ignoring `start`, say) must not be followed forever.
+                    if (records.size >= maxRecords) return NagiosResult.Failure(NagiosError.ResponseTooLarge)
                     start += pageSize
                 }
             }
@@ -128,6 +135,9 @@ internal class ResilientListFetcher(
         /** Isolating one record in a page of 100 takes about 15 requests; this allows two or three. */
         const val MAX_EXTRA_REQUESTS = 40
         const val MAX_DEGRADED = 5
+
+        /** Far above any real install's host or problem count; a ceiling, not a target. */
+        const val MAX_RECORDS = 50_000
 
         /** Internal marker so a spent budget surfaces as the error that started the search. */
         private val OVER_BUDGET = NagiosResult.Failure(NagiosError.Http(code = 0))

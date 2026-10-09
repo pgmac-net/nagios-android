@@ -137,6 +137,24 @@ class ResilientListFetcherTest {
     }
 
     @Test
+    fun `a server that never ends the list is cut off rather than followed forever`() {
+        // Ignores `start`: every page is full, so no short page ever arrives.
+        server.respond { request -> page(request.windowIgnoringStart(), total = 1_000, poisoned = emptySet()) }
+
+        val result = fetch(pageSize = 10, maxRecords = 50)
+
+        assertEquals(NagiosError.ResponseTooLarge, result.errorOrFail())
+        assertEquals("stops as soon as the ceiling is reached", 5, server.requestCount)
+    }
+
+    @Test
+    fun `a list under the ceiling that ends properly is still returned`() {
+        serve(total = 45)
+
+        assertEquals(45, fetch(pageSize = 10, maxRecords = 50).valueOrFail().size)
+    }
+
+    @Test
     fun `filters are sent with every request, and states are requested as words`() {
         serve(total = 3)
 
@@ -149,11 +167,15 @@ class ResilientListFetcherTest {
         assertEquals("servicelist", request.param("query"))
     }
 
-    private fun fetch(filters: List<Pair<String, String>> = emptyList()): NagiosResult<List<ServiceStatus>> {
+    private fun fetch(
+        filters: List<Pair<String, String>> = emptyList(),
+        pageSize: Int = ResilientListFetcher.PAGE_SIZE,
+        maxRecords: Int = ResilientListFetcher.MAX_RECORDS,
+    ): NagiosResult<List<ServiceStatus>> {
         val settings: ConnectionSettings = settingsFor(server.url("/"))
         val client = testHttpClient { addInterceptor(ConnectionInterceptor(settings)) }
         return runBlocking {
-            ResilientListFetcher(testApi(client))
+            ResilientListFetcher(testApi(client), pageSize = pageSize, maxRecords = maxRecords)
                 .fetchAll(server.url("/cgi-bin/"), "servicelist", filters, StatusParser::services)
         }
     }
@@ -162,10 +184,23 @@ class ResilientListFetcherTest {
         page(request, total, poisoned)
     }
 
-    private fun page(request: RecordedRequest, total: Int, poisoned: Set<Int>): MockResponse {
-        val start = request.param("start")?.toInt() ?: 0
-        val count = request.param("count")?.toInt() ?: total
-        val details = request.param("details") == "true"
+    private fun page(request: RecordedRequest, total: Int, poisoned: Set<Int>): MockResponse = page(
+        Window(
+            start = request.param("start")?.toInt() ?: 0,
+            count = request.param("count")?.toInt() ?: total,
+            details = request.param("details") == "true",
+        ),
+        total,
+        poisoned,
+    )
+
+    private fun RecordedRequest.windowIgnoringStart() =
+        Window(start = 0, count = param("count")?.toInt() ?: 0, details = param("details") == "true")
+
+    private data class Window(val start: Int, val count: Int, val details: Boolean)
+
+    private fun page(requested: Window, total: Int, poisoned: Set<Int>): MockResponse {
+        val (start, count, details) = requested
         val window = (start until minOf(start + count, total))
         if (details && window.any { it in poisoned }) return status(500, Fixtures.SERVER_ERROR_HTML)
 

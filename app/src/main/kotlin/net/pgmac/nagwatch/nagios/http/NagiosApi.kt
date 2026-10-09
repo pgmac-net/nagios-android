@@ -34,6 +34,7 @@ internal class NagiosApi(
     private val client: OkHttpClient,
     private val json: Json,
     private val io: CoroutineDispatcher,
+    private val maxBodyBytes: Long = MAX_BODY_BYTES,
 ) {
     /** @param cgiBase the CGI directory, ending in `/`. */
     suspend fun query(cgiBase: HttpUrl, cgi: String, params: List<Pair<String, String>>): NagiosResult<JsonObject> {
@@ -55,7 +56,14 @@ internal class NagiosApi(
 
     private fun interpret(response: Response): NagiosResult<JsonObject> {
         val error = httpError(response)
-        return if (error != null) NagiosResult.Failure(error) else interpretBody(response.body.string())
+        // Buffer at most one byte past the limit: enough to know the body is too big
+        // without holding all of whatever the server chose to send.
+        val source = response.body.source()
+        return when {
+            error != null -> NagiosResult.Failure(error)
+            source.request(maxBodyBytes + 1) -> NagiosResult.Failure(NagiosError.ResponseTooLarge)
+            else -> interpretBody(source.readUtf8())
+        }
     }
 
     private fun interpretBody(text: String): NagiosResult<JsonObject> {
@@ -102,10 +110,19 @@ internal class NagiosApi(
         }
     }
 
-    private fun classify(e: IOException): NagiosError {
-        val detail = e.message ?: e.javaClass.simpleName
+    /**
+     * A host can have several addresses (IPv6 and IPv4, say). OkHttp tries each and
+     * throws the first failure with the rest attached as suppressed. The first is
+     * often the least informative: "::1 refused" hides "127.0.0.1 answered with a bad
+     * certificate". So every attempt is considered, and a TLS failure wins, because
+     * it means something did answer.
+     */
+    internal fun classify(e: IOException): NagiosError {
+        val attempts = listOf<Throwable>(e) + e.suppressed
+        val tls = attempts.firstOrNull { it is SSLException || it.cause is CertificateException }
+        val detail = (tls ?: e).let { it.message ?: it.javaClass.simpleName }
         return when {
-            e is SSLException || e.cause is CertificateException -> NagiosError.Certificate(detail)
+            tls != null -> NagiosError.Certificate(detail)
             e is UnknownHostException -> NagiosError.Unreachable(Reason.DNS, detail)
             e is ConnectException -> NagiosError.Unreachable(Reason.REFUSED, detail)
             e is SocketTimeoutException -> NagiosError.Unreachable(Reason.TIMEOUT, detail)
@@ -117,6 +134,9 @@ internal class NagiosApi(
 
     private companion object {
         const val SUCCESS = 0
+
+        /** A page of 100 detailed records is about 170 KB; this leaves room for long plugin output. */
+        const val MAX_BODY_BYTES = 8L * 1024 * 1024
         const val HTTP_OK = 200
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403

@@ -42,6 +42,13 @@ sealed interface NagiosError {
      */
     data class Redirected(val location: String) : NagiosError
 
+    /**
+     * The server sent more than the app is prepared to hold: one response over the
+     * size limit, or a list that never ends. How much is fetched is decided by the
+     * server, so it is bounded here rather than trusted.
+     */
+    data object ResponseTooLarge : NagiosError
+
     /** An HTTP status with no more specific meaning, typically a 5xx from the CGI. */
     data class Http(val code: Int) : NagiosError {
         val isServerError: Boolean get() = code in SERVER_ERRORS
