@@ -9,6 +9,48 @@
     <string name="action_delete">Delete</string>
     <string name="action_replace">Replace</string>
 
+    <string name="action_retry">Try again</string>
+
+    <string name="problems_loading">Loading…</string>
+    <string name="problems_edit_profile">Edit this profile</string>
+    <string name="problems_manage_profiles">Manage profiles</string>
+    <string name="problems_failed_title">Could not load problems</string>
+    <string name="problems_profile_missing">That profile no longer exists.</string>
+    <string name="problems_updated">Updated %1$s</string>
+    <string name="problems_banner_failed">The last refresh failed, so this may be out of date. %1$s</string>
+    <string name="problems_banner_stale">This is %1$s old. Pull down to refresh.</string>
+    <string name="problems_all_clear">No problems. Everything is OK.</string>
+    <string name="problems_all_handled">No unhandled problems. Everything left is acknowledged or in downtime.</string>
+    <string name="problems_none_filtered">Nothing matches this filter.</string>
+    <string name="problems_handled_show">Show handled (%1$d)</string>
+    <string name="problems_handled_hide">Hide handled (%1$d)</string>
+
+    <string name="chip_critical">Critical (%1$d)</string>
+    <string name="chip_warning">Warning (%1$d)</string>
+    <string name="chip_unknown">Unknown (%1$d)</string>
+
+    <string name="severity_down">DOWN</string>
+    <string name="severity_unreachable">UNREACHABLE</string>
+    <string name="severity_critical">CRIT</string>
+    <string name="severity_warning">WARN</string>
+    <string name="severity_unknown">UNKN</string>
+
+    <string name="note_soft">soft, attempt %1$d of %2$d</string>
+    <string name="note_checks_disabled">checks off</string>
+    <string name="note_notifications_disabled">notifications off</string>
+    <string name="note_details_unavailable">details unavailable: Nagios could not read this one</string>
+    <string name="note_acknowledged">acknowledged</string>
+    <string name="note_downtime">in downtime</string>
+
+    <plurals name="problems_banner_degraded">
+        <item quantity="one">Nagios could not provide the details of %1$d item (a server error on its side). It is listed with its state only.</item>
+        <item quantity="other">Nagios could not provide the details of %1$d items (a server error on its side). They are listed with their state only.</item>
+    </plurals>
+    <plurals name="chip_hosts">
+        <item quantity="one">%1$d host down</item>
+        <item quantity="other">%1$d hosts down</item>
+    </plurals>
+
     <string name="profiles_title">Profiles</string>
     <string name="profiles_add">Add profile</string>
     <string name="profiles_empty_title">No profiles yet</string>

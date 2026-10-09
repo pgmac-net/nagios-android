@@ -8,11 +8,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import net.pgmac.nagwatch.ui.problems.ProblemsScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 import net.pgmac.nagwatch.ui.profile.ProfilesScreen
 
 private object Routes {
+    const val PROBLEMS = "problems"
     const val PROFILES = "profiles"
     const val PROFILE = "profile/{${ProfileEditorViewModel.ARG_PROFILE_ID}}"
 
@@ -25,7 +27,14 @@ private object Routes {
 @Composable
 fun NagwatchNavHost() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.PROFILES) {
+    NavHost(navController = navController, startDestination = Routes.PROBLEMS) {
+        composable(Routes.PROBLEMS) {
+            ProblemsScreen(
+                onAddProfile = { navController.navigate(Routes.profile(Routes.NEW_PROFILE_ID)) },
+                onEditProfile = { id -> navController.navigate(Routes.profile(id)) },
+                onManageProfiles = { navController.navigate(Routes.PROFILES) },
+            )
+        }
         composable(Routes.PROFILES) {
             ProfilesScreen(
                 onAdd = { navController.navigate(Routes.profile(Routes.NEW_PROFILE_ID)) },
