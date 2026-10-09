@@ -248,12 +248,14 @@ Behaviour for all tiers:
 
 ## 10. Data model (Room)
 
-- `Profile` (settings; secrets held separately, Keystore-encrypted)
+- `profiles` (database `profiles.db`, since M1): name, base URL, remembered CGI directory, username, cleartext opt-in, Access client ID, and three secret columns holding ciphertext only: `password_enc`, `access_client_secret_enc`, and the values inside `custom_headers`. Secrets are AES-256-GCM under a non-exportable Android Keystore key (`SecretCipher`). The UI never reads a secret back: it shows "saved" and offers Replace. If the key is lost (device restore), the profile survives and its credentials have to be entered again.
 - `HostStatus`, `ServiceStatus`: profile id, names, state, state type, output, last check, duration, attempts, acknowledged, in-downtime, fetched-at
 - `PollResult`: profile id, time, success/failure class, counts
 - `NotifiedState`: profile id, object key, last notified state (for de-duplication and recovery notices)
 
-Cache is replaced per poll for a profile; there is no history in v1.
+The status tables below arrive with M2; in M1 fetched status is held in memory only. Cache is replaced per poll for a profile; there is no history in v1.
+
+Schema versions are exported to `app/schemas` and committed. There is no destructive-migration fallback: every schema change ships with a migration and a test for it.
 
 ## 11. Security notes
 

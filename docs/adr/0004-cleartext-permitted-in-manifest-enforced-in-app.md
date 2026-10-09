@@ -11,5 +11,5 @@ The rules it enforces: `http://` only when that profile opted in; Cloudflare Acc
 
 ## Consequences
 
-- Android Lint flags the manifest setting; the suppression there points at this ADR. A reader who sees `usesCleartextTraffic="true"` should end up here, not "fix" it.
+- The setting lives in `res/xml/network_security_config.xml` (`cleartextTrafficPermitted="true"`). Android Lint flags it; the suppression there points at this ADR. A reader who sees it should end up here, not "fix" it.
 - Any new HTTP client in the app (Coil for graphs in M6, for example) must be derived from the per-profile client so it passes through the interceptor. A client built from scratch would bypass every rule above.

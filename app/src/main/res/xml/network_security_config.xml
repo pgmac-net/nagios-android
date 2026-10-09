@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  Two deliberate departures from the platform defaults. Both look like
+  mistakes out of context; neither is. See docs/adr/0004 and docs/design.md
+  section 4 before changing either.
+
+  1. Cleartext is permitted. Android cannot allow http:// per host chosen at
+     runtime, and plain-http Nagios on a LAN is common. The app enforces the
+     real rule itself, per profile, in ConnectionInterceptor.
+
+  2. User-installed CA certificates are trusted. This is how a Nagios behind a
+     private CA is supported without any certificate handling in the app: the
+     user installs their CA in Android Settings.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates
+                src="user"
+                tools:ignore="AcceptsUserCertificates" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
