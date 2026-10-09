@@ -30,6 +30,7 @@ The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debu
 | Dependency denylist | `checkFossDependencies` | Prefixes in `config/foss-denylist.txt` |
 | SPDX headers | `checkSpdxHeaders` | First line of every `.kt` / `.kts` |
 | Locked dependencies | (resolution) | Any dependency not in `app/gradle.lockfile` fails the build |
+| No leaked fixtures | `testDebugUnitTest` (`FixtureLeakTest`) | Fixtures must be sanitised |
 
 `scripts/foss-self-test.sh` adds a known-banned dependency (`-PfossSelfTest=true`) and asserts that the licence and denylist checks both **fail**. CI runs it on every PR, so a silently broken check turns CI red.
 
@@ -45,6 +46,31 @@ The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debu
 JVM unit tests only, for now. Compose screens are tested under Robolectric (`app/src/test`), which is how CI stands in for "the app launches" without an emulator. Robolectric is pinned to an Android version in `app/src/test/resources/robolectric.properties`; it trails `targetSdk` deliberately.
 
 A real-device launch is checked by hand: download the `nagwatch-debug-apk` artifact from a CI run and install it.
+
+## Nagios fixtures
+
+Parser and client tests replay responses captured from a real Nagios. This repository is public, so captures are **sanitised before they are committed**: hosts, services, plugin output and the user name are replaced with generic values; structure, states and timestamps are kept.
+
+```
+NAGWATCH_URL=https://nagios.example.org/nagios/cgi-bin scripts/capture-fixtures.sh /tmp/nagwatch-raw
+scripts/sanitise_fixtures.py /tmp/nagwatch-raw app/src/test/resources/fixtures
+```
+
+- Raw captures name real hosts. Keep them outside the repository (the capture script refuses to write inside it) and delete them afterwards.
+- Credentials come from `~/.config/nagwatch/dev.env` (`USER=` and `PASS=` lines). Use a read-only Nagios user.
+- The sanitiser fails if any original name survives. `FixtureLeakTest` is the backstop in CI: it fails on host or service names that are not the sanitiser's generic ones, on private addresses and on anything that looks like a real domain.
+
+## Testing against a real Nagios
+
+```
+scripts/live-smoke-test.sh https://nagios.example.org/nagios
+```
+
+Runs the real client (connect, CGI-path detection, a full poll, classification, and a full detailed service list) against a live instance, using the same credentials file. It prints counts only, never names. It is skipped in normal test runs and **never runs in CI**: CI has no credentials and must not have any.
+
+## Network rules
+
+All traffic to Nagios goes through one OkHttp interceptor (`ConnectionInterceptor`) that refuses `http://` unless the profile opted in, never sends Cloudflare Access credentials over `http://`, and only sends credentials to the configured origin. Redirects are not followed. Any new HTTP client must be derived from the per-profile client so it inherits these rules; see [ADR 0004](adr/0004-cleartext-permitted-in-manifest-enforced-in-app.md).
 
 ## CI
 

@@ -1,0 +1,36 @@
+{
+  "format_version": 0,
+  "result": {
+    "query_time": 1791540236000,
+    "cgi": "statusjson.cgi",
+    "user": "nagwatch",
+    "query": "programstatus",
+    "query_status": "released",
+    "program_start": 1791538672000,
+    "last_data_update": 1791540232000,
+    "type_code": 0,
+    "type_text": "Success",
+    "message": ""
+  },
+  "data": {
+    "programstatus": {
+      "version": "4.5.9",
+      "nagios_pid": 44,
+      "daemon_mode": false,
+      "program_start": 1791538672000,
+      "last_log_rotation": 0,
+      "enable_notifications": true,
+      "execute_service_checks": true,
+      "accept_passive_service_checks": true,
+      "execute_host_checks": true,
+      "accept_passive_host_checks": true,
+      "enable_event_handlers": true,
+      "obsess_over_services": false,
+      "obsess_over_hosts": false,
+      "check_service_freshness": true,
+      "check_host_freshness": false,
+      "enable_flap_detection": true,
+      "process_performance_data": true
+    }
+  }
+}
