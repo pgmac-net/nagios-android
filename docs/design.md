@@ -159,6 +159,17 @@ Success is detected by scraping the HTML response (Nagios prints "Your command r
 
 Pull to refresh. Rows sorted worst state first, then newest. Acknowledged and in-downtime problems collapsed under a footer by default. A banner shows when the profile is stale or unreachable.
 
+How M1 implements this screen, where it differs from the wireframe:
+
+- **Refresh is foreground only.** The app fetches when the screen opens or is returned to (if what it holds is over a minute old) and on pull-to-refresh. Background polling and notifications are M4.
+- **Stale means older than 30 minutes**, twice the 15-minute poll interval the design allows, and is labelled with its age. A failed refresh keeps the last good list and says it may be out of date, so a network error never blanks a screen that was showing real problems.
+- **Chips** read "Critical (3)", "Warning (1)", "Unknown (0)" and "2 hosts down", and tapping one filters the list to it; several can be on at once.
+- **Services on a down host** appear under that host and are not counted separately.
+- **Handled problems** (acknowledged, in downtime) are listed below under a "Show handled (N)" toggle, collapsed by default, each saying why it is handled. "Everything is OK" is only shown when nothing is handled either: an acknowledged critical is still a critical.
+- **Profile switching** is a menu on the title, with Edit and Manage profiles beneath the list. The selection is remembered through rotation and process death, not across a cold start.
+- **First run** shows an explanation and an "Add profile" button.
+- Every host is fetched on every refresh (needed for host state and host downtime).
+
 ### Hosts / Services
 
 Searchable lists with state-filter chips (OK, WARN, CRIT, UNKN, PENDING; UP, DOWN, UNREACH) and a "show handled" toggle.

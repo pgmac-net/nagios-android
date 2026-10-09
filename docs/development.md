@@ -66,7 +66,7 @@ scripts/sanitise_fixtures.py /tmp/nagwatch-raw app/src/test/resources/fixtures
 scripts/live-smoke-test.sh https://nagios.example.org/nagios
 ```
 
-Runs the real client (connect, CGI-path detection, a full poll, classification, and a full detailed service list) against a live instance, using the same credentials file. It prints counts only, never names. It is skipped in normal test runs and **never runs in CI**: CI has no credentials and must not have any.
+Runs the real client (connect, CGI-path detection, a full poll, classification, and a full detailed service list) against a live instance, using the same credentials file. `ACCESS_CLIENT_ID` and `ACCESS_CLIENT_SECRET` in that file are used only for `https://` URLs, as Access credentials are never sent over `http://`. It prints counts only, never names. It is skipped in normal test runs and **never runs in CI**: CI has no credentials and must not have any.
 
 ## Profiles and stored secrets
 
@@ -76,6 +76,16 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 - **Never log or `toString` a secret.** `ConnectionSettings`, `SecretInput.Replace`, `SecretField` and `SettingsResult.Ready` are deliberately not data classes, or override `toString`, for this reason. Tests assert on it.
 - **Schema changes need a migration.** Raising `ProfileDatabase.VERSION` exports a new file under `app/schemas`; commit it, write the `Migration`, and add a `MigrationTestHelper` test. There is no destructive fallback, so a missing migration crashes on upgrade rather than silently deleting profiles.
 - `SecretCipher` is unit-tested with a software key. `KeystoreKeySource`, the few lines that talk to the Android Keystore, cannot run on the JVM and is only exercised on a device.
+
+## Status and the Problems view
+
+`StatusRepository` polls a profile (`NagiosClient`, then `ProblemClassifier`) and holds the latest result in memory, per profile. Nothing is persisted until M2.
+
+- A failed refresh keeps the last *good* report and records the error beside it; the next success clears the error.
+- One refresh per profile at a time: a second request while one is running does nothing. The running marker and the `refreshing` flag change together under a lock, so seeing `refreshing = false` means a new refresh would be accepted.
+- A cancelled refresh (leaving the screen mid-fetch) resets the flag in `finally`.
+- The first poll of a profile finds the CGI directory and stores it on the profile; later polls skip the search.
+- Screens are stateless composables fed by a `...UiState` and an actions interface, so they are tested without a view model.
 
 ## Network rules
 

@@ -49,8 +49,10 @@ class LiveSmokeTest {
             baseUrl = url.toHttpUrl(),
             username = values.getValue("USER"),
             password = values.getValue("PASS"),
-            accessClientId = values["ACCESS_CLIENT_ID"],
-            accessClientSecret = values["ACCESS_CLIENT_SECRET"],
+            // Access credentials are never sent over http, so a LAN http:// run leaves them out,
+            // exactly as a profile would have to.
+            accessClientId = values["ACCESS_CLIENT_ID"].takeIf { url.startsWith("https://") },
+            accessClientSecret = values["ACCESS_CLIENT_SECRET"].takeIf { url.startsWith("https://") },
             allowCleartext = url.startsWith("http://"),
         )
     }
