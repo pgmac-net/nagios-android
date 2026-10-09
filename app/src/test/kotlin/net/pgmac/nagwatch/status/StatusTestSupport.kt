@@ -2,21 +2,30 @@
 
 package net.pgmac.nagwatch.status
 
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.model.CheckStatus
+import net.pgmac.nagwatch.nagios.model.Comment
+import net.pgmac.nagwatch.nagios.model.Downtime
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServerInfo
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.profile.SelectedProfile
+import net.pgmac.nagwatch.status.cache.StatusDatabase
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
@@ -67,6 +76,35 @@ class FakeClient(
     override suspend fun fetchStatus(): NagiosResult<StatusSnapshot> {
         fetches++
         return statusResult()
+    }
+
+    var serviceResult: (ObjectRef) -> NagiosResult<ServiceStatus> = { failure() }
+    var hostResult: (String) -> NagiosResult<HostStatus> = { failure() }
+    var commentsResult: (ObjectRef) -> NagiosResult<List<Comment>> = { NagiosResult.Success(emptyList()) }
+    var downtimesResult: (ObjectRef) -> NagiosResult<List<Downtime>> = { NagiosResult.Success(emptyList()) }
+
+    override suspend fun fetchService(ref: ObjectRef): NagiosResult<ServiceStatus> = serviceResult(ref)
+
+    override suspend fun fetchHost(hostName: String): NagiosResult<HostStatus> = hostResult(hostName)
+
+    override suspend fun fetchComments(ref: ObjectRef): NagiosResult<List<Comment>> = commentsResult(ref)
+
+    override suspend fun fetchDowntimes(ref: ObjectRef): NagiosResult<List<Downtime>> = downtimesResult(ref)
+}
+
+/** The status cache on an in-memory database. Close the database in the test's teardown. */
+fun inMemoryStatusDatabase(): StatusDatabase =
+    Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), StatusDatabase::class.java)
+        .allowMainThreadQueries()
+        .build()
+
+/** Remembers the chosen profile in memory, as the DataStore-backed one does on disk. */
+class FakeSelectedProfile(initial: Long? = null) : SelectedProfile {
+    private val state = MutableStateFlow(initial)
+    override val id: Flow<Long?> = state
+
+    override suspend fun select(profileId: Long) {
+        state.value = profileId
     }
 }
 

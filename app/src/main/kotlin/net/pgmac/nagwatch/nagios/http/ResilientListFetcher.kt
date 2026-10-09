@@ -40,6 +40,8 @@ internal class ResilientListFetcher(
     /**
      * @param filters query parameters that select the list (e.g. `servicestatus`);
      *   paging and detail parameters are added here.
+     * @param details false asks for names and states only: cheap, and never trips the
+     *   serialisation failure, so no isolation search is made.
      * @param parse turns one response into records, in list order. It must
      *   handle both the detailed and the state-only shape.
      */
@@ -47,9 +49,10 @@ internal class ResilientListFetcher(
         cgiBase: HttpUrl,
         query: String,
         filters: List<Pair<String, String>>,
+        details: Boolean = true,
         parse: (JsonObject) -> List<T>,
     ): NagiosResult<List<T>> {
-        val run = Run(cgiBase, query, filters, parse)
+        val run = Run(cgiBase, query, filters, details, parse)
         val records = mutableListOf<T>()
         var start = 0
         while (true) {
@@ -73,6 +76,7 @@ internal class ResilientListFetcher(
         private val cgiBase: HttpUrl,
         private val query: String,
         private val filters: List<Pair<String, String>>,
+        private val details: Boolean,
         private val parse: (JsonObject) -> List<T>,
     ) {
         private var extraRequests = 0
@@ -81,9 +85,10 @@ internal class ResilientListFetcher(
         /** Records `start until start + count`, isolating any that Nagios cannot serialise. */
         suspend fun window(start: Int, count: Int, isRetry: Boolean): NagiosResult<List<T>> {
             if (isRetry && !spend()) return OVER_BUDGET
-            val detailed = request(start, count, details = true)
+            val detailed = request(start, count, details)
             val error = (detailed as? NagiosResult.Failure)?.error
-            if (error !is NagiosError.Http || !error.isServerError) return detailed
+            // A state-only list has no details to fall back from, so there is nothing to isolate.
+            if (!details || error !is NagiosError.Http || !error.isServerError) return detailed
 
             // Before searching, confirm the same window works without details. If it
             // does not, the server is failing in general and a search would only add load.

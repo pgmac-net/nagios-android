@@ -2,7 +2,6 @@
 
 package net.pgmac.nagwatch.ui.problems
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,10 +21,13 @@ import net.pgmac.nagwatch.profile.SecretInput.Replace
 import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
 import net.pgmac.nagwatch.status.FakeClient
+import net.pgmac.nagwatch.status.FakeSelectedProfile
 import net.pgmac.nagwatch.status.MutableClock
 import net.pgmac.nagwatch.status.StatusRepository
 import net.pgmac.nagwatch.status.T0
+import net.pgmac.nagwatch.status.cache.StatusCache
 import net.pgmac.nagwatch.status.criticalService
+import net.pgmac.nagwatch.status.inMemoryStatusDatabase
 import net.pgmac.nagwatch.status.provider
 import net.pgmac.nagwatch.status.snapshot
 import org.junit.After
@@ -44,8 +46,10 @@ class ProblemsViewModelTest {
     private val database = inMemoryProfileDatabase()
     private val profiles = ProfileRepository(database.profiles(), SecretCipher(softwareKeySource()), Json)
     private val clock = MutableClock(T0)
+    private val statusDatabase = inMemoryStatusDatabase()
+    private val cache = StatusCache(statusDatabase.cache())
     private val client = FakeClient()
-    private val statuses = StatusRepository(profiles, provider(client), clock)
+    private val statuses = StatusRepository(profiles, provider(client), cache, clock)
 
     @Before
     fun setUp() = Dispatchers.setMain(Dispatchers.Unconfined)
@@ -54,6 +58,7 @@ class ProblemsViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         database.close()
+        statusDatabase.close()
     }
 
     @Test
@@ -77,14 +82,28 @@ class ProblemsViewModelTest {
     }
 
     @Test
-    fun `a chosen profile is remembered across a recreated view model`() {
+    fun `a chosen profile is remembered by a view model created later`() {
         saveProfile("Home")
         val office = saveProfile("Office")
-        val saved = SavedStateHandle()
+        val remembered = FakeSelectedProfile()
 
-        viewModel(saved).select(office)
+        val first = viewModel(remembered)
+        first.select(office)
+        first.awaitState { it.selected?.id == office }
 
-        assertEquals(office, viewModel(saved).awaitState { it.selected != null }.selected?.id)
+        assertEquals(office, viewModel(remembered).awaitState { it.selected != null }.selected?.id)
+    }
+
+    @Test
+    fun `a remembered profile that was since deleted falls back to the first`() {
+        val home = saveProfile("Home")
+
+        assertEquals(
+            home,
+            viewModel(FakeSelectedProfile(initial = 999)).awaitState {
+                it.selected != null
+            }.selected?.id,
+        )
     }
 
     @Test
@@ -161,8 +180,8 @@ class ProblemsViewModelTest {
         }
     }
 
-    private fun viewModel(savedState: SavedStateHandle = SavedStateHandle()) =
-        ProblemsViewModel(savedState, profiles, statuses)
+    private fun viewModel(selected: FakeSelectedProfile = FakeSelectedProfile()) =
+        ProblemsViewModel(profiles, statuses, selected)
 
     private fun ProblemsViewModel.awaitState(predicate: (ProblemsUiState) -> Boolean): ProblemsUiState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }

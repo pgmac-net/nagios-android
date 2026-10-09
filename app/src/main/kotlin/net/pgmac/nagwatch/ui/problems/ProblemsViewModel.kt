@@ -2,7 +2,6 @@
 
 package net.pgmac.nagwatch.ui.problems
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,15 +17,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.profile.ProfileRepository
+import net.pgmac.nagwatch.profile.SelectedProfile
 import net.pgmac.nagwatch.status.StatusRepository
 
 @HiltViewModel
 class ProblemsViewModel @Inject constructor(
-    private val savedState: SavedStateHandle,
     profiles: ProfileRepository,
     private val statuses: StatusRepository,
+    private val selectedProfile: SelectedProfile,
 ) : ViewModel() {
-    private val requestedId = MutableStateFlow(savedState.get<Long>(KEY_SELECTED))
     private val filter = MutableStateFlow(emptySet<ProblemKind>())
 
     /** Ticks so ages ("2h 04m") and staleness keep moving while the screen is open. */
@@ -39,7 +38,7 @@ class ProblemsViewModel @Inject constructor(
 
     val state: StateFlow<ProblemsUiState> = combine(
         profiles.observeProfiles(),
-        requestedId,
+        selectedProfile.id,
         statuses.statuses,
         filter,
         clock,
@@ -56,10 +55,11 @@ class ProblemsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ProblemsUiState())
 
     fun select(profileId: Long) {
-        savedState[KEY_SELECTED] = profileId
-        requestedId.value = profileId
         filter.value = emptySet()
-        refreshIfNeeded(profileId)
+        viewModelScope.launch {
+            selectedProfile.select(profileId)
+            statuses.refreshIfOlderThan(profileId, RESUME_MAX_AGE)
+        }
     }
 
     fun toggleFilter(kind: ProblemKind) = filter.update { if (kind in it) it - kind else it + kind }
@@ -70,14 +70,16 @@ class ProblemsViewModel @Inject constructor(
         viewModelScope.launch { statuses.refresh(id) }
     }
 
-    /** On opening the screen and on returning to it: fetches only if what is held is old. */
+    /**
+     * On opening the screen and on returning to it: shows what is cached straight away,
+     * then fetches only if that is old.
+     */
     fun refreshIfNeeded(profileId: Long? = state.value.selected?.id) {
         val id = profileId ?: return
         viewModelScope.launch { statuses.refreshIfOlderThan(id, RESUME_MAX_AGE) }
     }
 
     private companion object {
-        const val KEY_SELECTED = "selectedProfile"
         const val STOP_TIMEOUT_MS = 5_000L
         const val TICK_MS = 30_000L
         val RESUME_MAX_AGE: Duration = Duration.ofSeconds(60)

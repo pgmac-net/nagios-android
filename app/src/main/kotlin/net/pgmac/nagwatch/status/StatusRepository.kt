@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.status
 
+import android.database.sqlite.SQLiteException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -18,8 +19,10 @@ import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.model.ProblemReport
+import net.pgmac.nagwatch.nagios.model.StatusSnapshot
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SettingsResult
+import net.pgmac.nagwatch.status.cache.StatusCache
 
 /** Makes a client for some settings. A seam so the repository can be tested without a network. */
 fun interface NagiosClientProvider {
@@ -47,7 +50,9 @@ sealed interface StatusError {
  *
  * [report] is the last *good* result and survives a failed refresh: a network
  * error must not blank a screen that was showing real problems a minute ago.
- * [error] describes the latest attempt only, and clears on the next success.
+ * It may have come from the cache, from an earlier run of the app; [lastSuccess]
+ * says how old it is. [error] describes the latest attempt only, and clears on
+ * the next success.
  */
 data class ProfileStatus(
     val report: ProblemReport? = null,
@@ -65,13 +70,16 @@ data class ProfileStatus(
 }
 
 /**
- * Polls profiles and holds the latest result in memory. Nothing is persisted in
- * M1: a persistent cache arrives with the detail screens (M2).
+ * Polls profiles and holds the latest result, in memory and in the on-disk
+ * cache. On first use of a profile the cached result is served at once, so the
+ * screen has something to show before the network answers; a refresh then
+ * replaces it.
  */
 @Singleton
 class StatusRepository @Inject constructor(
     private val profiles: ProfileRepository,
     private val clients: NagiosClientProvider,
+    private val cache: StatusCache,
     private val clock: Clock,
 ) {
     private val mutableStatuses = MutableStateFlow<Map<Long, ProfileStatus>>(emptyMap())
@@ -87,8 +95,27 @@ class StatusRepository @Inject constructor(
 
     fun now(): Instant = clock.instant()
 
+    /**
+     * Puts the cached result for a profile on screen, if there is one and nothing
+     * newer is already held. Cheap, and safe to call every time a profile is shown.
+     */
+    suspend fun showCached(profileId: Long) {
+        if (mutableStatuses.value[profileId]?.report != null) return
+        val cached = cache.loadPoll(profileId) ?: return
+        mutableStatuses.update { current ->
+            val held = current[profileId] ?: ProfileStatus()
+            // A refresh may have finished while the cache was being read; it wins.
+            if (held.report != null) {
+                current
+            } else {
+                current + (profileId to held.copy(report = classify(cached), lastSuccess = cached.fetchedAt))
+            }
+        }
+    }
+
     /** Refreshes unless the profile was refreshed within [maxAge], or a refresh is already running. */
     suspend fun refreshIfOlderThan(profileId: Long, maxAge: Duration) {
+        showCached(profileId)
         val last = mutableStatuses.value[profileId]?.lastSuccess
         if (last == null || Duration.between(last, clock.instant()) >= maxAge) refresh(profileId)
     }
@@ -100,8 +127,17 @@ class StatusRepository @Inject constructor(
         if (!accepted) return
         try {
             when (val outcome = fetch(profileId)) {
-                is Outcome.Fresh -> update(profileId) {
-                    ProfileStatus(report = outcome.report, lastSuccess = outcome.report.fetchedAt)
+                is Outcome.Fresh -> {
+                    // Still refreshing until the cache is written and the marker cleared below:
+                    // "not refreshing" must mean a new refresh would be accepted.
+                    update(profileId) {
+                        ProfileStatus(
+                            report = classify(outcome.snapshot),
+                            lastSuccess = outcome.snapshot.fetchedAt,
+                            refreshing = true,
+                        )
+                    }
+                    store(profileId, outcome.snapshot)
                 }
 
                 is Outcome.Failed -> update(profileId) { it.copy(error = outcome.error) }
@@ -112,6 +148,18 @@ class StatusRepository @Inject constructor(
                 running.remove(profileId)
                 update(profileId) { it.copy(refreshing = false) }
             }
+        }
+    }
+
+    /**
+     * The cache is a convenience. If it cannot be written (a full disk, say) the
+     * fresh result is still on screen, and the next poll tries again.
+     */
+    private suspend fun store(profileId: Long, snapshot: StatusSnapshot) {
+        try {
+            cache.savePoll(profileId, snapshot)
+        } catch (_: SQLiteException) {
+            // Nothing to do: the result is already shown, and nothing depends on the write.
         }
     }
 
@@ -131,16 +179,18 @@ class StatusRepository @Inject constructor(
             profiles.rememberCgiBase(profileId, (connection as NagiosResult.Success).value.cgiBase)
         }
         return when (val result = client.fetchStatus()) {
-            is NagiosResult.Success -> Outcome.Fresh(ProblemClassifier.classify(result.value))
+            is NagiosResult.Success -> Outcome.Fresh(result.value)
             is NagiosResult.Failure -> Outcome.Failed(StatusError.Nagios(result.error))
         }
     }
+
+    private fun classify(snapshot: StatusSnapshot): ProblemReport = ProblemClassifier.classify(snapshot)
 
     private fun update(profileId: Long, change: (ProfileStatus) -> ProfileStatus) =
         mutableStatuses.update { it + (profileId to change(it[profileId] ?: ProfileStatus())) }
 
     private sealed interface Outcome {
-        class Fresh(val report: ProblemReport) : Outcome
+        class Fresh(val snapshot: StatusSnapshot) : Outcome
 
         class Failed(val error: StatusError) : Outcome
     }

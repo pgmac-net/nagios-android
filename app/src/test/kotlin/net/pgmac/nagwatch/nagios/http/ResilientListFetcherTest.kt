@@ -198,7 +198,7 @@ class ResilientListFetcherTest {
         val client = testHttpClient { addInterceptor(ConnectionInterceptor(settings)) }
         return runBlocking {
             ResilientListFetcher(testApi(client), pageSize = pageSize, maxRecords = maxRecords)
-                .fetchAll(server.url("/cgi-bin/"), "servicelist", filters, StatusParser::services)
+                .fetchAll(server.url("/cgi-bin/"), "servicelist", filters, parse = StatusParser::services)
         }
     }
 

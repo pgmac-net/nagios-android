@@ -40,7 +40,22 @@ FIXTURES: list[tuple[str, str, int | None]] = [
     ("servicelist_nodetails_single.json", "servicelist_nodetails_single.json", None),
     ("servicelist_beyond_end.json", "servicelist_beyond_end.json", None),
     ("error_invalid_option.json", "error_invalid_option.json", None),
+    ("host_detail.json", "host_detail.json", None),
+    ("service_detail.json", "service_detail.json", None),
+    ("commentlist_by_host.json", "commentlist_by_host.json", 12),
+    ("commentlist_by_service.json", "commentlist_by_service.json", 12),
+    # Empty on most instances; see downtimelist_synthetic.json for the populated shape.
+    ("downtimelist_by_host.json", "downtimelist_by_host.json", 12),
 ]
+
+AUTHOR = "nagiosadmin"
+COMMENT_TEXT = {
+    "acknowledgement": "Acknowledged: known issue, being worked on",
+    "user": "Checked by hand, looks fine",
+    "downtime": "This object has been scheduled for fixed downtime",
+    "flapping": "Notifications are being suppressed because the object is flapping",
+}
+DOWNTIME_TEXT = "Planned maintenance"
 
 SERVICE_NAMES = [
     "PING", "SSH", "HTTP", "Disk /", "Load", "Memory", "Swap", "NTP",
@@ -73,6 +88,7 @@ class Renamer:
     def __init__(self) -> None:
         self.hosts: dict[str, str] = {}
         self.services: dict[str, str] = {}
+        self.texts: set[str] = set()
 
     def host(self, name: str) -> str:
         """Return the generic name for a real host name."""
@@ -90,12 +106,18 @@ class Renamer:
         return self.services[description]
 
     def originals(self) -> list[str]:
-        """Real names that must not appear in any fixture."""
+        """Real names and texts that must not appear in any fixture."""
         generic = set(SERVICE_NAMES)
         hosts = list(self.hosts)
         # A real service that happens to share a generic name (e.g. "PING") is not a leak.
         services = [name for name in self.services if name not in generic]
-        return [name for name in hosts + services if len(name) > 2]
+        return [name for name in hosts + services + sorted(self.texts) if len(name) > 2]
+
+    def text(self, original: str, replacement: str) -> str:
+        """Record free text that was replaced, so its survival can be detected."""
+        if original and original != replacement:
+            self.texts.add(original)
+        return replacement
 
 
 def scrub_detail(detail: dict[str, Any], output: dict[str, str], perf: dict[str, str]) -> None:
@@ -135,6 +157,25 @@ def scrub_servicelist(servicelist: dict[str, Any], renamer: Renamer, limit: int 
     return result
 
 
+def scrub_annotations(entries: dict[str, Any], renamer: Renamer, limit: int | None) -> dict[str, Any]:
+    """Rename and scrub a commentlist or downtimelist (keyed by id)."""
+    result: dict[str, Any] = {}
+    for key, entry in list(entries.items())[:limit]:
+        if isinstance(entry, dict):
+            entry["host_name"] = renamer.host(entry.get("host_name", ""))
+            if entry.get("service_description"):
+                entry["service_description"] = renamer.service(entry["service_description"])
+            if "author" in entry:
+                entry["author"] = renamer.text(entry["author"], AUTHOR)
+            if "comment_data" in entry:
+                generic = COMMENT_TEXT.get(str(entry.get("entry_type", "")).lower(), "Comment")
+                entry["comment_data"] = renamer.text(entry["comment_data"], generic)
+            if "comment" in entry:
+                entry["comment"] = renamer.text(entry["comment"], DOWNTIME_TEXT)
+        result[key] = entry
+    return result
+
+
 def sanitise(document: dict[str, Any], renamer: Renamer, limit: int | None) -> dict[str, Any]:
     """Sanitise one whole CGI response."""
     result = document.get("result", {})
@@ -149,6 +190,16 @@ def sanitise(document: dict[str, Any], renamer: Renamer, limit: int | None) -> d
         data["hostlist"] = scrub_hostlist(data["hostlist"], renamer, limit)
     if "servicelist" in data:
         data["servicelist"] = scrub_servicelist(data["servicelist"], renamer, limit)
+    if isinstance(data.get("host"), dict):
+        data["host"]["name"] = renamer.host(data["host"].get("name", ""))
+        scrub_detail(data["host"], HOST_OUTPUT, {})
+    if isinstance(data.get("service"), dict):
+        data["service"]["host_name"] = renamer.host(data["service"].get("host_name", ""))
+        data["service"]["description"] = renamer.service(data["service"].get("description", ""))
+        scrub_detail(data["service"], SERVICE_OUTPUT, SERVICE_PERF)
+    for key in ("commentlist", "downtimelist"):
+        if isinstance(data.get(key), dict):
+            data[key] = scrub_annotations(data[key], renamer, limit)
     selectors = data.get("selectors")
     if isinstance(selectors, dict):
         for key in ("hostname", "servicedescription"):

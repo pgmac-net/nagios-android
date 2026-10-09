@@ -92,8 +92,9 @@ Measured against Nagios Core 4.5.9 with a read-only user (2026-10-09). Sanitised
 | Connect check, version | `statusjson.cgi?query=programstatus` |
 | Every host | `query=hostlist&details=true` |
 | Services in a problem state | `query=servicelist&details=true&servicestatus=warning critical unknown` |
-| Detail (M2) | `query=host` / `query=service` with `hostname` (and `servicedescription`) |
-| Comments / downtimes (M2) | `query=commentlist`, `query=downtimelist` |
+| Every service, name and state only | `query=servicelist` (no `details`) |
+| One record, for a detail screen | `query=host` / `query=service` with `hostname` (and `servicedescription`) |
+| Comments / downtimes for one object | `query=commentlist&details=true` / `query=downtimelist&details=true` with the same filters |
 
 Every list request also sends `formatoptions=enumerate` and is paged with `start` / `count`.
 
@@ -106,6 +107,15 @@ What the measurements showed:
 - **Errors arrive as HTTP 200** with a non-zero `result.type_code`. The body is always checked.
 - **List order is stable**: the same `start` / `count` window selects the same records with and without details.
 - **The CGI directory varies by install**; `/nagios/cgi-bin/` and `/cgi-bin/` were both seen.
+
+More measurements, from M2:
+
+- **A single record has exactly the fields of a list entry** (41 for a service, 39 for a host), so a detail screen needs no parser of its own.
+- **State-only lists are cheap**: about 2 KB for 48 hosts and 9 KB for 221 services, against roughly 370 KB for every service with details. So each poll lists every service by name and state, and fetches details only for hosts and for services in a problem state. Any other service's detail is fetched when its screen is opened.
+- **The host filter on comments and downtimes is not exact.** Asking for a host's comments returns its own **and** every comment on its services, mixed. The app filters again to the one object asked about.
+- **Comments accumulate.** Acknowledgement comments are persistent and are not cleaned up; one instance held three years of them. What is fetched is capped at the newest 200 per object, and what is cached at the newest 20.
+- **A downtime's `duration` is in seconds**, unlike the timestamps, which are milliseconds. This comes from Nagios Core's source (`json_status_downtime_details` in `cgi/statusjson.c`), not from a capture: the instance measured had no downtime scheduled, so the downtime fixture is hand-written to that function's fields.
+- **Percent signs arrive single.** Nagios doubles them internally because the string passes through `printf`, which turns them back.
 
 #### One bad record can crash the CGI
 
@@ -260,13 +270,21 @@ Behaviour for all tiers:
 ## 10. Data model (Room)
 
 - `profiles` (database `profiles.db`, since M1): name, base URL, remembered CGI directory, username, cleartext opt-in, Access client ID, and three secret columns holding ciphertext only: `password_enc`, `access_client_secret_enc`, and the values inside `custom_headers`. Secrets are AES-256-GCM under a non-exportable Android Keystore key (`SecretCipher`). The UI never reads a secret back: it shows "saved" and offers Replace. If the key is lost (device restore), the profile survives and its credentials have to be entered again.
-- `HostStatus`, `ServiceStatus`: profile id, names, state, state type, output, last check, duration, attempts, acknowledged, in-downtime, fetched-at
-- `PollResult`: profile id, time, success/failure class, counts
-- `NotifiedState`: profile id, object key, last notified state (for de-duplication and recovery notices)
 
-The status tables below arrive with M2; in M1 fetched status is held in memory only. Cache is replaced per poll for a profile; there is no history in v1.
+Status is cached in a second database, `status.db`, which is disposable where `profiles.db` is not ([ADR 0005](adr/0005-status-cache-in-a-separate-disposable-database.md)). There is no history in v1.
 
-Schema versions are exported to `app/schemas` and committed. There is no destructive-migration fallback: every schema change ships with a migration and a test for it.
+- `service_state`: every service's name and state, replaced wholesale by each poll.
+- `object_detail`: a detail record per host or service. A row is there because the latest poll included it (every host, and services in a problem state), or because the user opened it, or both; a row that is neither is deleted.
+- `comment`, `downtime`: for opened records only, and removed with them.
+- `poll_meta`: when each profile was last polled successfully.
+
+A poll is written in one transaction, so a killed process never leaves half of one. Everything is bounded per profile, because how much Nagios sends is Nagios' decision: lists cannot accumulate, opened records are limited to the 200 most recent, and comments and downtimes to 20 per object.
+
+On opening, the app shows the cached result at once, labelled with its age and marked stale past 30 minutes, then refreshes. Data is never hidden for being old. The chosen profile is remembered across restarts (DataStore).
+
+What notifications need to remember (the last state notified per object, for de-duplication and recovery notices) is decided in M4.
+
+Schema versions of both databases are exported to `app/schemas` and committed. `profiles.db` has no destructive-migration fallback: every change to it ships with a migration and a test. `status.db` is the opposite by design.
 
 ## 11. Security notes
 

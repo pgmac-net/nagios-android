@@ -3,8 +3,10 @@
 package net.pgmac.nagwatch.nagios
 
 import java.io.File
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,6 +65,29 @@ class FixtureLeakTest {
     }
 
     @Test
+    fun `every name and free-text field anywhere in a fixture is generic`() {
+        val offenders = fixtures.flatMap { file ->
+            strings(json(file)).mapNotNull { (key, value) ->
+                val allowed = when (key) {
+                    "host_name", "name" -> GENERIC_HOST.matches(value)
+
+                    "service_description", "description" ->
+                        value in GENERIC_SERVICES || GENERIC_SERVICE_OVERFLOW.matches(value)
+
+                    "author" -> value in GENERIC_AUTHORS
+
+                    "comment_data", "comment" -> value in GENERIC_COMMENTS
+
+                    else -> true
+                }
+                if (allowed) null else "${file.name}: $key \"$value\""
+            }
+        }
+
+        assertTrue("not sanitised: $offenders", offenders.isEmpty())
+    }
+
+    @Test
     fun `the authenticated user is the generic one`() {
         val offenders = fixtures.mapNotNull { file ->
             val user = (json(file)["result"] as? JsonObject)?.get("user")?.toString()?.trim('"')
@@ -76,6 +101,13 @@ class FixtureLeakTest {
 
     private fun keysOf(element: JsonElement?): Set<String> = (element as? JsonObject)?.keys.orEmpty()
 
+    /** Every string value in the document, with the key it sits under. */
+    private fun strings(element: JsonElement, key: String = ""): List<Pair<String, String>> = when (element) {
+        is JsonObject -> element.flatMap { (name, value) -> strings(value, name) }
+        is JsonArray -> element.flatMap { strings(it, key) }
+        is JsonPrimitive -> if (element.isString) listOf(key to element.content) else emptyList()
+    }
+
     private fun JsonObject?.orEmpty(): Map<String, JsonElement> = this ?: emptyMap()
 
     private companion object {
@@ -86,6 +118,17 @@ class FixtureLeakTest {
         val GENERIC_SERVICES = setOf(
             "PING", "SSH", "HTTP", "Disk /", "Load", "Memory", "Swap", "NTP",
             "DNS", "Processes", "Users", "Uptime", "Disk /var", "HTTPS certificate",
+        )
+
+        /** Keep these in step with AUTHOR, COMMENT_TEXT and DOWNTIME_TEXT in scripts/sanitise_fixtures.py. */
+        val GENERIC_AUTHORS = setOf("nagiosadmin", "(Nagios Process)")
+        val GENERIC_COMMENTS = setOf(
+            "Acknowledged: known issue, being worked on",
+            "Checked by hand, looks fine",
+            "This object has been scheduled for fixed downtime",
+            "Notifications are being suppressed because the object is flapping",
+            "Planned maintenance",
+            "Comment",
         )
 
         val FORBIDDEN = mapOf(

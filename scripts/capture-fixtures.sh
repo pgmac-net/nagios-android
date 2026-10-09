@@ -9,6 +9,11 @@
 #   NAGWATCH_URL=https://nagios.example.org/nagios/cgi-bin \
 #     scripts/capture-fixtures.sh /tmp/nagwatch-raw
 #
+# The detail and comment captures need one host and one of its services to ask
+# about. Pick ones that have comments, so the fixtures are worth having:
+#
+#   NAGWATCH_HOST=somehost NAGWATCH_SERVICE='Some service' ...
+#
 # Credentials come from ~/.config/nagwatch/dev.env (USER= and PASS= lines).
 # Use a read-only Nagios user: nothing here needs command authorisation.
 set -euo pipefail
@@ -35,9 +40,13 @@ chmod 600 "$config"
 # Passed by config file so the password never appears in the process list.
 printf 'user = "%s:%s"\n' "${user//\"/\\\"}" "${pass//\"/\\\"}" >"$config"
 
+# fetch NAME QUERY [key=value ...]: extra pairs are URL-encoded and appended.
 fetch() {
   local name="$1" query="$2"
-  curl --silent --show-error --fail --max-time 30 --config "$config" \
+  shift 2
+  local extra=()
+  for pair in "$@"; do extra+=(--data-urlencode "$pair"); done
+  curl --silent --show-error --fail --max-time 30 --config "$config" --get "${extra[@]}" \
     --output "$out/$name" "$url/statusjson.cgi?$query&formatoptions=enumerate"
   echo "captured $name"
 }
@@ -51,3 +60,12 @@ fetch servicelist_nodetails_single.json "query=servicelist&start=0&count=1"
 fetch servicelist_beyond_end.json "query=servicelist&details=true&start=100000&count=10"
 # Nagios reports this as HTTP 200 with a non-zero result.type_code.
 fetch error_invalid_option.json "query=nonsense"
+
+host="${NAGWATCH_HOST:?set NAGWATCH_HOST to a host that has comments}"
+service="${NAGWATCH_SERVICE:?set NAGWATCH_SERVICE to one of its services that has comments}"
+fetch host_detail.json "query=host" "hostname=$host"
+fetch service_detail.json "query=service" "hostname=$host" "servicedescription=$service"
+# Filtering by host returns the host's comments and its services' comments together.
+fetch commentlist_by_host.json "query=commentlist&details=true" "hostname=$host"
+fetch commentlist_by_service.json "query=commentlist&details=true" "hostname=$host" "servicedescription=$service"
+fetch downtimelist_by_host.json "query=downtimelist&details=true" "hostname=$host"

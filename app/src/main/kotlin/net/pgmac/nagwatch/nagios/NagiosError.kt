@@ -65,6 +65,11 @@ sealed interface NagiosResult<out T> {
     data class Failure(val error: NagiosError) : NagiosResult<Nothing>
 }
 
+internal inline fun <T, R> NagiosResult<T>.flatMap(transform: (T) -> NagiosResult<R>): NagiosResult<R> = when (this) {
+    is NagiosResult.Success -> transform(value)
+    is NagiosResult.Failure -> this
+}
+
 internal inline fun <T, R> NagiosResult<T>.map(transform: (T) -> R): NagiosResult<R> = when (this) {
     is NagiosResult.Success -> NagiosResult.Success(transform(value))
     is NagiosResult.Failure -> this

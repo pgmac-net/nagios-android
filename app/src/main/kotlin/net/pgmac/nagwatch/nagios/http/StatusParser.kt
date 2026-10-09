@@ -2,13 +2,7 @@
 
 package net.pgmac.nagwatch.nagios.http
 
-import java.time.Instant
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.longOrNull
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
@@ -65,6 +59,26 @@ internal object StatusParser {
             }
         }
 
+    /**
+     * `data.service` from `query=service`: one detail object, the same shape as a list entry.
+     * Null when the response holds no such object.
+     */
+    fun service(body: JsonObject): ServiceStatus? {
+        val entry = body.obj("data")["service"] as? JsonObject ?: return null
+        return ServiceStatus(
+            hostName = entry.string("host_name"),
+            description = entry.string("description"),
+            state = serviceState(entry.string("status")),
+            check = check(entry),
+        )
+    }
+
+    /** `data.host` from `query=host`. */
+    fun host(body: JsonObject): HostStatus? {
+        val entry = body.obj("data")["host"] as? JsonObject ?: return null
+        return HostStatus(entry.string("name"), hostState(entry.string("status")), check(entry))
+    }
+
     private fun check(entry: JsonObject) = CheckStatus(
         stateType = if (entry.string(
                 "state_type",
@@ -75,14 +89,19 @@ internal object StatusParser {
             StateType.HARD
         },
         pluginOutput = entry.string("plugin_output"),
+        longOutput = entry.string("long_plugin_output"),
+        perfData = entry.string("perf_data"),
         currentAttempt = entry.int("current_attempt"),
         maxAttempts = entry.int("max_attempts"),
         lastCheck = entry.instant("last_check"),
+        nextCheck = entry.instant("next_check"),
         lastStateChange = entry.instant("last_state_change"),
         acknowledged = entry.boolean("problem_has_been_acknowledged", default = false),
         downtimeDepth = entry.int("scheduled_downtime_depth"),
         checksEnabled = entry.boolean("checks_enabled", default = true),
         notificationsEnabled = entry.boolean("notifications_enabled", default = true),
+        activeCheck = !entry.string("check_type").equals("passive", ignoreCase = true),
+        flapping = entry.boolean("is_flapping", default = false),
     )
 
     /** An unrecognised state is surfaced as a problem, never silently treated as fine. */
@@ -103,21 +122,4 @@ internal object StatusParser {
     }
 
     private val DEGRADED = CheckStatus(detailsAvailable = false)
-
-    private fun JsonObject?.orEmpty(): Map<String, JsonElement> = this ?: emptyMap()
-
-    private fun JsonObject.obj(key: String): JsonObject = this[key] as? JsonObject ?: JsonObject(emptyMap())
-
-    private fun JsonElement.word(): String = (this as? JsonPrimitive)?.content.orEmpty()
-
-    private fun JsonObject.string(key: String): String = (this[key] as? JsonPrimitive)?.content.orEmpty()
-
-    private fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
-
-    private fun JsonObject.boolean(key: String, default: Boolean): Boolean =
-        (this[key] as? JsonPrimitive)?.booleanOrNull ?: default
-
-    /** Nagios sends epoch milliseconds, and 0 for "never". */
-    private fun JsonObject.instant(key: String): Instant? =
-        (this[key] as? JsonPrimitive)?.longOrNull?.takeIf { it > 0 }?.let(Instant::ofEpochMilli)
 }
