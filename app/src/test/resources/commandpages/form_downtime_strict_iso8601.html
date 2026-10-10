@@ -1,0 +1,97 @@
+<html>
+<head>
+<link rel="shortcut icon" href="/nagios/images/favicon.ico" type="image/ico">
+<title>
+External Command Interface
+</title>
+<LINK REL='stylesheet' TYPE='text/css' HREF='/nagios/stylesheets/common.css'>
+<LINK REL='stylesheet' TYPE='text/css' HREF='/nagios/stylesheets/cmd.css'>
+</head>
+<body CLASS='cmd'>
+
+<!-- Produced by Nagios (https://www.nagios.org).  Copyright (c) 1999-2007 Ethan Galstad. -->
+<script type="text/javascript" src="/nagiosgraph/nagiosgraph.js"></script>
+<table border=0 width=100%>
+<tr>
+<td align=left valign=top width=33%>
+<TABLE CLASS='infoBox' BORDER=1 CELLSPACING=0 CELLPADDING=0>
+<TR><TD CLASS='infoBox'>
+<DIV CLASS='infoBoxTitle'>External Command Interface</DIV>
+Last Updated: Sat Oct 10 13:35:46 UTC 2026<BR>
+Nagios&reg; Core&trade; 4.5.3 - <A HREF='https://www.nagios.org' TARGET='_new' REL='nofollow' CLASS='homepageURL'>www.nagios.org</A><BR>
+Logged in as <i>operator</i><BR>
+</TD></TR>
+</TABLE>
+</td>
+<td align=center valign=top width=33%>
+</td>
+<td align=right valign=bottom width=33%>
+</td>
+</tr>
+</table>
+<P><DIV ALIGN=CENTER CLASS='cmdType'>You are requesting to schedule downtime for a particular service</DIV></p>
+<p>
+<div align='center'>
+<table border=0 width=90%>
+<tr>
+<td align=center valign=top>
+<DIV ALIGN=CENTER CLASS='optBoxTitle'>Command Options</DIV>
+<TABLE CELLSPACING=0 CELLPADDING=0 BORDER=1 CLASS='optBox'>
+<TR><TD CLASS='optBoxItem'>
+<form method='post' action='cmd.cgi'>
+<TABLE CELLSPACING=0 CELLPADDING=0 CLASS='optBox'>
+<tr><td><INPUT TYPE='HIDDEN' NAME='cmd_typ' VALUE='56'><INPUT TYPE='HIDDEN' NAME='cmd_mod' VALUE='2'></td></tr>
+<tr><td CLASS='optBoxRequiredItem'>Host Name:</td><td><b><INPUT TYPE='TEXT' NAME='host' VALUE='web01'></b></td></tr>
+<tr><td CLASS='optBoxRequiredItem'>Service:</td><td><b><INPUT TYPE='TEXT' NAME='service' VALUE='Disk &#47;'><tr><td CLASS='optBoxRequiredItem'>Author (Your Name):</td><td><b><INPUT TYPE='TEXT' NAME='com_author' VALUE='Test Operator' READONLY DISABLED></b></td></tr>
+<tr><td CLASS='optBoxRequiredItem'>Comment:</td><td><b><INPUT TYPE='TEXT' NAME='com_data' VALUE='' SIZE=40></b></td></tr>
+<tr><td CLASS='optBoxItem'><br></td></tr>
+<tr><td CLASS='optBoxItem'>Triggered By:</td><td>
+<select name='trigger'>
+<option value='0'>N/A
+</select>
+</td></tr>
+<tr><td CLASS='optBoxItem'><br></td></tr>
+<tr><td CLASS='optBoxRequiredItem'>Start Time:</td><td><b><INPUT TYPE='TEXT' NAME='start_time' VALUE='2026-10-10T13:35:46'></b></td></tr>
+<tr><td CLASS='optBoxRequiredItem'>End Time:</td><td><b><INPUT TYPE='TEXT' NAME='end_time' VALUE='2026-10-10T15:35:46'></b></td></tr>
+<tr><td CLASS='optBoxItem'>Type:</td><td><b><SELECT NAME='fixed'><OPTION VALUE=1>Fixed
+<OPTION VALUE=0>Flexible
+</SELECT>
+</b></td></tr>
+<tr><td CLASS='optBoxItem'>If Flexible, Duration:</td><td><table border=0><tr>
+<td align=right><INPUT TYPE='TEXT' NAME='hours' VALUE='2' SIZE=2 MAXLENGTH=2></td>
+<td align=left>Hours</td>
+<td align=right><INPUT TYPE='TEXT' NAME='minutes' VALUE='0' SIZE=2 MAXLENGTH=2></td>
+<td align=left>Minutes</td>
+</tr></table>
+</td></tr>
+<tr><td CLASS='optBoxItem'><br></td></tr>
+<tr><td CLASS='optBoxItem'><br></td></tr>
+<tr><td CLASS='optBoxItem' COLSPAN=2></td></tr>
+<tr><td CLASS='optBoxItem'></td><td CLASS='optBoxItem'><INPUT TYPE='submit' NAME='btnSubmit' VALUE='Commit'> <INPUT TYPE='reset' VALUE='Reset'></td></tr>
+</table>
+</form>
+</td>
+</tr>
+</table>
+</td>
+<td align=center valign=top width=50%>
+<DIV ALIGN=CENTER CLASS='descriptionTitle'>Command Description</DIV>
+<TABLE BORDER=1 CELLSPACING=0 CELLPADDING=0 CLASS='commandDescription'>
+<TR><TD CLASS='commandDescription'>
+This command is used to schedule downtime for a particular service.  During the specified downtime, Nagios will not send notifications out about the service.
+When the scheduled downtime expires, Nagios will send out notifications for this service as it normally would.  Scheduled downtimes are preserved
+across program shutdowns and restarts.  Both the start and end times should be specified in the following format:  <b>mm/dd/yyyy hh:mm:ss</b>.
+If you select the <i>fixed</i> option, the downtime will be in effect between the start and end times you specify.  If you do not select the <i>fixed</i>
+option, Nagios will treat this as "flexible" downtime.  Flexible downtime starts when the service enters a non-OK state (sometime between the
+start and end times you specified) and lasts as long as the duration of time you enter.  The duration fields do not apply for fixed downtime.
+</TD></TR>
+</TABLE>
+</td>
+</tr>
+</table>
+</div>
+</p>
+<P><DIV CLASS='infoMessage'>Please enter all required information before committing the command.<br>Required fields are marked in red.<br>Failure to supply all required values will result in an error.</DIV></P>
+<!-- Produced by Nagios (https://www.nagios.org).  Copyright (c) 1999-2007 Ethan Galstad. -->
+</body>
+</html>

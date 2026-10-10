@@ -3,11 +3,14 @@
 package net.pgmac.nagwatch.nagios
 
 import java.time.Clock
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.json.Json
+import net.pgmac.nagwatch.nagios.command.CommandClient
+import net.pgmac.nagwatch.nagios.command.OkHttpCommandClient
 import net.pgmac.nagwatch.nagios.http.AnnotationParser
 import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
 import net.pgmac.nagwatch.nagios.http.NagiosApi
@@ -21,6 +24,7 @@ import net.pgmac.nagwatch.nagios.model.ServerInfo
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import okhttp3.ConnectionPool
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 
@@ -75,6 +79,29 @@ class NagiosClientFactory internal constructor(
             .build()
         return OkHttpNagiosClient(settings, NagiosApi(client, json, io), clock)
     }
+
+    /**
+     * A client for sending commands to the same instance.
+     *
+     * Built apart from the reading client because it must behave differently on the wire:
+     * no retries, and a fresh connection for every request. OkHttp will otherwise re-send a
+     * request when a pooled connection turns out to be dead, which is right for a read and
+     * wrong for an acknowledgement. Everything else (credentials only to the configured
+     * origin, no redirects, the cleartext rules) is the same interceptor.
+     */
+    fun createCommands(settings: ConnectionSettings): CommandClient {
+        val client = baseClient.newBuilder()
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .retryOnConnectionFailure(false)
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
+            .addInterceptor(ConnectionInterceptor(settings))
+            .build()
+        val api = NagiosApi(client, json, io)
+        // Finding the CGI directory is a read, and is done the way reads are done.
+        val reader = create(settings) as OkHttpNagiosClient
+        return OkHttpCommandClient(settings, api, reader::cgiBase)
+    }
 }
 
 internal class OkHttpNagiosClient(
@@ -128,6 +155,9 @@ internal class OkHttpNagiosClient(
             AnnotationParser.downtimes(body, ref).take(NagiosClient.MAX_ANNOTATIONS)
         }
     }
+
+    /** The CGI directory, finding it first if this client has not yet. */
+    suspend fun cgiBase(): NagiosResult<HttpUrl> = withBase { NagiosResult.Success(it) }
 
     /** Runs [block] against the CGI directory, finding it first if this client has not yet. */
     private suspend fun <T> withBase(block: suspend (HttpUrl) -> NagiosResult<T>): NagiosResult<T> {

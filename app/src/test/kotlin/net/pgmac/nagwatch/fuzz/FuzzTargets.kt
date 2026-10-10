@@ -21,6 +21,12 @@ object StatusParserFuzzTarget {
     fun fuzzerTestOneInput(data: ByteArray) = FuzzEntryPoints.statusParser(data)
 }
 
+/** Reading the HTML pages `cmd.cgi` answers with, and the clock read from them. */
+object CommandPageFuzzTarget {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray) = FuzzEntryPoints.commandPage(data)
+}
+
 /** The parsers for comments and downtimes. */
 object AnnotationParserFuzzTarget {
     @JvmStatic

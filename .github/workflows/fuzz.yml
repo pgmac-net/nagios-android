@@ -35,7 +35,7 @@ jobs:
       # One target finding a crash must not hide what the others would have found.
       fail-fast: false
       matrix:
-        target: [ResponseBody, StatusParser, AnnotationParser]
+        target: [ResponseBody, StatusParser, AnnotationParser, CommandPage]
     env:
       # 10 minutes each weekly, 1 minute on a pull request, or what a manual run asked for.
       FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '600' || inputs.seconds || '60' }}

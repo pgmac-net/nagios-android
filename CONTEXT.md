@@ -52,6 +52,34 @@ _Avoid_: Old, outdated
 The last poll failed to get a valid response from the profile's Nagios. Distinct from OK and from stale.
 _Avoid_: Offline, down (down = host state)
 
+**Command**:
+Something the app asks Nagios to do: acknowledge, remove an acknowledgement, add a comment, force a check, schedule a downtime, cancel a downtime. The only writes the app makes.
+_Avoid_: Action (the button), request
+
+**Accepted**:
+Nagios took a command and wrote it to its command file. Not the same as carried out: Nagios acts on it later, and may drop it.
+_Avoid_: Done, succeeded, sent successfully
+
+**Confirmed**:
+The app re-read the object after a command and saw its effect. The only state reported as done.
+_Avoid_: Successful
+
+**Refused**:
+Nagios answered a command and said no, with a reason the app can name.
+_Avoid_: Failed (which also covers "never arrived" and "nobody knows")
+
+**Unknown (outcome)**:
+A command may or may not have reached Nagios, or the answer said neither yes nor no. Never shown as success or as failure; the thing to do is look.
+_Avoid_: Error, timeout
+
+**Read-only user**:
+A Nagios user the CGIs will take no commands from, for any object. Knowable in advance, unlike not being authorised for one particular object.
+_Avoid_: Viewer, guest
+
+**Server clock**:
+How one Nagios server writes and reads a time: its date format and its offset from UTC. Learned from the server each time, never assumed.
+_Avoid_: Timezone setting, locale
+
 **Status cache**:
 The last poll of each profile and the detail of objects the user has opened, kept on disk so the app has something to show before the network answers and when there is none. Disposable: everything in it can be fetched again.
 _Avoid_: Database (that is where profiles live), history

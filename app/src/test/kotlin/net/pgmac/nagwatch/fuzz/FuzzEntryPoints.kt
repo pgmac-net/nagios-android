@@ -6,6 +6,9 @@ import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import net.pgmac.nagwatch.nagios.ProblemClassifier
+import net.pgmac.nagwatch.nagios.command.CommandPage
+import net.pgmac.nagwatch.nagios.command.ServerClock
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.http.AnnotationParser
 import net.pgmac.nagwatch.nagios.http.StatusParser
 import net.pgmac.nagwatch.nagios.http.interpretResponseBody
@@ -29,6 +32,10 @@ import net.pgmac.nagwatch.nagios.model.StatusSnapshot
 object FuzzEntryPoints {
     // As in production (di/NetworkModule.kt).
     private val json = Json { ignoreUnknownKeys = true }
+    private const val BYTE = 0xFFL
+
+    /** Keeps the stand-in clock within the years `Instant` can hold. */
+    private const val MAX_EPOCH = 100_000_000_000L
 
     /** Text to "is this Nagios, and did it succeed": the first thing every response meets. */
     @JvmStatic
@@ -64,6 +71,33 @@ object FuzzEntryPoints {
             AnnotationParser.comments(body, target)
             AnnotationParser.downtimes(body, target)
         }
+    }
+
+    /**
+     * A page from `cmd.cgi`: every question the app asks of one, and the server clock worked
+     * out from whatever times it shows. The first eight bytes stand in for the server's JSON
+     * clock, so that the comparison between the two is exercised and not only the parsing.
+     */
+    @JvmStatic
+    fun commandPage(data: ByteArray) {
+        val serverNow = Instant.ofEpochSecond(
+            data.take(Long.SIZE_BYTES).fold(0L) { acc, b ->
+                (acc shl 8) or (b.toLong() and BYTE)
+            } % MAX_EPOCH,
+        )
+        val html = String(data, Charsets.UTF_8)
+        CommandPage.result(html)
+        CommandPage.isReadOnly(html)
+        CommandPage.isForm(html)
+        val start = CommandPage.field(html, "start_time") ?: return
+        val end = CommandPage.field(html, "end_time")
+        for (remembered in ServerDateFormat.entries + null) {
+            val clock = ServerClock.read(start, end, serverNow, remembered) ?: continue
+            clock.format(serverNow)
+            clock.format(Instant.EPOCH)
+        }
+        // Whatever the page says the time is, taken at its word.
+        ServerDateFormat.entries.forEach { format -> ServerClock.read(start, end, Instant.EPOCH, format) }
     }
 
     // The parse production uses, so the parsers are handed exactly what they would be handed.
