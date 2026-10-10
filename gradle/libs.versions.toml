@@ -25,6 +25,19 @@ lifecycle = "2.11.0"
 hiltCompose = "1.4.0"
 datastore = "1.2.1"
 
+# Security floors. None of these is a dependency of the app, and none is in the APK.
+# They are libraries that build tools bring with them (the Android Gradle plugin, its
+# lint tool, ktlint) where the tool's latest release still asks for a version with a
+# known vulnerability. The build raises them to these versions; see the "floor-"
+# libraries below and docs/development.md. Each can go once its tool catches up.
+floorBouncycastle = "1.85"
+floorCommonsLang3 = "3.18.0"
+floorHttpclient = "4.5.14"
+floorJdom2 = "2.0.6.1"
+floorJose4j = "0.9.6"
+floorLogback = "1.5.34"
+floorPlexusUtils = "3.6.1"
+
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -55,7 +68,21 @@ lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel
 lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-viewmodel-compose", version.ref = "hiltCompose" }
 
+# Security floors (see the versions above). Bouncy Castle and logback are each a family
+# released together, so every member in use is raised, not only the one with the advisory.
+floor-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "floorBouncycastle" }
+floor-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "floorBouncycastle" }
+floor-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "floorBouncycastle" }
+floor-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "floorCommonsLang3" }
+floor-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "floorHttpclient" }
+floor-jdom2 = { module = "org.jdom:jdom2", version.ref = "floorJdom2" }
+floor-jose4j = { module = "org.bitbucket.b_c:jose4j", version.ref = "floorJose4j" }
+floor-logback-core = { module = "ch.qos.logback:logback-core", version.ref = "floorLogback" }
+floor-logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "floorLogback" }
+floor-plexus-utils = { module = "org.codehaus.plexus:plexus-utils", version.ref = "floorPlexusUtils" }
+
 [plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
