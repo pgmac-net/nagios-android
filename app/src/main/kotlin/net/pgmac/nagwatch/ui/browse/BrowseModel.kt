@@ -41,9 +41,9 @@ data class BrowseRow<S>(
 /**
  * What the user has asked to see. An empty [states] means every state.
  *
- * Handled problems are shown unless switched off. These lists are for finding
- * something by name, and a host that vanished when it was acknowledged would
- * look like a host that is not monitored. The Problems tab is the opposite.
+ * Handled problems are shown unless switched off: a host that vanished when
+ * it was acknowledged would look like a host that is not monitored. The
+ * Problems tab is the opposite.
  */
 data class BrowseFilter<S>(val query: String = "", val states: Set<S> = emptySet(), val showHandled: Boolean = true)
 
@@ -67,7 +67,14 @@ fun <S> BrowseFilter<S>.apply(all: List<BrowseRow<S>>): BrowseView<S> {
     )
 }
 
-/** Turns a poll into list rows, by name: these lists are for looking something up. */
+/**
+ * Turns a poll into list rows, worst first.
+ *
+ * Order: by severity (for services CRITICAL, WARNING, UNKNOWN, then PENDING and
+ * OK; for hosts DOWN, UNREACHABLE, then PENDING and UP). Within a severity the
+ * unhandled come before the handled, so what still needs someone is on top and
+ * an acknowledged critical still outranks any warning. Then by name.
+ */
 object BrowseRows {
     fun hosts(snapshot: StatusSnapshot, report: ProblemReport): List<BrowseRow<HostState>> {
         val problems = report.hostProblems().associateBy { it.host.name }
@@ -82,7 +89,7 @@ object BrowseRows {
                     markers = ProblemClassifier.markersOf(host.check),
                 )
             }
-            .sortedWith(ORDER)
+            .sortedWith(order(HOST_SEVERITY))
     }
 
     /**
@@ -106,7 +113,7 @@ object BrowseRows {
                     markers = problem?.markers.orEmpty(),
                 )
             }
-            .sortedWith(ORDER)
+            .sortedWith(order(SERVICE_SEVERITY))
     }
 
     private fun ProblemReport.hostProblems(): List<HostProblem> = (unhandled + handled).filterIsInstance<HostProblem>()
@@ -119,7 +126,19 @@ object BrowseRows {
         }
     }
 
-    private val ORDER: Comparator<BrowseRow<*>> =
-        compareBy<BrowseRow<*>, String>(String.CASE_INSENSITIVE_ORDER) { it.hostName }
+    /** Worst first. */
+    private val HOST_SEVERITY = listOf(HostState.DOWN, HostState.UNREACHABLE, HostState.PENDING, HostState.UP)
+    private val SERVICE_SEVERITY = listOf(
+        ServiceState.CRITICAL,
+        ServiceState.WARNING,
+        ServiceState.UNKNOWN,
+        ServiceState.PENDING,
+        ServiceState.OK,
+    )
+
+    private fun <S> order(severity: List<S>): Comparator<BrowseRow<S>> =
+        compareBy<BrowseRow<S>> { severity.indexOf(it.state) }
+            .thenBy { it.isHandled }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.hostName }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.service.orEmpty() }
 }

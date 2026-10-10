@@ -188,10 +188,10 @@ Searchable lists with state-filter chips (OK, WARN, CRIT, UNKN, PENDING; UP, DOW
 
 How M2 implements them:
 
-- **Sorted by name**, hosts by host name and services by host then check name, ignoring case. These lists are for finding something; the Problems tab is the one sorted by urgency.
+- **Sorted worst first**: services CRITICAL, WARNING, UNKNOWN, then PENDING and OK; hosts DOWN, UNREACHABLE, then PENDING and UP. Within a severity the unhandled come before the handled, so an acknowledged critical sits below the criticals nobody has dealt with and above every warning. Then by name, ignoring case.
 - **Search** is a plain, case-insensitive substring match, taken literally. On Services it matches the host name as well as the check name.
 - **Chips** carry a count ("CRIT (3)") and several can be on at once. The count follows the search and the handled switch but not the other chips, so a chip always says what tapping it would show. PENDING only has a chip while something is pending.
-- **Handled problems are shown by default** here, the opposite of the Problems tab, and a "Handled (N)" chip switches them off. A host that vanished from the list when someone acknowledged it would look like a host that is not monitored. The chip only appears when there is something handled to hide.
+- **Handled problems are shown by default** here, the opposite of the Problems tab, at the end of their severity, and a "Handled (N)" chip switches them off. A host that vanished from the list when someone acknowledged it would look like a host that is not monitored. The chip only appears when there is something handled to hide.
 - **A service that is OK shows its name and state and nothing else.** Each poll lists every service by name and state and fetches details only for those with a problem (section 5), so output and "how long for" are there for problems and for every host, and for other services only once opened.
 - **Each tab keeps its own search, chips and scroll position** while another tab is shown. Switching profile starts them afresh.
 - The time of the data and the stale, failed and "details unavailable" banners are the same on every tab.

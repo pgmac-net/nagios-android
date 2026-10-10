@@ -21,10 +21,77 @@ import org.junit.Test
 
 class BrowseModelTest {
     @Test
-    fun `hosts are listed by name whatever their state, ignoring case`() {
-        val rows = hostRows(host("web02"), host("Db01", HostState.DOWN), host("app01"))
+    fun `hosts are listed worst first, then by name ignoring case`() {
+        val rows = hostRows(
+            host("web02"),
+            host("Db01"),
+            host("new", HostState.PENDING),
+            host("far", HostState.UNREACHABLE),
+            host("zed", HostState.DOWN),
+            host("app01", HostState.DOWN),
+        )
 
-        assertEquals(listOf("app01", "Db01", "web02"), rows.map { it.title })
+        assertEquals(listOf("app01", "zed", "far", "new", "Db01", "web02"), rows.map { it.title })
+    }
+
+    @Test
+    fun `services are listed critical, warning, unknown, then the rest`() {
+        val rows = serviceRows(
+            states = listOf(
+                state("a", "ok", ServiceState.OK),
+                state("a", "pending", ServiceState.PENDING),
+                state("a", "unknown", ServiceState.UNKNOWN),
+                state("a", "warning", ServiceState.WARNING),
+                state("a", "critical", ServiceState.CRITICAL),
+            ),
+            problems = listOf(
+                service("a", "unknown", ServiceState.UNKNOWN),
+                service("a", "warning", ServiceState.WARNING),
+                service("a", "critical", ServiceState.CRITICAL),
+            ),
+        )
+
+        assertEquals(listOf("critical", "warning", "unknown", "pending", "ok"), rows.map { it.service })
+    }
+
+    @Test
+    fun `within a severity the handled come last, and still outrank the next severity`() {
+        val acked = CheckStatus(acknowledged = true)
+        val rows = serviceRows(
+            states = listOf(
+                state("a", "warn", ServiceState.WARNING),
+                state("a", "crit acked", ServiceState.CRITICAL),
+                state("b", "crit", ServiceState.CRITICAL),
+                state("a", "warn in downtime", ServiceState.WARNING),
+                state("z", "crit", ServiceState.CRITICAL),
+            ),
+            problems = listOf(
+                service("a", "warn", ServiceState.WARNING),
+                service("a", "crit acked", ServiceState.CRITICAL, acked),
+                service("b", "crit", ServiceState.CRITICAL),
+                service("a", "warn in downtime", ServiceState.WARNING, CheckStatus(downtimeDepth = 1)),
+                service("z", "crit", ServiceState.CRITICAL),
+            ),
+        )
+
+        assertEquals(
+            listOf("b / crit", "z / crit", "a / crit acked", "a / warn", "a / warn in downtime"),
+            rows.map { it.title },
+        )
+    }
+
+    @Test
+    fun `a problem whose details are missing is unhandled as far as anyone knows, so it sorts with them`() {
+        // The cheap list says critical; the detailed list has not caught up.
+        val rows = serviceRows(
+            states = listOf(
+                state("a", "no details", ServiceState.CRITICAL),
+                state("a", "acked", ServiceState.CRITICAL),
+            ),
+            problems = listOf(service("a", "acked", ServiceState.CRITICAL, CheckStatus(acknowledged = true))),
+        )
+
+        assertEquals(listOf("no details", "acked"), rows.map { it.service })
     }
 
     @Test
@@ -157,7 +224,7 @@ class BrowseModelTest {
         val shown = BrowseFilter<HostState>().apply(rows)
         val hidden = BrowseFilter<HostState>(showHandled = false).apply(rows)
 
-        assertEquals(listOf("acked", "down", "up"), shown.rows.map { it.title })
+        assertEquals(listOf("down", "acked", "up"), shown.rows.map { it.title })
         assertEquals(listOf("down", "up"), hidden.rows.map { it.title })
         assertEquals(1, hidden.handledCount)
         assertEquals("the hidden one is not in the chip count", 1, hidden.counts[HostState.DOWN])
