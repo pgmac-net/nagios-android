@@ -81,6 +81,28 @@ kotlin {
     }
 }
 
+// Tools that run during the build have classpaths of their own, separate from the app's
+// and from the build script's. The same security floors are applied to them here.
+// See "Security floors" in docs/development.md.
+val toolFloors = mapOf(
+    "androidLintTool" to listOf(
+        libs.floor.bcprov,
+        libs.floor.bcpkix,
+        libs.floor.bcutil,
+        libs.floor.commons.lang3,
+        libs.floor.httpclient,
+    ),
+    "ktlint" to listOf(libs.floor.logback.core, libs.floor.logback.classic),
+)
+configurations.matching { it.name in toolFloors }.configureEach {
+    val configurationName = name
+    toolFloors.getValue(configurationName).forEach { floor ->
+        project.dependencies.constraints.add(configurationName, floor) {
+            because("security floor: the tool asks for a version with a known vulnerability")
+        }
+    }
+}
+
 // Locked so builds are reproducible and the FOSS checks see a fixed graph.
 // Refresh with: ./gradlew :app:resolveAndLockAll --write-locks
 // The self-test deliberately adds an unlocked, banned dependency.
