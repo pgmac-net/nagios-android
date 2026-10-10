@@ -8,10 +8,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Duration
 import javax.inject.Inject
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -27,6 +31,21 @@ class ProblemsViewModel @Inject constructor(
     private val selectedProfile: SelectedProfile,
 ) : ViewModel() {
     private val filter = MutableStateFlow(emptySet<ProblemKind>())
+
+    /** The profile on screen: the remembered one if it still exists, otherwise the first. */
+    private val shownProfileId: Flow<Long?> =
+        combine(profiles.observeProfiles(), selectedProfile.id) { all, requested -> selectProfile(all, requested)?.id }
+            .distinctUntilChanged()
+
+    init {
+        // Loading is driven by *which profile is shown*, not by the screen asking at the right
+        // moment. On a cold start the screen starts before the profiles have been read, so a
+        // refresh requested then finds no profile and does nothing; this is what loads the data
+        // once the profile is known, and again whenever it changes.
+        viewModelScope.launch {
+            shownProfileId.filterNotNull().collectLatest { id -> statuses.refreshIfOlderThan(id, RESUME_MAX_AGE) }
+        }
+    }
 
     /** Ticks so ages ("2h 04m") and staleness keep moving while the screen is open. */
     private val clock = flow {
@@ -54,12 +73,10 @@ class ProblemsViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ProblemsUiState())
 
+    /** Choosing a profile is all this does; showing a different profile is what loads it. */
     fun select(profileId: Long) {
         filter.value = emptySet()
-        viewModelScope.launch {
-            selectedProfile.select(profileId)
-            statuses.refreshIfOlderThan(profileId, RESUME_MAX_AGE)
-        }
+        viewModelScope.launch { selectedProfile.select(profileId) }
     }
 
     fun toggleFilter(kind: ProblemKind) = filter.update { if (kind in it) it - kind else it + kind }
@@ -71,8 +88,8 @@ class ProblemsViewModel @Inject constructor(
     }
 
     /**
-     * On opening the screen and on returning to it: shows what is cached straight away,
-     * then fetches only if that is old.
+     * On returning to the screen: fetches only if what is held is old. The first load does
+     * not depend on this; see `init`.
      */
     fun refreshIfNeeded(profileId: Long? = state.value.selected?.id) {
         val id = profileId ?: return

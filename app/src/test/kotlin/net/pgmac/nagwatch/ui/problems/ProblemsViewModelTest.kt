@@ -27,6 +27,7 @@ import net.pgmac.nagwatch.status.StatusRepository
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.cache.StatusCache
 import net.pgmac.nagwatch.status.criticalService
+import net.pgmac.nagwatch.status.failure
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
 import net.pgmac.nagwatch.status.provider
 import net.pgmac.nagwatch.status.snapshot
@@ -67,6 +68,53 @@ class ProblemsViewModelTest {
 
         assertNull(state.selected)
         assertTrue(state.profiles.isEmpty())
+    }
+
+    @Test
+    fun `a cold start with a saved profile loads by itself, without the screen asking`() {
+        // The bug this guards against: the screen asked for a refresh as it started, before
+        // the profiles had been read, so nothing was selected yet and nothing ever loaded.
+        saveProfile("Home")
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        val state = viewModel().awaitState { it.status?.report != null }
+
+        assertEquals(1, state.status?.report?.counts?.critical)
+        assertEquals(1, client.fetches)
+    }
+
+    @Test
+    fun `a cold start shows the cached result before the network answers`() {
+        val id = saveProfile("Home")
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+        runBlocking { statuses.refresh(id) }
+        // A new process: an empty repository over the same cache, and a server that fails.
+        val offline = FakeClient(statusResult = { failure() })
+        val restarted =
+            ProblemsViewModel(
+                profiles,
+                StatusRepository(profiles, provider(offline), cache, clock),
+                FakeSelectedProfile(),
+            )
+        clock.advance(java.time.Duration.ofMinutes(5))
+
+        val state = restarted.awaitState { it.status?.report != null }
+
+        assertEquals("the cached critical is on screen", 1, state.status?.report?.counts?.critical)
+    }
+
+    @Test
+    fun `choosing another profile loads it`() {
+        saveProfile("Home")
+        val office = saveProfile("Office")
+        val viewModel = viewModel()
+        viewModel.awaitState { it.status?.report != null }
+
+        viewModel.select(office)
+
+        val state = viewModel.awaitState { it.selected?.id == office && it.status?.report != null }
+        assertEquals(office, state.selected?.id)
+        assertEquals("one fetch for each profile", 2, client.fetches)
     }
 
     @Test
