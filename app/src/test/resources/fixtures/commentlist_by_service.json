@@ -1,0 +1,34 @@
+{
+  "format_version": 0,
+  "result": {
+    "query_time": 1791586247000,
+    "cgi": "statusjson.cgi",
+    "user": "nagwatch",
+    "query": "commentlist",
+    "query_status": "released",
+    "program_start": 1791577407000,
+    "last_data_update": 1791586242000,
+    "type_code": 0,
+    "type_text": "Success",
+    "message": ""
+  },
+  "data": {
+    "selectors": {},
+    "commentlist": {
+      "649": {
+        "comment_id": 649,
+        "comment_type": "service",
+        "entry_type": "acknowledgement",
+        "source": 0,
+        "persistent": true,
+        "entry_time": 1725576149000,
+        "expires": false,
+        "expire_time": 0,
+        "host_name": "host12",
+        "service_description": "Memory",
+        "author": "nagiosadmin",
+        "comment_data": "Acknowledged: known issue, being worked on"
+      }
+    }
+  }
+}

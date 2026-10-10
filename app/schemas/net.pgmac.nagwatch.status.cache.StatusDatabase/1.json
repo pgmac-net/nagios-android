@@ -1,0 +1,390 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "387efcdf28e27b3a542e810bbc83a2d1",
+    "entities": [
+      {
+        "tableName": "service_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` INTEGER NOT NULL, `host_name` TEXT NOT NULL, `description` TEXT NOT NULL, `state` TEXT NOT NULL, PRIMARY KEY(`profile_id`, `host_name`, `description`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hostName",
+            "columnName": "host_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "host_name",
+            "description"
+          ]
+        }
+      },
+      {
+        "tableName": "object_detail",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` INTEGER NOT NULL, `host_name` TEXT NOT NULL, `description` TEXT NOT NULL, `is_host` INTEGER NOT NULL, `state` TEXT NOT NULL, `state_type` TEXT NOT NULL, `output` TEXT NOT NULL, `long_output` TEXT NOT NULL, `perf_data` TEXT NOT NULL, `current_attempt` INTEGER NOT NULL, `max_attempts` INTEGER NOT NULL, `last_check` INTEGER, `next_check` INTEGER, `last_state_change` INTEGER, `acknowledged` INTEGER NOT NULL, `downtime_depth` INTEGER NOT NULL, `checks_enabled` INTEGER NOT NULL, `notifications_enabled` INTEGER NOT NULL, `active_check` INTEGER NOT NULL, `flapping` INTEGER NOT NULL, `details_available` INTEGER NOT NULL, `fetched_at` INTEGER NOT NULL, `in_poll` INTEGER NOT NULL, `opened_at` INTEGER, `comments_fetched_at` INTEGER, `downtimes_fetched_at` INTEGER, PRIMARY KEY(`profile_id`, `host_name`, `description`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hostName",
+            "columnName": "host_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isHost",
+            "columnName": "is_host",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stateType",
+            "columnName": "state_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "output",
+            "columnName": "output",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longOutput",
+            "columnName": "long_output",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "perfData",
+            "columnName": "perf_data",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentAttempt",
+            "columnName": "current_attempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxAttempts",
+            "columnName": "max_attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastCheck",
+            "columnName": "last_check",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "nextCheck",
+            "columnName": "next_check",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastStateChange",
+            "columnName": "last_state_change",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "acknowledged",
+            "columnName": "acknowledged",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downtimeDepth",
+            "columnName": "downtime_depth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "checksEnabled",
+            "columnName": "checks_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationsEnabled",
+            "columnName": "notifications_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeCheck",
+            "columnName": "active_check",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "flapping",
+            "columnName": "flapping",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "detailsAvailable",
+            "columnName": "details_available",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetched_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inPoll",
+            "columnName": "in_poll",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openedAt",
+            "columnName": "opened_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "commentsFetchedAt",
+            "columnName": "comments_fetched_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "downtimesFetchedAt",
+            "columnName": "downtimes_fetched_at",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "host_name",
+            "description"
+          ]
+        }
+      },
+      {
+        "tableName": "comment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` INTEGER NOT NULL, `host_name` TEXT NOT NULL, `description` TEXT NOT NULL, `comment_id` INTEGER NOT NULL, `kind` TEXT NOT NULL, `author` TEXT NOT NULL, `text` TEXT NOT NULL, `entered_at` INTEGER, `persistent` INTEGER NOT NULL, `expires_at` INTEGER, PRIMARY KEY(`profile_id`, `host_name`, `description`, `comment_id`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hostName",
+            "columnName": "host_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "commentId",
+            "columnName": "comment_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enteredAt",
+            "columnName": "entered_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "persistent",
+            "columnName": "persistent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAt",
+            "columnName": "expires_at",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "host_name",
+            "description",
+            "comment_id"
+          ]
+        }
+      },
+      {
+        "tableName": "downtime",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` INTEGER NOT NULL, `host_name` TEXT NOT NULL, `description` TEXT NOT NULL, `downtime_id` INTEGER NOT NULL, `author` TEXT NOT NULL, `comment` TEXT NOT NULL, `start_at` INTEGER, `end_at` INTEGER, `fixed` INTEGER NOT NULL, `duration_seconds` INTEGER, `in_effect` INTEGER NOT NULL, PRIMARY KEY(`profile_id`, `host_name`, `description`, `downtime_id`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hostName",
+            "columnName": "host_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downtimeId",
+            "columnName": "downtime_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "comment",
+            "columnName": "comment",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "start",
+            "columnName": "start_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "end",
+            "columnName": "end_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fixed",
+            "columnName": "fixed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationSeconds",
+            "columnName": "duration_seconds",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "inEffect",
+            "columnName": "in_effect",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id",
+            "host_name",
+            "description",
+            "downtime_id"
+          ]
+        }
+      },
+      {
+        "tableName": "poll_meta",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_id` INTEGER NOT NULL, `last_success` INTEGER NOT NULL, PRIMARY KEY(`profile_id`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profile_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccess",
+            "columnName": "last_success",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '387efcdf28e27b3a542e810bbc83a2d1')"
+    ]
+  }
+}

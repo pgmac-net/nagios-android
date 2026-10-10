@@ -52,6 +52,18 @@ _Avoid_: Old, outdated
 The last poll failed to get a valid response from the profile's Nagios. Distinct from OK and from stale.
 _Avoid_: Offline, down (down = host state)
 
+**Status cache**:
+The last poll of each profile and the detail of objects the user has opened, kept on disk so the app has something to show before the network answers and when there is none. Disposable: everything in it can be fetched again.
+_Avoid_: Database (that is where profiles live), history
+
+**Detail record**:
+The full record of one host or service: output, attempts, check times, flags. Every host and every service in a problem state has one from each poll; any other service gets one when the user opens it.
+_Avoid_: Full status, extended info
+
+**Opened record**:
+A detail record kept because the user opened that object's screen. The most recently opened are kept, per profile.
+_Avoid_: Favourite, pinned
+
 **Widget tier**:
 One of four responsive widget layouts: Badge, Counts, Short list, Full list.
 _Avoid_: Size, mode

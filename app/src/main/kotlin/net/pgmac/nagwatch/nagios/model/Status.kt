@@ -38,14 +38,22 @@ enum class StateType { SOFT, HARD }
 data class CheckStatus(
     val stateType: StateType = StateType.HARD,
     val pluginOutput: String = "",
+    /** Everything after the first line of plugin output; often empty. */
+    val longOutput: String = "",
+    /** The plugin's raw performance data, e.g. `load1=0.42;5;10`. Shown as is until graphs exist (M6). */
+    val perfData: String = "",
     val currentAttempt: Int = 0,
     val maxAttempts: Int = 0,
     val lastCheck: Instant? = null,
+    val nextCheck: Instant? = null,
     val lastStateChange: Instant? = null,
     val acknowledged: Boolean = false,
     val downtimeDepth: Int = 0,
     val checksEnabled: Boolean = true,
     val notificationsEnabled: Boolean = true,
+    /** False for a passive check, whose results are pushed to Nagios rather than run by it. */
+    val activeCheck: Boolean = true,
+    val flapping: Boolean = false,
     val detailsAvailable: Boolean = true,
 ) {
     val inDowntime: Boolean get() = downtimeDepth > 0
@@ -63,11 +71,18 @@ data class ServiceStatus(
 /** What `programstatus` says about the instance itself. */
 data class ServerInfo(val version: String, val programStart: Instant?, val lastDataUpdate: Instant?)
 
-/** One poll's worth of raw status: every host, and the services that are in a problem state. */
+/** A service's name and state, with nothing else: what the cheap list of every service returns. */
+data class ServiceStateEntry(val hostName: String, val description: String, val state: ServiceState)
+
+/**
+ * One poll's worth of raw status: every host with its details, every service's
+ * state, and full details for the services that are in a problem state.
+ */
 data class StatusSnapshot(
     val hosts: List<HostStatus>,
     val serviceProblems: List<ServiceStatus>,
     val fetchedAt: Instant,
+    val serviceStates: List<ServiceStateEntry> = emptyList(),
 ) {
     /** Records Nagios could not serialise in full; shown as "details unavailable". */
     val degradedCount: Int

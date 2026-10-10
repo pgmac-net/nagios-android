@@ -11,6 +11,7 @@ import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
 import net.pgmac.nagwatch.nagios.http.NagiosApi
 import net.pgmac.nagwatch.nagios.http.ResilientListFetcher
 import net.pgmac.nagwatch.nagios.http.StatusParser
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertTrue
@@ -72,6 +73,33 @@ class LiveSmokeTest {
         assertTrue(connection.server.version.isNotEmpty())
     }
 
+    /** What a detail screen asks for: one record, its comments and its downtimes. */
+    @Test
+    fun `fetches one service and host in full, with comments and downtimes`() {
+        val client = NagiosClientFactory(http, TEST_JSON, Dispatchers.IO, Clock.systemUTC()).create(settings)
+        val snapshot = runBlocking { client.fetchStatus() }.valueOrFail()
+        val target = snapshot.serviceStates.first()
+        val ref = ObjectRef(target.hostName, target.description)
+
+        val service = runBlocking { client.fetchService(ref) }.valueOrFail()
+        val host = runBlocking { client.fetchHost(target.hostName) }.valueOrFail()
+        val hostComments = runBlocking { client.fetchComments(ObjectRef(target.hostName)) }.valueOrFail()
+        val serviceComments = runBlocking { client.fetchComments(ref) }.valueOrFail()
+        val downtimes = runBlocking { client.fetchDowntimes(ref) }.valueOrFail()
+
+        println("live: ${snapshot.serviceStates.size} service states listed by name and state")
+        println(
+            "live: one service and its host fetched in full; ${hostComments.size} host comments, " +
+                "${serviceComments.size} service comments, ${downtimes.size} downtimes",
+        )
+        assertTrue(
+            "the state list covers at least the problem services",
+            snapshot.serviceStates.size >= snapshot.serviceProblems.size,
+        )
+        assertTrue(service.check.detailsAvailable && host.check.detailsAvailable)
+        assertTrue("the record is the one asked for", service.description == target.description)
+    }
+
     /**
      * The failure that shaped [ResilientListFetcher]: on an instance where one
      * service cannot be serialised, a full detailed service list must still
@@ -85,7 +113,7 @@ class LiveSmokeTest {
         val fetcher = ResilientListFetcher(NagiosApi(policed, TEST_JSON, Dispatchers.IO))
 
         val services = runBlocking {
-            fetcher.fetchAll(cgiBase, "servicelist", emptyList(), StatusParser::services)
+            fetcher.fetchAll(cgiBase, "servicelist", emptyList(), parse = StatusParser::services)
         }.valueOrFail()
 
         println("live: ${services.size} services in full, ${services.count { !it.check.detailsAvailable }} degraded")

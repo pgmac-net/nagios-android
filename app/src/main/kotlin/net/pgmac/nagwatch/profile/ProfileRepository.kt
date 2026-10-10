@@ -46,6 +46,7 @@ class ProfileRepository @Inject constructor(
     private val dao: ProfileDao,
     private val cipher: SecretCipher,
     private val json: Json,
+    private val cleanups: Set<@JvmSuppressWildcards ProfileCleanup> = emptySet(),
 ) {
     fun observeProfiles(): Flow<List<Profile>> = dao.observeAll().map { rows -> rows.map(::toProfile) }
 
@@ -62,7 +63,11 @@ class ProfileRepository @Inject constructor(
         }
     }
 
-    suspend fun delete(id: Long) = dao.delete(id)
+    /** Deletes the profile, then everything else that was kept for it (its cached status). */
+    suspend fun delete(id: Long) {
+        dao.delete(id)
+        cleanups.forEach { it.onProfileDeleted(id) }
+    }
 
     suspend fun rememberCgiBase(id: Long, cgiBase: HttpUrl) = dao.setCgiBase(id, cgiBase.toString())
 

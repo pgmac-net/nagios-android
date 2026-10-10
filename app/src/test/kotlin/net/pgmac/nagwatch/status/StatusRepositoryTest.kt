@@ -22,6 +22,7 @@ import net.pgmac.nagwatch.profile.SecretInput.Replace
 import net.pgmac.nagwatch.profile.SettingsResult
 import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
+import net.pgmac.nagwatch.status.cache.StatusCache
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,11 +41,16 @@ class StatusRepositoryTest {
     private val keys = softwareKeySource()
     private val profiles = ProfileRepository(database.profiles(), SecretCipher(keys), Json)
     private val clock = MutableClock(T0)
+    private val statusDatabase = inMemoryStatusDatabase()
+    private val cache = StatusCache(statusDatabase.cache())
     private val client = FakeClient()
-    private val repository = StatusRepository(profiles, provider(client), clock)
+    private val repository = StatusRepository(profiles, provider(client), cache, clock)
 
     @After
-    fun close() = database.close()
+    fun close() {
+        database.close()
+        statusDatabase.close()
+    }
 
     @Test
     fun `a refresh stores the classified report and when it was fetched`() = runBlocking {
@@ -120,7 +126,7 @@ class StatusRepositoryTest {
         val id = saveProfile()
         var created = 0
         val afterRestore = ProfileRepository(database.profiles(), SecretCipher(softwareKeySource()), Json)
-        val repo = StatusRepository(afterRestore, provider(client) { created++ }, clock)
+        val repo = StatusRepository(afterRestore, provider(client) { created++ }, cache, clock)
 
         repo.refresh(id)
 
@@ -149,7 +155,7 @@ class StatusRepositoryTest {
         val id = saveProfile()
         val gate = CompletableDeferred<Unit>()
         val counting = FakeClient()
-        val gated = StatusRepository(profiles, { gatedOn(gate, counting) }, clock)
+        val gated = StatusRepository(profiles, { gatedOn(gate, counting) }, cache, clock)
 
         val first = async { gated.refresh(id) }
         yield()
@@ -180,7 +186,7 @@ class StatusRepositoryTest {
     @Test
     fun `a cancelled refresh does not leave the profile stuck refreshing`() = runBlocking {
         val id = saveProfile()
-        val repo = StatusRepository(profiles, { gatedOn(CompletableDeferred(), client) }, clock)
+        val repo = StatusRepository(profiles, { gatedOn(CompletableDeferred(), client) }, cache, clock)
 
         val job = async { repo.refresh(id) }
         yield()
@@ -189,7 +195,7 @@ class StatusRepositoryTest {
         runCatching { job.await() }
 
         assertFalse(repo.statuses.value[id]?.refreshing == true)
-        StatusRepository(profiles, provider(client), clock).refresh(id)
+        StatusRepository(profiles, provider(client), cache, clock).refresh(id)
         assertEquals("the profile can be refreshed again", 1, client.fetches)
     }
 

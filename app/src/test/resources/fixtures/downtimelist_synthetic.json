@@ -1,0 +1,70 @@
+{
+  "format_version": 0,
+  "result": {
+    "query_time": 1791540236000,
+    "cgi": "statusjson.cgi",
+    "user": "nagwatch",
+    "query": "downtimelist",
+    "query_status": "released",
+    "program_start": 1791538672000,
+    "last_data_update": 1791540232000,
+    "type_code": 0,
+    "type_text": "Success",
+    "message": ""
+  },
+  "data": {
+    "selectors": {},
+    "downtimelist": {
+      "7": {
+        "downtime_id": 7,
+        "type": "host",
+        "host_name": "host12",
+        "entry_time": 1791536000000,
+        "start_time": 1791539000000,
+        "flex_downtime_start": 0,
+        "end_time": 1791546200000,
+        "fixed": true,
+        "triggered_by": 0,
+        "duration": 7200,
+        "is_in_effect": true,
+        "start_notification_sent": true,
+        "author": "nagiosadmin",
+        "comment": "Planned maintenance"
+      },
+      "8": {
+        "downtime_id": 8,
+        "type": "service",
+        "host_name": "host12",
+        "service_description": "Memory",
+        "entry_time": 1791536100000,
+        "start_time": 1791550000000,
+        "flex_downtime_start": 0,
+        "end_time": 1791560000000,
+        "fixed": false,
+        "triggered_by": 0,
+        "duration": 3600,
+        "is_in_effect": false,
+        "start_notification_sent": false,
+        "author": "nagiosadmin",
+        "comment": "Planned maintenance"
+      },
+      "9": {
+        "downtime_id": 9,
+        "type": "service",
+        "host_name": "host12",
+        "service_description": "Swap",
+        "entry_time": 1791536200000,
+        "start_time": 1791545000000,
+        "flex_downtime_start": 0,
+        "end_time": 1791549000000,
+        "fixed": true,
+        "triggered_by": 0,
+        "duration": 4000,
+        "is_in_effect": false,
+        "start_notification_sent": false,
+        "author": "nagiosadmin",
+        "comment": "Planned maintenance"
+      }
+    }
+  }
+}

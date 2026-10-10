@@ -58,6 +58,9 @@ scripts/sanitise_fixtures.py /tmp/nagwatch-raw app/src/test/resources/fixtures
 
 - Raw captures name real hosts. Keep them outside the repository (the capture script refuses to write inside it) and delete them afterwards.
 - Credentials come from `~/.config/nagwatch/dev.env` (`USER=` and `PASS=` lines). Use a read-only Nagios user.
+- The detail and comment captures ask about one host and one of its services: set `NAGWATCH_HOST` and `NAGWATCH_SERVICE` to ones that have comments.
+- Re-running the sanitiser regenerates **every** fixture from the new capture, and the tests assert on their contents. Regenerate only the files you mean to and update the tests that read them.
+- `downtimelist_synthetic.json` is hand-written, not captured: the instance the others came from had no downtime. Its fields follow `json_status_downtime_details` in Nagios Core's `cgi/statusjson.c`.
 - The sanitiser fails if any original name survives. `FixtureLeakTest` is the backstop in CI: it fails on host or service names that are not the sanitiser's generic ones, on private addresses and on anything that looks like a real domain.
 
 ## Testing against a real Nagios
@@ -86,6 +89,16 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 - A cancelled refresh (leaving the screen mid-fetch) resets the flag in `finally`.
 - The first poll of a profile finds the CGI directory and stores it on the profile; later polls skip the search.
 - Screens are stateless composables fed by a `...UiState` and an actions interface, so they are tested without a view model.
+
+## The status cache
+
+`status.db` holds the last poll of each profile and the detail of objects the user has opened (`StatusCache`, `DetailCache`). It exists so the app can show something before the network answers.
+
+- **It is disposable.** Its migrations are destructive: change the schema, raise `StatusDatabase.VERSION`, and the cache is wiped and refilled. Do not put anything in it that cannot be fetched again. See [ADR 0005](adr/0005-status-cache-in-a-separate-disposable-database.md).
+- **Every multi-row write is one transaction** (`StatusCacheDao`), so a crash never leaves half a poll.
+- **Everything is bounded per profile.** Adding a table means deciding what stops it growing.
+- **No foreign key to profiles.** Deleting a profile clears its cache through `ProfileCleanup`; `CacheJanitor` sweeps orphans at startup. A new store keyed by profile id needs both.
+- `StatusRepository` serves the cached result first and keeps `refreshing` true until the fresh result is on disk: "not refreshing" has to mean a new refresh would be accepted.
 
 ## Network rules
 

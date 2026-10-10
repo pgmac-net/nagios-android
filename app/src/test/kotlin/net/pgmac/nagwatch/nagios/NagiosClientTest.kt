@@ -91,15 +91,17 @@ class NagiosClientTest {
     }
 
     @Test
-    fun `a poll asks only for services in a problem state, and for all hosts`() {
+    fun `a poll asks for all hosts, details of problem services, and every service's state`() {
         val requests = mutableListOf<RecordedRequest>()
         serveNagiosAt("/cgi-bin/", record = requests)
 
         runBlocking { testFactory().create(settingsFor(server.url("/"))).fetchStatus() }.valueOrFail()
 
-        val services = requests.single { it.param("query") == "servicelist" }
+        val problems = requests.single { it.param("query") == "servicelist" && it.param("details") == "true" }
+        val states = requests.single { it.param("query") == "servicelist" && it.param("details") == null }
         val hosts = requests.single { it.param("query") == "hostlist" }
-        assertEquals("warning critical unknown", services.param("servicestatus"))
+        assertEquals("warning critical unknown", problems.param("servicestatus"))
+        assertEquals("every service, by name and state only", null, states.param("servicestatus"))
         assertEquals(null, hosts.param("hoststatus"))
     }
 
