@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,6 +76,8 @@ object ProblemsTags {
     const val HANDLED_TOGGLE = "problems_handled_toggle"
     const val UPDATED = "problems_updated"
     const val PROFILE_MENU = "problems_profile_menu"
+
+    fun chip(kind: ProblemKind) = "problems_chip_${kind.name}"
 }
 
 /** What the screen can ask for. */
@@ -281,6 +285,7 @@ private fun ProblemList(state: ProblemsUiState, status: ProfileStatus, actions: 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SummaryHeader(
     counts: ProblemCounts,
@@ -289,7 +294,9 @@ private fun SummaryHeader(
     actions: ProblemsActions,
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Four chips do not fit one row on a phone. In a plain Row the last one was squeezed to
+        // nothing and its label wrapped a letter per line, stretching the header down the screen.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CountChip(
                 ProblemKind.HOSTS,
                 pluralStringResource(R.plurals.chip_hosts, counts.hostsDown, counts.hostsDown),
@@ -313,7 +320,8 @@ private fun CountChip(kind: ProblemKind, label: String, state: ProblemsUiState, 
     FilterChip(
         selected = kind in state.filter,
         onClick = { actions.toggleFilter(kind) },
-        label = { Text(label) },
+        label = { Text(label, maxLines = 1, softWrap = false) },
+        modifier = Modifier.testTag(ProblemsTags.chip(kind)),
     )
 }
 

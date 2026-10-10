@@ -6,11 +6,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
 import net.pgmac.nagwatch.nagios.NagiosError
@@ -28,10 +33,12 @@ import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.snapshot
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** The Problems screen as the user sees it, for each state it can be in. */
 @RunWith(AndroidJUnit4::class)
@@ -197,6 +204,29 @@ class ProblemsScreenTest {
         composeRule.onNodeWithText("web01 / Disk /").assertIsDisplayed()
         composeRule.onNodeWithText("acknowledged").assertIsDisplayed()
         composeRule.onNodeWithText("Hide handled (1)").assertIsDisplayed()
+    }
+
+    // Real text measurement: with the default stub fonts every chip is a few dp wide, all four
+    // fit on one row, and this test could not see the bug it exists for.
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(application = android.app.Application::class, qualifiers = "w360dp-h640dp-xhdpi")
+    fun `all four count chips fit on a phone, each on one line`() {
+        // The bug this guards against: in a single row the fourth chip was squeezed to nothing
+        // and its label wrapped a letter per line, pushing the list far down the screen.
+        show(withReport(ProfileStatus(report = report(), lastSuccess = T0)))
+
+        val screenWidth = composeRule.onRoot().getUnclippedBoundsInRoot().width
+        ProblemKind.entries.forEach { kind ->
+            val bounds = composeRule.onNodeWithTag(
+                ProblemsTags.chip(kind),
+            ).assertIsDisplayed().getUnclippedBoundsInRoot()
+            assertTrue("$kind chip is squeezed: ${bounds.width} wide", bounds.width > 60.dp)
+            assertTrue("$kind chip wraps: ${bounds.height} tall", bounds.height < 64.dp)
+            assertTrue("$kind chip runs off the screen", bounds.right <= screenWidth)
+        }
+        val updated = composeRule.onNodeWithTag(ProblemsTags.UPDATED).getUnclippedBoundsInRoot()
+        assertTrue("the header is a sensible height, not stretched: ${updated.top}", updated.top < 320.dp)
     }
 
     @Test

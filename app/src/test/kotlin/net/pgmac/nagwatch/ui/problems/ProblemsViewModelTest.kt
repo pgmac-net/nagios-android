@@ -2,11 +2,14 @@
 
 package net.pgmac.nagwatch.ui.problems
 
+import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -27,6 +30,7 @@ import net.pgmac.nagwatch.status.StatusRepository
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.cache.StatusCache
 import net.pgmac.nagwatch.status.criticalService
+import net.pgmac.nagwatch.status.failure
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
 import net.pgmac.nagwatch.status.provider
 import net.pgmac.nagwatch.status.snapshot
@@ -50,12 +54,16 @@ class ProblemsViewModelTest {
     private val cache = StatusCache(statusDatabase.cache())
     private val client = FakeClient()
     private val statuses = StatusRepository(profiles, provider(client), cache, clock)
+    private val created = mutableListOf<ProblemsViewModel>()
 
     @Before
     fun setUp() = Dispatchers.setMain(Dispatchers.Unconfined)
 
     @After
     fun tearDown() {
+        // A view model watches the profiles for as long as it lives. Left running, it can reach
+        // for Dispatchers.Main from a database thread while the next test is replacing it.
+        runBlocking { created.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } }
         Dispatchers.resetMain()
         database.close()
         statusDatabase.close()
@@ -67,6 +75,53 @@ class ProblemsViewModelTest {
 
         assertNull(state.selected)
         assertTrue(state.profiles.isEmpty())
+    }
+
+    @Test
+    fun `a cold start with a saved profile loads by itself, without the screen asking`() {
+        // The bug this guards against: the screen asked for a refresh as it started, before
+        // the profiles had been read, so nothing was selected yet and nothing ever loaded.
+        saveProfile("Home")
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        val state = viewModel().awaitState { it.status?.report != null }
+
+        assertEquals(1, state.status?.report?.counts?.critical)
+        assertEquals(1, client.fetches)
+    }
+
+    @Test
+    fun `a cold start shows the cached result before the network answers`() {
+        val id = saveProfile("Home")
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+        runBlocking { statuses.refresh(id) }
+        // A new process: an empty repository over the same cache, and a server that fails.
+        val offline = FakeClient(statusResult = { failure() })
+        val restarted =
+            ProblemsViewModel(
+                profiles,
+                StatusRepository(profiles, provider(offline), cache, clock),
+                FakeSelectedProfile(),
+            ).also(created::add)
+        clock.advance(java.time.Duration.ofMinutes(5))
+
+        val state = restarted.awaitState { it.status?.report != null }
+
+        assertEquals("the cached critical is on screen", 1, state.status?.report?.counts?.critical)
+    }
+
+    @Test
+    fun `choosing another profile loads it`() {
+        saveProfile("Home")
+        val office = saveProfile("Office")
+        val viewModel = viewModel()
+        viewModel.awaitState { it.status?.report != null }
+
+        viewModel.select(office)
+
+        val state = viewModel.awaitState { it.selected?.id == office && it.status?.report != null }
+        assertEquals(office, state.selected?.id)
+        assertEquals("one fetch for each profile", 2, client.fetches)
     }
 
     @Test
@@ -181,7 +236,7 @@ class ProblemsViewModelTest {
     }
 
     private fun viewModel(selected: FakeSelectedProfile = FakeSelectedProfile()) =
-        ProblemsViewModel(profiles, statuses, selected)
+        ProblemsViewModel(profiles, statuses, selected).also(created::add)
 
     private fun ProblemsViewModel.awaitState(predicate: (ProblemsUiState) -> Boolean): ProblemsUiState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }
