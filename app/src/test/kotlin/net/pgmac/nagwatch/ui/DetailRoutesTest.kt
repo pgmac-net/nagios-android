@@ -2,11 +2,14 @@
 
 package net.pgmac.nagwatch.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -64,6 +67,7 @@ class DetailRoutesTest {
     fun `back from a detail screen returns to where it was opened`() {
         show()
         open(Routes.host(PROFILE, "web01"))
+        composeRule.onNodeWithText("profile $PROFILE").assertIsDisplayed()
 
         composeRule.onNodeWithTag(DetailTags.BACK).performClick()
 
@@ -80,7 +84,20 @@ class DetailRoutesTest {
             val navController = rememberNavController()
             NavHost(navController, startDestination = START) {
                 composable(START) { Button(onClick = { navController.navigate(destination) }) { Text(GO) } }
-                detailDestinations(onBack = { navController.popBackStack() })
+                detailDestinations { profileId, ref ->
+                    Column {
+                        Text(
+                            listOfNotNull(ref.hostName, ref.description).joinToString(" / "),
+                            Modifier.testTag(DetailTags.TITLE),
+                        )
+                        Text("profile $profileId")
+                        Button(onClick = {
+                            navController.popBackStack()
+                        }, modifier = Modifier.testTag(DetailTags.BACK)) {
+                            Text("back")
+                        }
+                    }
+                }
             }
         }
     }

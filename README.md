@@ -2,7 +2,7 @@
 
 A modern Android client for [Nagios Core](https://www.nagios.org/): see what is broken, acknowledge it, schedule downtime, look at the graphs, and keep a status widget on your home screen.
 
-> **Status: early development (M2 in progress).** You can add Nagios profiles, see what is currently wrong (unhandled problems, sorted by severity, with hosts that are down and the services behind them grouped together), and browse and search every host and service. The last result is kept on the device, so the app opens with something to show. Host and service detail screens are next; there are no actions, notifications or widget yet. The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).
+> **Status: early development (M2 in progress).** You can add Nagios profiles, see what is currently wrong (unhandled problems, sorted by severity, with hosts that are down and the services behind them grouped together), browse and search every host and service, and open any of them to see its output, status, comments and scheduled downtime. What was last seen is kept on the device, so the app opens with something to show and works offline. It is read-only so far: there are no actions, notifications or widget yet. The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).
 
 Nagwatch is an independent open-source project. It is **not affiliated with, endorsed by, or sponsored by Nagios Enterprises, LLC**. "Nagios" is a registered trademark of Nagios Enterprises, LLC and is used here only to describe compatibility.
 
@@ -15,7 +15,9 @@ Nagwatch is an independent open-source project. It is **not affiliated with, end
 - Responsive home-screen widget, 1x1 up to 4x6
 - In-app nagiosgraph graphs, with an open-in-browser fallback
 
-No backend, no Play Services, no telemetry. Talks straight to your Nagios. Requires Nagios Core 4.0.7+ (JSON CGIs).
+No backend, no Play Services, no telemetry. Talks straight to your Nagios.
+
+**Nagios versions.** Tested on Nagios Core 4.5. Versions from 4.0.7 (the first with the JSON CGIs) are expected to work but have not been tried. Nothing is refused because of a version number; if part of a screen cannot get its data, that part says so. If you run another version, a note in the issues on what works and what does not would be very welcome.
 
 ## Distribution
 

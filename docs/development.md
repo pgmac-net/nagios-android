@@ -104,6 +104,17 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 - `Routes` builds every destination. Host and service names are free text from someone's Nagios config, so they travel as encoded query arguments, never as path segments; `DetailRoutesTest` sends awkward names through the real graph.
 - Icons are vector drawables drawn for the app (`res/drawable/ic_*.xml`). There is no icon library in the build, on purpose: one more dependency to license-check for a handful of shapes.
 
+## Detail screens
+
+`DetailRepository.open` is a flow: the cache first, then a "loading" state, then the record, the comments and the downtimes, emitted as each arrives. `DetailViewModel` collects it and joins it with the last poll (`detailUiState`) for the stand-in record, the host link and a host's service list.
+
+- **Three requests, three outcomes.** The record's error is `ObjectDetail.error`; comments and downtimes each carry their own in an `AnnotationSection`. Do not fold them together: an unreadable comment list must not blank a screen.
+- **A failure that is not about this record ends the refresh.** Unreachable, rejected credentials and the like would fail twice more the same way, and each failure can be a timeout. Only an API error or an HTTP error from Nagios lets the comments and downtimes be tried.
+- **A refresh starts from what is on screen** (`from`), not from the cache, which keeps fewer comments than a fetch returns.
+- **Comments and downtimes are saved only if the record is**: the cache hangs them off its row.
+- The screen is a `LazyColumn` of rows, including one row per comment. A busy object can have a couple of hundred.
+- The view model reads its arguments from `SavedStateHandle` under the names `Routes` uses; `detailDestinations` takes its content as a parameter so the routes can be tested without Hilt.
+
 ## The status cache
 
 `status.db` holds the last poll of each profile and the detail of objects the user has opened (`StatusCache`, `DetailCache`). It exists so the app can show something before the network answers.

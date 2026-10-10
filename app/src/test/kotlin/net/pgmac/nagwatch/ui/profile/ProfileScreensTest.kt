@@ -162,6 +162,26 @@ class ProfileScreensTest {
     }
 
     @Test
+    fun `a current Nagios gets no note about its version`() {
+        showEditor(ProfileEditorState(loading = false, test = TestState.Succeeded("4.5.9")))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_RESULT).performScrollTo()
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_NOTE).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an older Nagios still connects, and is told what to expect`() {
+        showEditor(ProfileEditorState(loading = false, test = TestState.Succeeded("4.3.4")))
+
+        composeRule.onNodeWithTag(
+            ProfileEditorTags.TEST_RESULT,
+        ).performScrollTo().assertTextContains("Connected", substring = true)
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_NOTE)
+            .performScrollTo()
+            .assertTextContains("tested on Nagios 4.5", substring = true)
+    }
+
+    @Test
     fun `unreadable stored credentials are explained`() {
         showEditor(ProfileEditorState(loading = false, test = TestState.CredentialsUnavailable))
 
