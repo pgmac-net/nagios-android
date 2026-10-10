@@ -2,11 +2,14 @@
 
 package net.pgmac.nagwatch.ui.problems
 
+import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -51,12 +54,16 @@ class ProblemsViewModelTest {
     private val cache = StatusCache(statusDatabase.cache())
     private val client = FakeClient()
     private val statuses = StatusRepository(profiles, provider(client), cache, clock)
+    private val created = mutableListOf<ProblemsViewModel>()
 
     @Before
     fun setUp() = Dispatchers.setMain(Dispatchers.Unconfined)
 
     @After
     fun tearDown() {
+        // A view model watches the profiles for as long as it lives. Left running, it can reach
+        // for Dispatchers.Main from a database thread while the next test is replacing it.
+        runBlocking { created.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } }
         Dispatchers.resetMain()
         database.close()
         statusDatabase.close()
@@ -95,7 +102,7 @@ class ProblemsViewModelTest {
                 profiles,
                 StatusRepository(profiles, provider(offline), cache, clock),
                 FakeSelectedProfile(),
-            )
+            ).also(created::add)
         clock.advance(java.time.Duration.ofMinutes(5))
 
         val state = restarted.awaitState { it.status?.report != null }
@@ -229,7 +236,7 @@ class ProblemsViewModelTest {
     }
 
     private fun viewModel(selected: FakeSelectedProfile = FakeSelectedProfile()) =
-        ProblemsViewModel(profiles, statuses, selected)
+        ProblemsViewModel(profiles, statuses, selected).also(created::add)
 
     private fun ProblemsViewModel.awaitState(predicate: (ProblemsUiState) -> Boolean): ProblemsUiState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }
