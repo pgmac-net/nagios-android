@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,6 +40,7 @@ import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.ui.home.HomeActions
 import net.pgmac.nagwatch.ui.home.HomeUiState
 import net.pgmac.nagwatch.ui.home.StateBadge
+import net.pgmac.nagwatch.ui.home.StateChip
 import net.pgmac.nagwatch.ui.home.StatusBanners
 import net.pgmac.nagwatch.ui.home.UpdatedLabel
 import net.pgmac.nagwatch.ui.home.checkNotes
@@ -112,11 +112,18 @@ private fun SummaryHeader(counts: ProblemCounts, fetchedAt: Instant, state: Home
 
 @Composable
 private fun CountChip(kind: ProblemKind, label: String, state: HomeUiState, actions: HomeActions) {
-    FilterChip(
+    val colors = NagwatchTheme.stateColors
+    val color = when (kind) {
+        ProblemKind.HOSTS, ProblemKind.CRITICAL -> colors.critical
+        ProblemKind.WARNING -> colors.warning
+        ProblemKind.UNKNOWN -> colors.unknown
+    }
+    StateChip(
+        label = label,
         selected = kind in state.filter,
+        color = color,
+        tag = ProblemsTags.chip(kind),
         onClick = { actions.toggleFilter(kind) },
-        label = { Text(label, maxLines = 1, softWrap = false) },
-        modifier = Modifier.testTag(ProblemsTags.chip(kind)),
     )
 }
 

@@ -3,6 +3,8 @@
 package net.pgmac.nagwatch.ui.browse
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -167,6 +169,61 @@ class BrowseListTest {
     }
 
     @Test
+    fun `Hosts opens on what is down or unreachable, and the rest is one tap away`() {
+        showHosts(HostStyle.defaultStates)
+
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.DOWN)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UNREACHABLE)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertIsNotSelected().assertTextContains("UP (1)")
+        composeRule.onNodeWithTag(BrowseTags.row("web02")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("web01")).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).performClick()
+
+        composeRule.onNodeWithTag(BrowseTags.row("web01")).assertIsDisplayed()
+    }
+
+    @Test
+    fun `Services opens on warnings and criticals`() {
+        showServices(ServiceStyle.defaultStates)
+
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.WARNING)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.CRITICAL)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.OK)).assertIsNotSelected()
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.UNKNOWN)).assertIsNotSelected()
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Load")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Ping")).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the default chips are exactly the ones asked for`() {
+        assertEquals(setOf(HostState.DOWN, HostState.UNREACHABLE), HostStyle.defaultStates)
+        assertEquals(setOf(ServiceState.WARNING, ServiceState.CRITICAL), ServiceStyle.defaultStates)
+    }
+
+    @Test
+    fun `when nothing is down the list says so, and the chips show where the hosts are`() {
+        showHosts(HostStyle.defaultStates, hosts = listOf(HostStatus("web01", HostState.UP, CheckStatus())))
+
+        composeRule.onNodeWithTag(BrowseTags.EMPTY).assertTextContains("Nothing is in the states that are switched on.")
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertTextContains("UP (1)")
+    }
+
+    @Test
+    fun `a search that only matches a state that is switched off says where to look`() {
+        showHosts(HostStyle.defaultStates)
+
+        composeRule.onNodeWithTag(BrowseTags.SEARCH).performTextInput("web01")
+
+        composeRule.onNodeWithTag(
+            BrowseTags.EMPTY,
+        ).assertTextContains("The chips show where the matches are", substring = true)
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertTextContains("UP (1)")
+    }
+
+    @Test
     fun `tapping a host asks to open it`() {
         showHosts()
 
@@ -214,7 +271,8 @@ class BrowseListTest {
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     @Config(application = android.app.Application::class, qualifiers = "w360dp-h640dp-xhdpi")
     fun `the service chips fit on a phone, each on one line`() {
-        showServices()
+        // As the tab opens: two chips on, each wider by its tick.
+        showServices(ServiceStyle.defaultStates)
 
         val screenWidth = composeRule.onRoot().getUnclippedBoundsInRoot().width
         val tags = listOf(ServiceState.OK, ServiceState.WARNING, ServiceState.CRITICAL, ServiceState.UNKNOWN)
@@ -229,20 +287,33 @@ class BrowseListTest {
         assertTrue("the rows start on the first screen: ${firstRow.top}", firstRow.top < 360.dp)
     }
 
-    private fun showHosts() = composeRule.setContent {
-        NagwatchTheme(dynamicColor = false) {
-            BrowseList(hostRows(), HostStyle, status(), T0, onOpen = { opened += it.title })
+    /** With every chip off unless told otherwise, so a test sees the whole list. */
+    private fun showHosts(states: Set<HostState> = emptySet(), hosts: List<HostStatus> = this.hosts) {
+        val snapshot = StatusSnapshot(hosts, emptyList(), T0)
+        val report = ProblemClassifier.classify(snapshot)
+        composeRule.setContent {
+            NagwatchTheme(dynamicColor = false) {
+                BrowseList(
+                    rows = BrowseRows.hosts(snapshot, report),
+                    style = HostStyle,
+                    status = ProfileStatus(report = report, snapshot = snapshot, lastSuccess = T0),
+                    now = T0,
+                    onOpen = { opened += it.title },
+                    initialStates = states,
+                )
+            }
         }
     }
 
-    private fun showServices() = composeRule.setContent {
+    private fun showServices(states: Set<ServiceState> = emptySet()) = composeRule.setContent {
         NagwatchTheme(dynamicColor = false) {
             BrowseList(
-                BrowseRows.services(snapshot(), ProblemClassifier.classify(snapshot())),
-                ServiceStyle,
-                status(),
-                T0,
+                rows = BrowseRows.services(snapshot(), ProblemClassifier.classify(snapshot())),
+                style = ServiceStyle,
+                status = status(),
+                now = T0,
                 onOpen = { opened += it.title },
+                initialStates = states,
             )
         }
     }

@@ -95,6 +95,7 @@ class HomeScreenTest {
         hosts = listOf(
             HostStatus("web01", HostState.UP, CheckStatus()),
             HostStatus("db01", HostState.UP, CheckStatus()),
+            HostStatus("gw01", HostState.DOWN, CheckStatus()),
         ),
         serviceProblems = listOf(
             ServiceStatus("web01", "Disk /", ServiceState.CRITICAL, CheckStatus(pluginOutput = "97% used")),
@@ -117,16 +118,21 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `Hosts lists every host and Services every service`() {
+    fun `Hosts opens on the hosts that are down and Services on warnings and criticals`() {
         show()
 
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.row("gw01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("web01")).assertDoesNotExist()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).performClick()
         composeRule.onNodeWithTag(BrowseTags.row("web01")).assertIsDisplayed()
         composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
 
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).performClick()
-        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertIsDisplayed()
         composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertDoesNotExist()
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.OK)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertIsDisplayed()
     }
 
     @Test
@@ -143,37 +149,43 @@ class HomeScreenTest {
     fun `each tab keeps its own search and filter while another is shown`() {
         show()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).performClick()
         composeRule.onNodeWithTag(BrowseTags.SEARCH).performTextInput("db")
         composeRule.onNodeWithTag(BrowseTags.row("web01")).assertDoesNotExist()
 
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).performClick()
-        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.CRITICAL)).performClick()
-        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertDoesNotExist()
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.OK)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertIsDisplayed()
 
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.PROBLEMS)).performClick()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).performClick()
 
         composeRule.onNodeWithTag(BrowseTags.SEARCH).assertTextContains("db")
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertIsSelected()
         composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
         composeRule.onNodeWithTag(BrowseTags.row("web01")).assertDoesNotExist()
 
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).performClick()
 
         composeRule.onNodeWithTag(BrowseTags.SEARCH).assertTextContains("Search services and hosts")
-        composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).assertIsDisplayed()
-        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertDoesNotExist()
+        composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.OK)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).assertIsDisplayed()
     }
 
     @Test
-    fun `another profile starts with an empty search, not the previous profile's`() {
+    fun `another profile starts with the default chips and an empty search, not the previous profile's`() {
         show()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).performClick()
         composeRule.onNodeWithTag(BrowseTags.SEARCH).performTextInput("db")
+        composeRule.onNodeWithTag(BrowseTags.row("gw01")).assertDoesNotExist()
 
         state = state.copy(selected = profile(2, "Office"))
 
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).assertIsSelected()
-        composeRule.onNodeWithTag(BrowseTags.row("web01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.SEARCH).assertTextContains("Search hosts")
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertIsNotSelected()
+        composeRule.onNodeWithTag(BrowseTags.row("gw01")).assertIsDisplayed()
     }
 
     @Test
@@ -197,11 +209,11 @@ class HomeScreenTest {
 
         composeRule.onNodeWithText("web01 / Disk /").performClick()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).performClick()
-        composeRule.onNodeWithTag(BrowseTags.row("db01")).performClick()
+        composeRule.onNodeWithTag(BrowseTags.row("gw01")).performClick()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).performClick()
-        composeRule.onNodeWithTag(BrowseTags.row("db01 / Ping")).performClick()
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).performClick()
 
-        assertEquals(listOf("service:web01/Disk /", "host:db01", "service:db01/Ping"), calls)
+        assertEquals(listOf("service:web01/Disk /", "host:gw01", "service:web01/Disk /"), calls)
     }
 
     @Test

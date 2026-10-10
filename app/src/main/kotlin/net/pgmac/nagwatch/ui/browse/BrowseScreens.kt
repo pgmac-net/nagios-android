@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -42,6 +41,7 @@ import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.ui.home.StateBadge
+import net.pgmac.nagwatch.ui.home.StateChip
 import net.pgmac.nagwatch.ui.home.StatusBanners
 import net.pgmac.nagwatch.ui.home.UpdatedLabel
 import net.pgmac.nagwatch.ui.home.checkNotes
@@ -61,20 +61,35 @@ object BrowseTags {
     fun row(title: String) = "browse_row_$title"
 }
 
-/** How one kind of object is drawn: its states in chip order, and the words and colour for each. */
-internal class BrowseStyle<S : Enum<S>>(
+/** The chips of one list: every state in chip order, and which are special. */
+internal class BrowseChips<S : Enum<S>>(
     val states: List<S>,
     /** States with a chip only while something is in them, to keep the row of chips short. */
-    val rareStates: Set<S>,
+    val rare: Set<S>,
+    /**
+     * The chips that are on when the tab is first opened: what is wrong. Everything else is a
+     * tap away, and its chip says how many there are.
+     */
+    val onByDefault: Set<S>,
+)
+
+/** How one kind of object is drawn: its chips, and the words and colour for each state. */
+internal class BrowseStyle<S : Enum<S>>(
+    val chips: BrowseChips<S>,
     @param:StringRes val searchHint: Int,
     @param:StringRes val emptyText: Int,
     val label: (S) -> Int,
     val color: (S, StateColors) -> Color,
-)
+) {
+    val defaultStates: Set<S> get() = chips.onByDefault
+}
 
 internal val HostStyle = BrowseStyle(
-    states = listOf(HostState.UP, HostState.DOWN, HostState.UNREACHABLE, HostState.PENDING),
-    rareStates = setOf(HostState.PENDING),
+    chips = BrowseChips(
+        states = listOf(HostState.UP, HostState.DOWN, HostState.UNREACHABLE, HostState.PENDING),
+        rare = setOf(HostState.PENDING),
+        onByDefault = setOf(HostState.DOWN, HostState.UNREACHABLE),
+    ),
     searchHint = R.string.browse_search_hosts,
     emptyText = R.string.browse_empty_hosts,
     label = { state ->
@@ -96,14 +111,17 @@ internal val HostStyle = BrowseStyle(
 )
 
 internal val ServiceStyle = BrowseStyle(
-    states = listOf(
-        ServiceState.OK,
-        ServiceState.WARNING,
-        ServiceState.CRITICAL,
-        ServiceState.UNKNOWN,
-        ServiceState.PENDING,
+    chips = BrowseChips(
+        states = listOf(
+            ServiceState.OK,
+            ServiceState.WARNING,
+            ServiceState.CRITICAL,
+            ServiceState.UNKNOWN,
+            ServiceState.PENDING,
+        ),
+        rare = setOf(ServiceState.PENDING),
+        onByDefault = setOf(ServiceState.WARNING, ServiceState.CRITICAL),
     ),
-    rareStates = setOf(ServiceState.PENDING),
     searchHint = R.string.browse_search_services,
     emptyText = R.string.browse_empty_services,
     label = { state ->
@@ -157,11 +175,12 @@ internal fun <S : Enum<S>> BrowseList(
     status: ProfileStatus,
     now: Instant,
     onOpen: (BrowseRow<S>) -> Unit,
+    initialStates: Set<S> = style.defaultStates,
 ) {
     // Kept here rather than in the view model: what is typed must reach the text field in the
     // same frame, and the tab's saved state already outlives switching to another tab.
     var query by rememberSaveable { mutableStateOf("") }
-    var states by rememberSaveable { mutableStateOf(emptySet<S>()) }
+    var states by rememberSaveable { mutableStateOf(initialStates) }
     var showHandled by rememberSaveable { mutableStateOf(true) }
     val view = remember(rows, query, states, showHandled) { BrowseFilter(query, states, showHandled).apply(rows) }
 
@@ -186,7 +205,7 @@ internal fun <S : Enum<S>> BrowseList(
             }
             item { StatusBanners(status, now) }
             if (view.rows.isEmpty()) {
-                item { Empty(if (rows.isEmpty()) style.emptyText else R.string.browse_none) }
+                item { Empty(emptyText(rows.isEmpty(), query.isNotBlank(), states.isNotEmpty(), style)) }
             } else {
                 items(view.rows, key = { it.key }) { row ->
                     BrowseRowItem(row, style, now, onOpen)
@@ -232,13 +251,14 @@ private fun <S : Enum<S>> FilterChips(
     onToggleHandled: () -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        style.states.forEach { state ->
+        style.chips.states.forEach { state ->
             val count = view.counts[state] ?: 0
             // A rare state still gets its chip while it is switched on, so it can be switched off.
-            if (state !in style.rareStates || count > 0 || state in selected) {
-                Chip(
+            if (state !in style.chips.rare || count > 0 || state in selected) {
+                StateChip(
                     label = stringResource(R.string.browse_chip, stringResource(style.label(state)), count),
                     selected = state in selected,
+                    color = style.color(state, NagwatchTheme.stateColors),
                     tag = BrowseTags.chip(state),
                     onClick = { onToggleState(state) },
                 )
@@ -246,9 +266,10 @@ private fun <S : Enum<S>> FilterChips(
         }
         // Nothing handled, nothing to hide: the switch only appears when it would do something.
         if (view.handledCount > 0 || !showHandled) {
-            Chip(
+            StateChip(
                 label = stringResource(R.string.browse_handled, view.handledCount),
                 selected = showHandled,
+                color = null,
                 tag = BrowseTags.HANDLED,
                 onClick = onToggleHandled,
             )
@@ -256,14 +277,15 @@ private fun <S : Enum<S>> FilterChips(
     }
 }
 
-@Composable
-private fun Chip(label: String, selected: Boolean, tag: String, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, maxLines = 1, softWrap = false) },
-        modifier = Modifier.testTag(tag),
-    )
+/**
+ * Why the list is empty. With chips on by default, "nothing here" most often means nothing is
+ * wrong, and that has to read differently from a search that found nothing.
+ */
+private fun emptyText(nothingAtAll: Boolean, searching: Boolean, chipsOn: Boolean, style: BrowseStyle<*>): Int = when {
+    nothingAtAll -> style.emptyText
+    searching && chipsOn -> R.string.browse_none_searched_in_states
+    chipsOn -> R.string.browse_none_in_states
+    else -> R.string.browse_none
 }
 
 @Composable

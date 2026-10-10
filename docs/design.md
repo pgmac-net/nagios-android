@@ -190,10 +190,12 @@ How M2 implements them:
 
 - **Sorted worst first**: services CRITICAL, WARNING, UNKNOWN, then PENDING and OK; hosts DOWN, UNREACHABLE, then PENDING and UP. Within a severity the unhandled come before the handled, so an acknowledged critical sits below the criticals nobody has dealt with and above every warning. Then by name, ignoring case.
 - **Search** is a plain, case-insensitive substring match, taken literally. On Services it matches the host name as well as the check name.
+- **The lists open on what is wrong.** Hosts starts with DOWN and UNREACH switched on, Services with WARN and CRIT. Everything else is one tap away, and its chip says how many there are. The Problems tab starts with no chip on, which there means everything. When nothing is in the states that are on, the list says that, not "no hosts"; a search that only matches a state that is off says to look at the chips.
+- **Chips are tinted with the colour of their state**, on all three tabs: faintly when off, more strongly when on, with a tick on the ones that are on so the strength of a tint is never the only sign. The label stays in the normal text colour. The Handled chip is not about a state and keeps the plain look.
 - **Chips** carry a count ("CRIT (3)") and several can be on at once. The count follows the search and the handled switch but not the other chips, so a chip always says what tapping it would show. PENDING only has a chip while something is pending.
 - **Handled problems are shown by default** here, the opposite of the Problems tab, at the end of their severity, and a "Handled (N)" chip switches them off. A host that vanished from the list when someone acknowledged it would look like a host that is not monitored. The chip only appears when there is something handled to hide.
 - **A service that is OK shows its name and state and nothing else.** Each poll lists every service by name and state and fetches details only for those with a problem (section 5), so output and "how long for" are there for problems and for every host, and for other services only once opened.
-- **Each tab keeps its own search, chips and scroll position** while another tab is shown. Switching profile starts them afresh.
+- **Each tab keeps its own search, chips and scroll position** while another tab is shown. Switching profile, or starting the app again, returns them to the defaults.
 - The time of the data and the stale, failed and "details unavailable" banners are the same on every tab.
 
 ### Service detail
