@@ -1,9 +1,14 @@
 # OpenSSF Scorecard, via the shared pgmac-net workflow. Not a required check.
+#
+# Deliberately NOT run on push. Scorecard only accepts that gradle-wrapper.jar is
+# verified if the newest commit already has a finished, successful CI run. On a push
+# it starts in the same second as CI, looks before CI has finished, and reports the
+# wrapper as an unverified binary: the alert then reopens on every push and closes on
+# every weekly run. Weekly, and by hand when wanted, it always sees a finished CI.
+# (The action supports only push and schedule, so "after CI" is not an option.)
 name: Scorecard
 
 on:
-  push:
-    branches: ["main"]
   schedule:
     - cron: "0 16 * * 0" # 02:00 AEST Monday
   workflow_dispatch:
