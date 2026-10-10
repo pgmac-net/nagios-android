@@ -318,6 +318,7 @@ Schema versions of both databases are exported to `app/schemas` and committed. `
 
 - Credentials and tokens never logged. Debug logging redacts headers.
 - No analytics, no crash reporter, no third-party network calls; the only traffic is to the user's profile hosts.
+- What a server sends back is untrusted input and cannot crash the app: bodies are capped in size (8 MiB) and in nesting (32 levels) before they are parsed, and a response is only ever a result or a `NagiosError`. The parsers are fuzzed on every pull request (`docs/development.md`, "Fuzzing").
 - Backups exclude secrets. User-installed CAs are trusted (section 4); the trade-off is that a CA the user or a device-management profile installed can also inspect this app's traffic, as with any browser on the device.
 - Cloudflare Access service tokens are long-lived static secrets. The README recommends a dedicated token with a short expiry and a dedicated Nagios user with only the command permissions the user wants the phone to have.
 - Release signing key is held by the maintainer outside the repo, backed up, and supplied to CI as a GitHub Actions secret. Losing it means installs cannot be upgraded.

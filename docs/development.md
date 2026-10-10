@@ -136,6 +136,42 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 - **No foreign key to profiles.** Deleting a profile clears its cache through `ProfileCleanup`; `CacheJanitor` sweeps orphans at startup. A new store keyed by profile id needs both.
 - `StatusRepository` serves the cached result first and keeps `refreshing` true until the fresh result is on disk: "not refreshing" has to mean a new refresh would be accepted.
 
+## Fuzzing
+
+What a Nagios server sends back is the app's main untrusted input, so it is fuzzed with [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer).
+
+**What is covered.** Three targets, in `app/src/test/java/net/pgmac/nagwatch/fuzz`:
+
+| Target | Takes arbitrary bytes through |
+|---|---|
+| `ResponseBody` | the step that turns a response's text into JSON or a `NagiosError` (`interpretResponseBody`) |
+| `StatusParser` | hosts, services, server info, and `ProblemClassifier` after them |
+| `AnnotationParser` | comments and downtimes |
+
+The contract under test is "a result or a `NagiosError`, nothing else". An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
+
+**The targets are Java on purpose.** OpenSSF Scorecard looks for Jazzer in `*.java` files that import `FuzzedDataProvider`; a Kotlin target would work and earn nothing. Each is a few lines that hand the bytes to a Kotlin function in `FuzzEntryPoints`, where the `internal` parsers are visible.
+
+**Two ways it runs:**
+
+- **On every build**, `FuzzCorpusTest` replays every sanitised fixture, the hand-made corpus (`app/src/test/resources/fuzz/corpus`) and every input that ever crashed a fuzzer (`app/src/test/resources/fuzz/crashes`) through all three entry points. It takes seconds and is part of `testDebugUnitTest`.
+- **The fuzzer itself**, `./gradlew :app:fuzz` (every target) or `:app:fuzz<Target>`, for `-PfuzzSeconds` each (default 60). It is not part of `check`. Its working files are under `app/build/fuzz/<Target>`. CI runs it in `fuzz.yml`: 60 seconds per target on every pull request, 10 minutes per target weekly, and by hand. **It is not a required check:** it is random, and must not be able to block a merge that did not cause what it found.
+
+**When it finds something:**
+
+1. The input is written to `app/build/fuzz/<Target>/crashes/` (in CI, uploaded as the `fuzz-crash-<Target>` artifact), beside a `Crash_*.java` stand-alone reproducer.
+2. Replay it: `./gradlew :app:fuzz<Target> -PfuzzReplay=<path to the file>`. The stack trace is printed.
+3. Fix the code, not the target.
+4. Copy the input into `app/src/test/resources/fuzz/crashes/` under a name that says what it was (`json-nesting-100k.json`, not `crash-3fa9...`). `FuzzCorpusTest` now keeps it fixed. Inputs there must contain nothing from a real Nagios: if a crash came from a captured response, reduce it to the minimum that reproduces it.
+
+**Things learned setting it up**
+
+- The JSON reader recurses once per level of nesting, and a stack overflow is an `Error`, not an exception: `NagiosApi` did not catch it and a body of about 100 KB of `[` would have taken the app down. Bodies nested over 32 deep (Nagios writes about 6) are now refused before parsing (`nestsDeeperThan`). The first thing the fuzz corpus test found.
+- libFuzzer's resident-size limit is switched off: the JVM and Jazzer's native side sit near 2.7 GB before the first input, so it blamed the JVM. The heap cap does that job.
+- A fuzzer that finds nothing proves nothing until it has been shown to find something. When changing the harness, plant a crash behind a condition no fixture reaches (a string compare in `StatusParser.check` worked, found in about 15 seconds), check the fuzzer finds it and the replay test fails with its input saved, then take it out.
+
+**Licence.** Jazzer is Apache-2.0 and test-only: it is on a `fuzzer` configuration of its own, outside the app's classpaths, so it is in no APK and is not seen by Licensee. The small API jar the targets compile against is on the unit-test classpath.
+
 ## Network rules
 
 All traffic to Nagios goes through one OkHttp interceptor (`ConnectionInterceptor`) that refuses `http://` unless the profile opted in, never sends Cloudflare Access credentials over `http://`, and only sends credentials to the configured origin. Redirects are not followed. Any new HTTP client must be derived from the per-profile client so it inherits these rules; see [ADR 0004](adr/0004-cleartext-permitted-in-manifest-enforced-in-app.md).

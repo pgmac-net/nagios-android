@@ -52,3 +52,4 @@ These are the properties a report is most likely to be about. Each is enforced i
 - Unencrypted HTTP is refused unless the profile opts in, and Cloudflare Access credentials are never sent over it.
 - Stored secrets are encrypted with a key held in the Android Keystore, and the app never shows a stored secret again.
 - There is no analytics, no crash reporting, and no network traffic to anyone but the servers in your profiles.
+- What a server sends back cannot crash the app: responses are bounded in size and nesting before they are parsed, and the parsers are fuzzed on every pull request.

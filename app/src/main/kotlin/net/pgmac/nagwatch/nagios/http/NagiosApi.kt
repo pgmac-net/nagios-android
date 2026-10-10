@@ -10,11 +10,8 @@ import java.security.cert.CertificateException
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.intOrNull
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosError.Unreachable.Reason
 import net.pgmac.nagwatch.nagios.NagiosResult
@@ -62,22 +59,7 @@ internal class NagiosApi(
         return when {
             error != null -> NagiosResult.Failure(error)
             source.request(maxBodyBytes + 1) -> NagiosResult.Failure(NagiosError.ResponseTooLarge)
-            else -> interpretBody(source.readUtf8())
-        }
-    }
-
-    private fun interpretBody(text: String): NagiosResult<JsonObject> {
-        val body = try {
-            json.parseToJsonElement(text) as? JsonObject
-        } catch (_: SerializationException) {
-            null
-        }
-        val result = body?.get("result") as? JsonObject
-        val code = (result?.get("type_code") as? JsonPrimitive)?.intOrNull
-        return when {
-            body == null || result == null || code == null -> NagiosResult.Failure(NagiosError.NotNagios)
-            code == SUCCESS -> NagiosResult.Success(body)
-            else -> NagiosResult.Failure(NagiosError.Api(code, result.text("type_text"), result.text("message")))
+            else -> interpretResponseBody(json, source.readUtf8())
         }
     }
 
@@ -130,11 +112,7 @@ internal class NagiosApi(
         }
     }
 
-    private fun JsonObject.text(key: String): String = (this[key] as? JsonPrimitive)?.content.orEmpty()
-
     private companion object {
-        const val SUCCESS = 0
-
         /** A page of 100 detailed records is about 170 KB; this leaves room for long plugin output. */
         const val MAX_BODY_BYTES = 8L * 1024 * 1024
         const val HTTP_OK = 200

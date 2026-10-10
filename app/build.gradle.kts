@@ -103,6 +103,82 @@ configurations.matching { it.name in toolFloors }.configureEach {
     }
 }
 
+// Fuzzing (docs/development.md, "Fuzzing"). The fuzzer is a plain Java program on a
+// classpath of its own, so it never touches the app's or the unit tests'. Only the
+// small API jar that the targets are written against is on the test classpath.
+val fuzzer = configurations.create("fuzzer") {
+    description = "Jazzer, the fuzzing engine. Test tooling: not in the APK."
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+val fuzzTargets = listOf("ResponseBody", "StatusParser", "AnnotationParser")
+
+val fuzzTasks = fuzzTargets.map { name ->
+    tasks.register<JavaExec>("fuzz$name") {
+        group = "verification"
+        description = "Fuzzes $name for -PfuzzSeconds (default 60). Crash inputs land in app/build/fuzz/$name/crashes."
+        val unitTests = tasks.named<Test>("testDebugUnitTest")
+        // The compiled app, the compiled targets, and everything they run against.
+        classpath = files(fuzzer, unitTests.map { it.classpath })
+        mainClass = "com.code_intelligence.jazzer.Jazzer"
+
+        val seconds = providers.gradleProperty("fuzzSeconds").getOrElse("60")
+        val work = layout.buildDirectory.dir("fuzz/$name").get().asFile
+        val seedDirs = listOf(
+            "src/test/resources/fixtures",
+            "src/test/resources/fuzz/corpus",
+            "src/test/resources/fuzz/crashes",
+        )
+            .map { layout.projectDirectory.dir(it).asFile }
+        val replay = providers.gradleProperty("fuzzReplay").orNull
+
+        doFirst {
+            // libFuzzer writes what it finds to the first corpus directory; keep that out of the repository.
+            File(work, "corpus").mkdirs()
+            File(work, "crashes").mkdirs()
+        }
+        argumentProviders += CommandLineArgumentProvider {
+            buildList {
+                add("--target_class=net.pgmac.nagwatch.fuzz.${name}FuzzTarget")
+                // Only the code under test: coverage of the JDK and of OkHttp would drown it.
+                add("--instrumentation_includes=net.pgmac.nagwatch.nagios.**:kotlinx.serialization.json.**")
+                add("-artifact_prefix=${File(work, "crashes").path}/")
+                // Without this a stand-alone Java reproducer is written to the working directory, which is the module.
+                add("--reproducer_path=${File(work, "crashes").path}")
+                // Whatever one input does, it must be quick and small. A hang is a finding.
+                add("-timeout=10")
+                // libFuzzer's resident-size limit is off: the JVM and Jazzer's native side sit at about 2.7 GB
+                // before the first input, so it cannot tell the code's memory from theirs. The heap cap
+                // below does that job, and turns a runaway into an OutOfMemoryError.
+                add("-rss_limit_mb=0")
+                add("-max_len=262144")
+                if (replay != null) {
+                    add(replay)
+                } else {
+                    add("-max_total_time=$seconds")
+                    add(File(work, "corpus").path)
+                    seedDirs.filter { it.isDirectory }.forEach { add(it.path) }
+                }
+            }
+        }
+        // A heap cap, so memory that one input makes the code ask for becomes an OutOfMemoryError
+        // (a finding) and the collector runs. Left alone the JVM grows its heap into the machine's
+        // RAM, and libFuzzer's resident-size limit then reports the JVM, not the code.
+        maxHeapSize = "512m"
+        // The JVM flag the unit tests need, for the same reason (Robolectric is on this classpath).
+        jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
+    }
+}
+
+tasks.register("fuzz") {
+    group = "verification"
+    description = "Fuzzes every target in turn for -PfuzzSeconds each (default 60). Not part of check."
+    dependsOn(fuzzTasks)
+    // One after another, so a crash in one is not hidden by a crash in the next being reported first.
+    fuzzTasks.zipWithNext().forEach { (first, second) -> second.configure { mustRunAfter(first) } }
+}
+
 // Locked so builds are reproducible and the FOSS checks see a fixed graph.
 // Refresh with: ./gradlew :app:resolveAndLockAll --write-locks
 // The self-test deliberately adds an unlocked, banned dependency.
@@ -178,6 +254,7 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation(libs.jazzer.api)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.compose.bom))
@@ -185,4 +262,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.okhttp.tls)
+
+    // The fuzzing engine itself; see the "fuzzer" configuration above.
+    add("fuzzer", libs.jazzer)
 }

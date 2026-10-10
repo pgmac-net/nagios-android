@@ -24,6 +24,7 @@ navigation = "2.10.2"
 lifecycle = "2.11.0"
 hiltCompose = "1.4.0"
 datastore = "1.2.1"
+jazzer = "0.30.0"
 
 # Security floors. None of these is a dependency of the app, and none is in the APK.
 # They are libraries that build tools bring with them (the Android Gradle plugin, its
@@ -67,6 +68,10 @@ navigation-compose = { module = "androidx.navigation:navigation-compose", versio
 lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-viewmodel-compose", version.ref = "hiltCompose" }
+
+# Fuzzing. Test-only: neither is in the APK. See docs/development.md, "Fuzzing".
+jazzer = { module = "com.code-intelligence:jazzer", version.ref = "jazzer" }
+jazzer-api = { module = "com.code-intelligence:jazzer-api", version.ref = "jazzer" }
 
 # Security floors (see the versions above). Bouncy Castle and logback are each a family
 # released together, so every member in use is raised, not only the one with the advisory.

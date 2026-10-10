@@ -1,0 +1,68 @@
+# Fuzzing of what a Nagios server sends back, with Jazzer. See docs/development.md, "Fuzzing".
+#
+# NOT a required check, on purpose. Fuzzing is random, so it can fail a pull request that
+# has nothing to do with the bug it found. The inputs that crashed it before are replayed
+# on every build by an ordinary unit test; this finds new ones.
+#
+# GitHub-hosted runners only. This is a public repo: fork PRs must never run on
+# self-hosted infrastructure.
+name: Fuzz
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 17 * * 0" # 03:00 AEST Monday: a longer run than a pull request gets
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds to fuzz each target"
+        required: false
+        default: "60"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # One target finding a crash must not hide what the others would have found.
+      fail-fast: false
+      matrix:
+        target: [ResponseBody, StatusParser, AnnotationParser]
+    env:
+      # 10 minutes each weekly, 1 minute on a pull request, or what a manual run asked for.
+      FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '600' || inputs.seconds || '60' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          # Must match jvmToolchain() in app/build.gradle.kts. Renovate does not
+          # raise major bumps for this on its own (see renovate.json).
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Fuzz ${{ matrix.target }}
+        run: |
+          [[ "$FUZZ_SECONDS" =~ ^[0-9]+$ ]] || { echo "seconds must be a number, got: $FUZZ_SECONDS"; exit 1; }
+          ./gradlew --console=plain ":app:fuzz${{ matrix.target }}" -PfuzzSeconds="$FUZZ_SECONDS"
+
+      - name: Upload the input that crashed it
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: app/build/fuzz/${{ matrix.target }}/crashes/
+          if-no-files-found: warn
+          retention-days: 30
