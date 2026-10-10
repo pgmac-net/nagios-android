@@ -81,7 +81,7 @@ When a host has several addresses, every connection attempt is considered and a 
 
 ## 5. Nagios API contract
 
-All reads go through `statusjson.cgi` / `objectjson.cgi` (JSON). All writes go through `cmd.cgi` (HTML form POST; no JSON). The acting Nagios user needs command authorisation for writes; the app detects a lack of it and disables action buttons.
+All reads go through `statusjson.cgi` / `objectjson.cgi` (JSON). All writes go through `cmd.cgi` (HTML form POST; no JSON). The acting Nagios user needs command authorisation for writes; the app can tell a read-only user in advance and disables the action buttons, and reports any other refusal when it happens.
 
 ### Reads
 
@@ -131,17 +131,55 @@ How much is fetched is the server's decision, so it is bounded rather than trust
 
 ### Writes (`cmd.cgi`)
 
-`cmd_typ` values, verified against the Nagios 4 `common.h` and the existing `cmd_typ=33/34` links in the pgmac notification scripts:
+Read from `cgi/cmd.c` of Nagios Core 4.5.9 and then checked by sending each command to a Nagios Core 4.5.3 kept for the purpose (`scripts/test-nagios`). Pages captured from it are in `app/src/test/resources/commandpages/`.
 
-| Action | Host | Service |
-|---|---|---|
-| Acknowledge problem | 33 | 34 |
-| Remove acknowledgement | 51 | 52 |
-| Schedule downtime | 55 | 56 |
-| Force recheck | 98 (`SCHEDULE_FORCED_HOST_CHECK`) | 54 (`SCHEDULE_FORCED_SVC_CHECK`) |
-| Add comment | 1 | 3 |
+`cmd_typ` values:
 
-Success is detected by scraping the HTML response (Nagios prints "Your command request was successfully submitted"). This is the most fragile part of the app: M3 isolates it behind one `CommandClient` interface with fixture tests against captured pages, so a Nagios wording change is a one-file fix. After any command the app re-polls the affected object and shows the new state rather than trusting the HTML alone.
+| Action | Host | Service | Also sent |
+|---|---|---|---|
+| Acknowledge problem | 33 | 34 | `com_data`; `sticky_ack`, `send_notification`, `persistent` only when on |
+| Remove acknowledgement | 51 | 52 | |
+| Schedule fixed downtime | 55 | 56 | `com_data`, `start_time`, `end_time`, `fixed=1`, `trigger=0` |
+| Cancel downtime | 78 | 79 | `down_id` only |
+| Force recheck | 96 | 7 | `start_time`, `force_check` |
+| Add comment | 1 | 3 | `com_data`, `persistent` |
+
+A commit is a form POST with `cmd_mod=2`; without it `cmd.cgi` only shows the form.
+
+What the source and the test instance showed, some of it against what this document used to say:
+
+- **A forced check is the ordinary "schedule a check" (7, 96) with `force_check` set.** `cmd.cgi` does not accept the separate forced types 54 and 98: it shows no form for them and answers a commit with "not authorized". An earlier version of this table had them.
+- **Times are text, in the server's `date_format` and local timezone**, and a wrong order of day and month is not rejected. Neither setting is in the JSON API. How the app deals with that is [ADR 0006](adr/0006-times-are-learned-from-nagios-and-read-back.md).
+- **A read-only user is told so on a plain request for a form**, before anything is committed. That is how the app knows without trying to change anything.
+- **Whether a user may command a particular object is only said at commit.** There is nothing to ask first.
+- **"Not authorized" is also what Nagios says for an object that does not exist**, a downtime id it does not know, and a command type it does not offer.
+- **The author is normally forced to the logged-in user** (`lock_author_names`), using the contact's alias if it has one. What the app sends as author is ignored.
+- **A comment is required** for an acknowledgement, a downtime and a comment, and **is altered**: `<` and `>` are removed and `;` becomes a space. The app does the same before sending (`storedCommentText`), so what it sends is what is stored.
+- **There is no CSRF token.** The form id is only enforced when the request carries Nagios' cookie, and the app sends none.
+- **"Successfully submitted" means written to the command file.** Nagios acts on it later; on the test instance the effect showed in the JSON API between 3 and 10 seconds afterwards. Some commands are then dropped without a word: an acknowledgement of something that is no longer a problem, a downtime wholly in the past.
+- **Every answer is HTTP 200.** What happened is in the page.
+
+Nagios answers a commit with one of these, each with fixed wording, and the app tells them apart:
+
+| Page | The app's name for it |
+|---|---|
+| "Your command request was successfully submitted" | accepted |
+| "do not have permission to submit the command" | read-only user |
+| "not authorized to commit the specified command" | not authorised for this object (or it does not exist) |
+| any other message, such as "Comment was not entered" | rejected, with Nagios' reason |
+| "not checking for external commands" | commands disabled |
+| "error occurred while attempting to commit" | Nagios could not write its command file |
+| anything else | **unknown**, never success |
+
+Reading that HTML is the most fragile thing in the app. It is all in one file (`CommandPage`), tested against the captured pages, and fuzzed. A page that is not recognised is never treated as success, so a future Nagios that rewords a message costs a clear "unknown" and a one-file fix, not a false "done".
+
+Three rules for sending:
+
+- **A command is sent at most once.** No retry. If the connection fails after the request may have left, the outcome is *unknown* and the app says so.
+- **Nothing is queued.** With no connection an action is refused there and then, not sent later when it may no longer be wanted.
+- **The same connection rules as reads** ([ADR 0004](adr/0004-cleartext-permitted-in-manifest-enforced-in-app.md)).
+
+After any command the app re-reads the affected object and reports what it sees, not what the page said (section 6, M3).
 
 ## 6. Screens (text wireframes)
 
