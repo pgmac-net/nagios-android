@@ -71,7 +71,6 @@ hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-view
 
 # Fuzzing. Test-only: neither is in the APK. See docs/development.md, "Fuzzing".
 jazzer = { module = "com.code-intelligence:jazzer", version.ref = "jazzer" }
-jazzer-api = { module = "com.code-intelligence:jazzer-api", version.ref = "jazzer" }
 
 # Security floors (see the versions above). Bouncy Castle and logback are each a family
 # released together, so every member in use is raised, not only the one with the advisory.

@@ -13,7 +13,7 @@ Ticket: pgmac-net/nagios-android#29. One pull request (#31). Follow-up filed: #3
 
 | Decision | Outcome | Why |
 |---|---|---|
-| Approach | Jazzer, with targets in Java | Scorecard only credits Jazzer through `*.java` files; a Kotlin target would fuzz and earn nothing |
+| Approach | Jazzer, with targets in Java | Scorecard only credits Jazzer through `*.java` files. **Reversed afterwards: see "Afterwards"** |
 | When it runs | Every pull request (60 s per target) and weekly (10 min per target); never a required check | Random, so it must not be able to block a merge that did not cause what it found |
 | What is fuzzed | Body interpretation, `StatusParser`, `AnnotationParser`; the fetcher as a follow-up | The first three are functions of one response. The fetcher is a conversation and needs its own harness |
 | What counts as a failure | Any exception, an input taking over 10 s, or the 512 MB heap running out | The contract is "a result or a `NagiosError`, nothing else" |
@@ -41,9 +41,20 @@ Fix: bodies nested over 32 levels are refused before parsing. Nagios writes abou
 - **A surviving mutant was a real gap in a test.** The "brackets inside strings" test had nothing structural after the string, so miscounting was invisible. Mutating the guard found it.
 - **A mutation can be unreachable.** One of mine put the changed branch after the one that always matched; "caught" and "not caught" would have meant nothing. Checking that a mutation changes behaviour is part of the check.
 
+## Afterwards: the Scorecard alert did not close, and the Java went
+
+Scorecard's Fuzzing alert stayed open after the merge. Its source (`getProminentLanguages`) only examines languages at least a quarter the size of the repository's *average* language, by byte count. Here that is a threshold of about 32.8 KB against 1.9 KB of Java, so the Jazzer pattern was never tried, and Kotlin, which is examined, has no pattern. Java would have needed roughly 35 KB.
+
+So the decision that put Java in the repository bought nothing. Two things followed (#29):
+
+- the alert was dismissed as "won't fix", with the reason attached;
+- the targets were converted to Kotlin, which removed the repository's only non-Kotlin source (which ktlint and detekt did not cover) and the `jazzer-api` dependency.
+
+The lesson is about the order of work: the check's condition was readable in its source before any of this was written, and I read the part that named the file pattern and not the part that decided whether the pattern was tried. The prediction in the pull request listed two conditions and there were three.
+
 ## Known limits
 
 - `ResilientListFetcher` is not fuzzed (#32).
 - The corpus is not persisted between CI runs, so each run starts from the fixtures and the hand-made inputs. The weekly run is longer for that reason.
-- Whether Scorecard closes its Fuzzing alert depends on it recognising the targets and on GitHub counting the repository as containing Java. Neither can be checked before merge.
+- Scorecard cannot credit this fuzzing (see above); the alert is dismissed, not fixed.
 - 32 is a judgement. If a future Nagios feature nests deeper, responses would be refused as "not Nagios".
