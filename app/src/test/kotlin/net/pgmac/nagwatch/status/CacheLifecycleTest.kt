@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.NagiosResult
+import net.pgmac.nagwatch.nagios.model.ServiceState
+import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.profile.DataStoreSelectedProfile
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.ProfileRepository
@@ -74,6 +76,28 @@ class CacheLifecycleTest {
         assertEquals("it knows how old that is", T0, status.lastSuccess)
         assertTrue("three hours old is stale, and says so", status.isStale(clock.instant()))
         assertEquals("nothing was fetched to show it", 0, offline.fetches)
+    }
+
+    @Test
+    fun `the lists of every host and service survive a restart too, not only the problems`() = runBlocking {
+        val id = saveProfile()
+        val states = listOf(
+            ServiceStateEntry("web01", "Ping", ServiceState.OK),
+            ServiceStateEntry("web01", "Disk /", ServiceState.CRITICAL),
+        )
+        client.statusResult = {
+            NagiosResult.Success(snapshot(services = listOf(criticalService())).copy(serviceStates = states))
+        }
+        val first = repository()
+        first.refresh(id)
+        assertEquals("held from the fetch", states, first.statuses.value[id]?.snapshot?.serviceStates)
+
+        val restarted = repository(FakeClient(statusResult = { failure() }))
+        restarted.showCached(id)
+
+        val snapshot = checkNotNull(restarted.statuses.value[id]?.snapshot)
+        assertEquals(states.toSet(), snapshot.serviceStates.toSet())
+        assertEquals(listOf("web01"), snapshot.hosts.map { it.name })
     }
 
     @Test

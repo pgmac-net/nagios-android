@@ -88,7 +88,8 @@ object ProblemClassifier {
         else -> Handling.UNHANDLED
     }
 
-    private fun markersOf(check: CheckStatus): Set<Marker> = buildSet {
+    /** What is worth saying about a check besides its state. Also used for rows that are not problems. */
+    fun markersOf(check: CheckStatus): Set<Marker> = buildSet {
         if (!check.detailsAvailable) {
             add(Marker.DETAILS_UNAVAILABLE)
             return@buildSet

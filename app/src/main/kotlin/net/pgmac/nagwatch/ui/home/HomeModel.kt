@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package net.pgmac.nagwatch.ui.home
+
+import java.time.Instant
+import net.pgmac.nagwatch.nagios.model.Problem
+import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.status.ProfileStatus
+import net.pgmac.nagwatch.ui.problems.ProblemKind
+
+/** The tabs along the bottom. Problems is where the app opens. */
+enum class HomeTab { PROBLEMS, HOSTS, SERVICES }
+
+data class HomeUiState(
+    /** True until the first list of profiles has arrived. */
+    val loading: Boolean = true,
+    val profiles: List<Profile> = emptyList(),
+    val selected: Profile? = null,
+    val status: ProfileStatus? = null,
+    /** The count chips switched on in the Problems tab. */
+    val filter: Set<ProblemKind> = emptySet(),
+    val now: Instant = Instant.EPOCH,
+) {
+    /** Unhandled problems with the active filter applied. */
+    val visibleUnhandled: List<Problem>
+        get() = status?.report?.unhandled.orEmpty().filter(::matchesFilter)
+
+    val visibleHandled: List<Problem>
+        get() = status?.report?.handled.orEmpty().filter(::matchesFilter)
+
+    private fun matchesFilter(problem: Problem): Boolean =
+        filter.isEmpty() || filter.any { problem.severity in it.severities }
+}
+
+/**
+ * The profile to show: the one the user picked if it still exists, otherwise
+ * the first. A deleted profile must not leave the screen pointing at nothing.
+ */
+fun selectProfile(profiles: List<Profile>, requestedId: Long?): Profile? =
+    profiles.firstOrNull { it.id == requestedId } ?: profiles.firstOrNull()

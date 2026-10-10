@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package net.pgmac.nagwatch.ui.problems
+package net.pgmac.nagwatch.ui.home
 
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -34,6 +34,7 @@ import net.pgmac.nagwatch.status.failure
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
 import net.pgmac.nagwatch.status.provider
 import net.pgmac.nagwatch.status.snapshot
+import net.pgmac.nagwatch.ui.problems.ProblemKind
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -46,7 +47,7 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 @Config(application = android.app.Application::class)
-class ProblemsViewModelTest {
+class HomeViewModelTest {
     private val database = inMemoryProfileDatabase()
     private val profiles = ProfileRepository(database.profiles(), SecretCipher(softwareKeySource()), Json)
     private val clock = MutableClock(T0)
@@ -54,7 +55,7 @@ class ProblemsViewModelTest {
     private val cache = StatusCache(statusDatabase.cache())
     private val client = FakeClient()
     private val statuses = StatusRepository(profiles, provider(client), cache, clock)
-    private val created = mutableListOf<ProblemsViewModel>()
+    private val created = mutableListOf<HomeViewModel>()
 
     @Before
     fun setUp() = Dispatchers.setMain(Dispatchers.Unconfined)
@@ -98,7 +99,7 @@ class ProblemsViewModelTest {
         // A new process: an empty repository over the same cache, and a server that fails.
         val offline = FakeClient(statusResult = { failure() })
         val restarted =
-            ProblemsViewModel(
+            HomeViewModel(
                 profiles,
                 StatusRepository(profiles, provider(offline), cache, clock),
                 FakeSelectedProfile(),
@@ -236,9 +237,9 @@ class ProblemsViewModelTest {
     }
 
     private fun viewModel(selected: FakeSelectedProfile = FakeSelectedProfile()) =
-        ProblemsViewModel(profiles, statuses, selected).also(created::add)
+        HomeViewModel(profiles, statuses, selected).also(created::add)
 
-    private fun ProblemsViewModel.awaitState(predicate: (ProblemsUiState) -> Boolean): ProblemsUiState =
+    private fun HomeViewModel.awaitState(predicate: (HomeUiState) -> Boolean): HomeUiState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }
 
     private fun saveProfile(name: String): Long = runBlocking {

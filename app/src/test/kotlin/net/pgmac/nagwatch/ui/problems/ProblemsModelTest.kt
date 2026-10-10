@@ -16,6 +16,8 @@ import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.criticalService
 import net.pgmac.nagwatch.status.snapshot
+import net.pgmac.nagwatch.ui.home.HomeUiState
+import net.pgmac.nagwatch.ui.home.selectProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -115,10 +117,10 @@ class ProblemsModelTest {
     private fun stateWith(
         hosts: List<HostStatus> = emptyList(),
         services: List<ServiceStatus> = emptyList(),
-    ): ProblemsUiState {
+    ): HomeUiState {
         val all = listOf(HostStatus("web01", HostState.UP, check())) + hosts
         val report = ProblemClassifier.classify(snapshot(hosts = all, services = services))
-        return ProblemsUiState(
+        return HomeUiState(
             loading = false,
             profiles = listOf(profile(1, "Home")),
             selected = profile(1, "Home"),
@@ -127,7 +129,7 @@ class ProblemsModelTest {
         )
     }
 
-    private fun ProblemsUiState.titles() = visibleUnhandled.map { it.title() }
+    private fun HomeUiState.titles() = visibleUnhandled.map { it.title() }
 
     private fun profile(id: Long, name: String) = Profile(
         id = id,
