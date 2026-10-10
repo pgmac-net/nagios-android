@@ -222,6 +222,20 @@ How M2 implements them:
 
 Host detail is the same minus the service name, with the host check graph if one exists.
 
+How M2 implements the detail screens (actions are M3 and graphs M6, so neither is here yet):
+
+- **Opening one shows something at once.** In order of preference: what was saved the last time it was opened, then what the last poll carried (every host, and every service with a problem). It is labelled "As of" with its date, and with its age once that passes 30 minutes. Then the record, its comments and its downtimes are fetched, and each is saved as it arrives.
+- **A service that was fine and has never been opened** has no details anywhere until Nagios answers. It shows the state the last poll gave it, and "Loading".
+- **Header:** state, HARD or SOFT, attempt n of m, how long in this state, last and next check, active or passive.
+- **Output**, selectable. Long output and performance data are folded away until asked for; performance data is shown raw.
+- **Status:** acknowledged, in scheduled downtime, active checks, notifications, flapping, each spelled out.
+- **A service links to its host; a host lists its services**, worst first, each opening that service.
+- **Comments**, newest first: the first 20, then "Show all". **Scheduled downtime:** who, the window, fixed or flexible, whether in effect.
+- **Comments and downtimes fail on their own.** Each is its own request. If one cannot be fetched, its section says so and why, keeps whatever was saved earlier, and the rest of the screen is unaffected. This is also how an older Nagios, or a user without the right to read them, is handled.
+- **When Nagios cannot be reached at all**, the saved record stays with a banner giving the reason, and Nagios is asked once, not three times.
+- **A record Nagios cannot serialise** (section 5) shows its state and says details are unavailable; it does not show empty output as if the check had said nothing.
+- **Open in Nagios** hands the object's page in the web interface to the browser. The link is built from the profile's address alone: no credentials are ever put in a URL passed to another app.
+
 ### Acknowledge dialog
 
 ```
@@ -328,5 +342,5 @@ Outside this repo: pgmac-net/homelabia#211. The maintainer's Nagios is already p
 
 ## 13. Open questions
 
-- Whether Nagios Core versions older than 4.4 return the fields the detail screen needs (M1 fixtures; raise the minimum version if not).
+- ~~Whether Nagios Core versions older than 4.4 return the fields the detail screen needs.~~ **Closed in M2, by not depending on the answer.** Only 4.5 could be tested, and no field-level changelog for the JSON CGIs was found, so the question cannot be answered from here. Instead: the claim is "tested on 4.5; 4.0.7 and later expected to work, not tested"; nothing is refused on a version number; the parsers tolerate missing fields; comments and downtimes each degrade to "unavailable" on their own; and Test connection adds a note below 4.4. The minimum version is not raised. Reports from other versions are asked for in the README.
 - Whether Android 8-11 devices need a different widget fallback, since dynamic colour and some Glance behaviour need Android 12 (M5).

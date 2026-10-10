@@ -128,7 +128,7 @@ internal fun StatusBanners(status: ProfileStatus, now: Instant) {
 }
 
 @Composable
-private fun Banner(text: String, tag: String) {
+internal fun Banner(text: String, tag: String) {
     Text(
         text = text,
         color = MaterialTheme.colorScheme.onErrorContainer,

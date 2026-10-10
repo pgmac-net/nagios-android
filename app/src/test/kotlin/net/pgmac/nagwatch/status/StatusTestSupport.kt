@@ -24,6 +24,9 @@ import net.pgmac.nagwatch.nagios.model.ServerInfo
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.profile.ProfileDraft
+import net.pgmac.nagwatch.profile.ProfileRepository
+import net.pgmac.nagwatch.profile.SecretInput
 import net.pgmac.nagwatch.profile.SelectedProfile
 import net.pgmac.nagwatch.status.cache.StatusDatabase
 import okhttp3.HttpUrl
@@ -114,3 +117,43 @@ fun provider(client: FakeClient, onCreate: (ConnectionSettings) -> Unit = {}) = 
     onCreate(settings)
     client
 }
+
+fun comment(
+    id: Long,
+    text: String = "note $id",
+    at: Instant = T0,
+    kind: Comment.Kind = Comment.Kind.USER,
+    author: String = "alice",
+) = Comment(id = id, kind = kind, author = author, text = text, enteredAt = at, persistent = true, expiresAt = null)
+
+fun downtime(
+    id: Long,
+    comment: String = "maintenance $id",
+    fixed: Boolean = true,
+    inEffect: Boolean = false,
+    author: String = "bob",
+) = Downtime(
+    id = id,
+    author = author,
+    comment = comment,
+    start = T0,
+    end = T0.plusSeconds(7200),
+    fixed = fixed,
+    duration = java.time.Duration.ofHours(2),
+    inEffect = inEffect,
+)
+
+/** A profile as the editor would save it. */
+suspend fun ProfileRepository.saveTestProfile(name: String = "Home"): Long = save(
+    ProfileDraft(
+        id = null,
+        name = name,
+        baseUrl = "https://nagios.example.org/nagios",
+        username = "nagwatch",
+        password = SecretInput.Replace("pw"),
+        accessClientId = "",
+        accessClientSecret = SecretInput.Keep,
+        customHeaders = emptyList(),
+        allowCleartext = false,
+    ),
+)

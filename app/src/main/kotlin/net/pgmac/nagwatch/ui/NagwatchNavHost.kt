@@ -2,7 +2,12 @@
 
 package net.pgmac.nagwatch.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -10,7 +15,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import net.pgmac.nagwatch.ui.detail.DetailPlaceholderScreen
+import net.pgmac.nagwatch.nagios.model.ObjectRef
+import net.pgmac.nagwatch.ui.detail.DetailNavigation
+import net.pgmac.nagwatch.ui.detail.DetailScreen
 import net.pgmac.nagwatch.ui.home.HomeNavigation
 import net.pgmac.nagwatch.ui.home.HomeScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
@@ -20,6 +27,7 @@ import net.pgmac.nagwatch.ui.profile.ProfilesScreen
 @Composable
 fun NagwatchNavHost() {
     val navController = rememberNavController()
+    val context = LocalContext.current
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(homeNavigation(navController)) }
         composable(Routes.PROFILES) {
@@ -34,12 +42,16 @@ fun NagwatchNavHost() {
         ) {
             ProfileEditorScreen(onDone = { navController.popBackStack() })
         }
-        detailDestinations(onBack = { navController.popBackStack() })
+        // The view model reads the same arguments itself; the screen needs nothing passed in.
+        detailDestinations { _, _ -> DetailScreen(detailNavigation(navController) { openInBrowser(context, it) }) }
     }
 }
 
-/** The detail screens themselves are the next piece of work; the routes and their arguments are real. */
-internal fun NavGraphBuilder.detailDestinations(onBack: () -> Unit) {
+/**
+ * The host and service destinations. What is shown there is passed in, so the
+ * routes and their arguments can be exercised without the rest of the app.
+ */
+internal fun NavGraphBuilder.detailDestinations(content: @Composable (profileId: Long, ref: ObjectRef) -> Unit) {
     composable(
         route = Routes.HOST,
         arguments = listOf(
@@ -47,11 +59,8 @@ internal fun NavGraphBuilder.detailDestinations(onBack: () -> Unit) {
             navArgument(Routes.ARG_HOST) { type = NavType.StringType },
         ),
     ) { entry ->
-        DetailPlaceholderScreen(
-            hostName = entry.arguments?.getString(Routes.ARG_HOST).orEmpty(),
-            service = null,
-            onBack = onBack,
-        )
+        val arguments = entry.arguments
+        content(arguments?.getLong(Routes.ARG_PROFILE) ?: 0, ObjectRef(arguments?.getString(Routes.ARG_HOST).orEmpty()))
     }
     composable(
         route = Routes.SERVICE,
@@ -61,11 +70,39 @@ internal fun NavGraphBuilder.detailDestinations(onBack: () -> Unit) {
             navArgument(Routes.ARG_SERVICE) { type = NavType.StringType },
         ),
     ) { entry ->
-        DetailPlaceholderScreen(
-            hostName = entry.arguments?.getString(Routes.ARG_HOST).orEmpty(),
-            service = entry.arguments?.getString(Routes.ARG_SERVICE).orEmpty(),
-            onBack = onBack,
+        val arguments = entry.arguments
+        content(
+            arguments?.getLong(Routes.ARG_PROFILE) ?: 0,
+            ObjectRef(
+                hostName = arguments?.getString(Routes.ARG_HOST).orEmpty(),
+                description = arguments?.getString(Routes.ARG_SERVICE).orEmpty(),
+            ),
         )
+    }
+}
+
+private fun detailNavigation(navController: NavHostController, openUrl: (String) -> Unit) = object : DetailNavigation {
+    override fun back() {
+        navController.popBackStack()
+    }
+
+    override fun openHost(profileId: Long, hostName: String) = navController.navigate(Routes.host(profileId, hostName))
+
+    override fun openService(profileId: Long, hostName: String, description: String) =
+        navController.navigate(Routes.service(profileId, hostName, description))
+
+    override fun openInBrowser(url: String) = openUrl(url)
+}
+
+/**
+ * Hands a web page to the browser. If the device has nothing that opens web
+ * pages there is nothing useful to do, and crashing is not it.
+ */
+private fun openInBrowser(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        // No browser installed.
     }
 }
 

@@ -52,6 +52,7 @@ object ProfileEditorTags {
     const val PASSWORD = "editor_password"
     const val PASSWORD_SAVED = "editor_password_saved"
     const val TEST_RESULT = "editor_test_result"
+    const val TEST_NOTE = "editor_test_note"
     const val PROBLEMS = "editor_problems"
     const val SAVE = "editor_save"
     const val TEST = "editor_test"
@@ -258,6 +259,14 @@ private fun TestResult(test: TestState) {
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.testTag(ProfileEditorTags.TEST_RESULT),
     )
+    // It connected, so nothing is wrong; this only says what to expect from an older server.
+    if (test is TestState.Succeeded && NagiosVersion.isOlderThanTested(test.nagiosVersion)) {
+        Text(
+            text = stringResource(R.string.profile_test_old_version),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag(ProfileEditorTags.TEST_NOTE),
+        )
+    }
 }
 
 @Composable

@@ -3,6 +3,7 @@
 package net.pgmac.nagwatch.ui
 
 import android.net.Uri
+import net.pgmac.nagwatch.ui.detail.DetailViewModel
 import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 
 /**
@@ -15,9 +16,9 @@ internal object Routes {
     const val PROFILES = "profiles"
     const val PROFILE = "profile/{${ProfileEditorViewModel.ARG_PROFILE_ID}}"
 
-    const val ARG_PROFILE = "profile"
-    const val ARG_HOST = "host"
-    const val ARG_SERVICE = "service"
+    const val ARG_PROFILE = DetailViewModel.ARG_PROFILE
+    const val ARG_HOST = DetailViewModel.ARG_HOST
+    const val ARG_SERVICE = DetailViewModel.ARG_SERVICE
     const val HOST = "host/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}"
     const val SERVICE = "service/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}&$ARG_SERVICE={$ARG_SERVICE}"
 
