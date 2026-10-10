@@ -24,9 +24,9 @@ class FossCheckPlugin : Plugin<Project> {
             denylistFile.set(project.rootProject.layout.projectDirectory.file(DENYLIST_PATH))
             project.configurations
                 .matching { isShippedClasspath(it.name) }
-                .all {
-                    configurationNames.add(name)
-                    rootComponents.add(incoming.resolutionResult.rootComponent)
+                .all { configuration ->
+                    configurationNames.add(configuration.name)
+                    rootComponents.add(configuration.incoming.resolutionResult.rootComponent)
                 }
         }
 
@@ -34,16 +34,16 @@ class FossCheckPlugin : Plugin<Project> {
             group = "verification"
             description = "Fails if a Kotlin source or build script lacks the SPDX licence header."
             sources.from(
-                project.rootProject.fileTree(project.rootProject.projectDir) {
-                    include("**/*.kt", "**/*.kts")
-                    exclude("**/build/**", "**/.gradle/**", ".claude/**", ".kotlin/**")
+                project.rootProject.fileTree(project.rootProject.projectDir) { tree ->
+                    tree.include("**/*.kt", "**/*.kts")
+                    tree.exclude("**/build/**", "**/.gradle/**", ".claude/**", ".kotlin/**")
                 },
             )
             rootDir.set(project.rootProject.layout.projectDirectory)
         }
 
         project.pluginManager.withPlugin("com.android.application") {
-            project.tasks.named("check") { dependsOn(fossCheck, spdxCheck) }
+            project.tasks.named("check") { check -> check.dependsOn(fossCheck, spdxCheck) }
             if (isSelfTest(project)) {
                 project.dependencies.add("implementation", SELF_TEST_DEPENDENCY)
             }

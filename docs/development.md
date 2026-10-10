@@ -41,6 +41,17 @@ The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debu
 - Kotlin, KSP and the Compose compiler plugin move together. AGP and the Gradle wrapper have a compatibility matrix. Renovate groups them for that reason.
 - FOSS only. See [CONTRIBUTING.md](../CONTRIBUTING.md#dependencies).
 
+### Security floors
+
+Build tools bring libraries of their own, and a tool's latest release can still ask for a version with a known vulnerability. None of these is in the APK: they run on the machine doing the build. They are still raised, because an alert left open teaches everyone to ignore alerts.
+
+- The versions are the `floor...` entries in `gradle/libs.versions.toml`, so Renovate keeps them moving.
+- They are applied as **constraints** in three places, because Gradle has three separate classpaths here: the build script's (`build.gradle.kts`, for what the Android Gradle plugin brings), and the lint tool's and ktlint's (`app/build.gradle.kts`). A constraint adds nothing: it only applies where something already asks for that library.
+- Where a library is one of a family released together (Bouncy Castle, logback), every member in use is raised, not only the one named in the advisory.
+- `build-logic` does not use the `kotlin-dsl` plugin, because that brings the Kotlin Gradle plugin of whichever version Gradle embeds, which cannot be raised without a new Gradle. It uses the project's own Kotlin plugin instead. The cost: in `build-logic`, a lambda passed to a Gradle `Action` takes its argument as a parameter (`{ task -> task.dependsOn(...) }`), not as an implicit receiver.
+- **When an alert appears:** find where the version comes from (`./gradlew buildEnvironment` for the build script, `./gradlew :app:dependencies` for everything else), add or raise a floor, refresh the lockfile, and run the full `check`: a raised library is being run by a tool that was not released against it.
+- **When to remove one:** when the tool that needed it asks for a fixed version itself. A floor below what is already resolved does nothing and can go.
+
 ## Tests
 
 JVM unit tests only, for now. Compose screens are tested under Robolectric (`app/src/test`), which is how CI stands in for "the app launches" without an emulator. Robolectric is pinned to an Android version in `app/src/test/resources/robolectric.properties`; it trails `targetSdk` deliberately.
