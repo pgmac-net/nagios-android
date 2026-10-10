@@ -150,7 +150,7 @@ What a Nagios server sends back is the app's main untrusted input, so it is fuzz
 
 The contract under test is "a result or a `NagiosError`, nothing else". An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
 
-**The targets are Java on purpose.** OpenSSF Scorecard looks for Jazzer in `*.java` files that import `FuzzedDataProvider`; a Kotlin target would work and earn nothing. Each is a few lines that hand the bytes to a Kotlin function in `FuzzEntryPoints`, where the `internal` parsers are visible.
+**The targets are Kotlin.** Each is a few lines in `FuzzTargets.kt` that hand the bytes to a function in `FuzzEntryPoints`. They were Java at first, to earn credit from OpenSSF Scorecard's Fuzzing check, which looks for Jazzer in `*.java` files. It does not earn it here: Scorecard only examines languages at least a quarter the size of the repository's average one, this repository is almost entirely Kotlin, and Scorecard has no Kotlin pattern. That alert is dismissed as "won't fix" with this reason (#29). Do not add Java or ClusterFuzzLite for the score alone.
 
 **Two ways it runs:**
 
@@ -170,7 +170,7 @@ The contract under test is "a result or a `NagiosError`, nothing else". An excep
 - libFuzzer's resident-size limit is switched off: the JVM and Jazzer's native side sit near 2.7 GB before the first input, so it blamed the JVM. The heap cap does that job.
 - A fuzzer that finds nothing proves nothing until it has been shown to find something. When changing the harness, plant a crash behind a condition no fixture reaches (a string compare in `StatusParser.check` worked, found in about 15 seconds), check the fuzzer finds it and the replay test fails with its input saved, then take it out.
 
-**Licence.** Jazzer is Apache-2.0 and test-only: it is on a `fuzzer` configuration of its own, outside the app's classpaths, so it is in no APK and is not seen by Licensee. The small API jar the targets compile against is on the unit-test classpath.
+**Licence.** Jazzer is Apache-2.0 and test-only: it is on a `fuzzer` configuration of its own, outside every classpath the app or its tests use, so it is in no APK and is not seen by Licensee. The targets compile against nothing from it.
 
 ## Network rules
 

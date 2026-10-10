@@ -104,8 +104,8 @@ configurations.matching { it.name in toolFloors }.configureEach {
 }
 
 // Fuzzing (docs/development.md, "Fuzzing"). The fuzzer is a plain Java program on a
-// classpath of its own, so it never touches the app's or the unit tests'. Only the
-// small API jar that the targets are written against is on the test classpath.
+// classpath of its own, so it never touches the app's or the unit tests'. The targets are
+// ordinary test classes and need nothing from it: it finds them by name.
 val fuzzer = configurations.create("fuzzer") {
     description = "Jazzer, the fuzzing engine. Test tooling: not in the APK."
     isCanBeConsumed = false
@@ -254,7 +254,6 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
-    testImplementation(libs.jazzer.api)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.compose.bom))
