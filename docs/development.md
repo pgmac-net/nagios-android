@@ -144,7 +144,13 @@ All traffic to Nagios goes through one OkHttp interceptor (`ConnectionIntercepto
 
 `.github/workflows/ci.yml` has three jobs, `build`, `lint` and `foss`, on GitHub-hosted runners. **Those job names are required status checks** on `main`, set in `pgmac-net/terraform-github`. Rename one there first, or every merge blocks.
 
-Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `jvmToolchain()` in `app/build.gradle.kts`; Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `scorecard.yml` and `dependency-submission.yml` run on `main` only and are not required.
+Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `jvmToolchain()` in `app/build.gradle.kts`; Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `scorecard.yml` and `dependency-submission.yml` run on `main` only and are not required. Their findings appear under the repository's Security tab.
+
+
+Beside those three, and not required for a merge:
+
+- **CodeQL** (`codeql.yml`) analyses the Kotlin, the workflows and the scripts on every pull request, on `main`, and weekly. Kotlin is analysed by watching a real compilation, so that job builds the app with the daemon and the build cache off: a compilation restored from a cache is one CodeQL never saw. Downloaded libraries and Gradle itself are still read from the cache. It is not a required check because CodeQL's support for a new Kotlin release can lag the release; if the Kotlin job fails after a Kotlin upgrade, that is the first thing to check.
+- **The Gradle wrapper is verified** in the `build` job. `gradle-wrapper.jar` is a binary in the repository that runs on every build; it is checked against the checksums Gradle publishes before anything runs it.
 
 ## Layout
 
