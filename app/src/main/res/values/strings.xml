@@ -10,6 +10,27 @@
     <string name="action_replace">Replace</string>
 
     <string name="action_retry">Try again</string>
+    <string name="action_back">Back</string>
+
+    <string name="tab_problems">Problems</string>
+    <string name="tab_hosts">Hosts</string>
+    <string name="tab_services">Services</string>
+
+    <string name="state_ok">OK</string>
+    <string name="state_up">UP</string>
+    <string name="state_pending">PENDING</string>
+    <string name="state_unreachable_short">UNREACH</string>
+
+    <string name="browse_search_hosts">Search hosts</string>
+    <string name="browse_search_services">Search services and hosts</string>
+    <string name="browse_clear">Clear</string>
+    <string name="browse_chip">%1$s (%2$d)</string>
+    <string name="browse_handled">Handled (%1$d)</string>
+    <string name="browse_none">Nothing matches.</string>
+    <string name="browse_empty_hosts">Nagios reported no hosts.</string>
+    <string name="browse_empty_services">Nagios reported no services.</string>
+
+    <string name="detail_placeholder">The detail screen is not built yet. It is the next piece of work.</string>
 
     <string name="problems_loading">Loading…</string>
     <string name="problems_edit_profile">Edit this profile</string>
@@ -41,6 +62,7 @@
     <string name="note_details_unavailable">details unavailable: Nagios could not read this one</string>
     <string name="note_acknowledged">acknowledged</string>
     <string name="note_downtime">in downtime</string>
+    <string name="note_host_down">host down</string>
 
     <plurals name="problems_banner_degraded">
         <item quantity="one">Nagios could not provide the details of %1$d item (a server error on its side). It is listed with its state only.</item>

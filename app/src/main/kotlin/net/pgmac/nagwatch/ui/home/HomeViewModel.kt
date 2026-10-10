@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package net.pgmac.nagwatch.ui.problems
+package net.pgmac.nagwatch.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,9 +23,11 @@ import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SelectedProfile
 import net.pgmac.nagwatch.status.StatusRepository
+import net.pgmac.nagwatch.ui.problems.ProblemKind
 
+/** Which profile is shown and its status: shared by the Problems, Hosts and Services tabs. */
 @HiltViewModel
-class ProblemsViewModel @Inject constructor(
+class HomeViewModel @Inject constructor(
     profiles: ProfileRepository,
     private val statuses: StatusRepository,
     private val selectedProfile: SelectedProfile,
@@ -55,7 +57,7 @@ class ProblemsViewModel @Inject constructor(
         }
     }
 
-    val state: StateFlow<ProblemsUiState> = combine(
+    val state: StateFlow<HomeUiState> = combine(
         profiles.observeProfiles(),
         selectedProfile.id,
         statuses.statuses,
@@ -63,7 +65,7 @@ class ProblemsViewModel @Inject constructor(
         clock,
     ) { all, requested, byProfile, activeFilter, now ->
         val selected = selectProfile(all, requested)
-        ProblemsUiState(
+        HomeUiState(
             loading = false,
             profiles = all,
             selected = selected,
@@ -71,7 +73,7 @@ class ProblemsViewModel @Inject constructor(
             filter = activeFilter,
             now = now,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ProblemsUiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HomeUiState())
 
     /** Choosing a profile is all this does; showing a different profile is what loads it. */
     fun select(profileId: Long) {

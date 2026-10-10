@@ -31,6 +31,10 @@ import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.snapshot
+import net.pgmac.nagwatch.ui.home.HomeActions
+import net.pgmac.nagwatch.ui.home.HomeContent
+import net.pgmac.nagwatch.ui.home.HomeTags
+import net.pgmac.nagwatch.ui.home.HomeUiState
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -47,9 +51,9 @@ class ProblemsScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private var state by mutableStateOf(ProblemsUiState(loading = false))
+    private var state by mutableStateOf(HomeUiState(loading = false))
     private val calls = mutableListOf<String>()
-    private val actions = object : ProblemsActions {
+    private val actions = object : HomeActions {
         override fun refresh() {
             calls += "refresh"
         }
@@ -73,21 +77,29 @@ class ProblemsScreenTest {
         override fun manageProfiles() {
             calls += "manage"
         }
+
+        override fun openHost(hostName: String) {
+            calls += "host:$hostName"
+        }
+
+        override fun openService(hostName: String, description: String) {
+            calls += "service:$hostName/$description"
+        }
     }
 
     @Test
     fun `before profiles arrive it says loading`() {
-        show(ProblemsUiState(loading = true))
+        show(HomeUiState(loading = true))
 
-        composeRule.onNodeWithTag(ProblemsTags.LOADING).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.LOADING).assertIsDisplayed()
     }
 
     @Test
     fun `with no profile it explains and offers to add one`() {
-        show(ProblemsUiState(loading = false))
+        show(HomeUiState(loading = false))
 
-        composeRule.onNodeWithTag(ProblemsTags.NO_PROFILES).assertIsDisplayed()
-        composeRule.onNodeWithTag(ProblemsTags.ADD_PROFILE).performClick()
+        composeRule.onNodeWithTag(HomeTags.NO_PROFILES).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.ADD_PROFILE).performClick()
         assertEquals(listOf("add"), calls)
     }
 
@@ -95,7 +107,7 @@ class ProblemsScreenTest {
     fun `before the first result it says loading rather than showing an empty list`() {
         show(withStatus(ProfileStatus(refreshing = true)))
 
-        composeRule.onNodeWithTag(ProblemsTags.LOADING).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.LOADING).assertIsDisplayed()
         composeRule.onNodeWithTag(ProblemsTags.ALL_CLEAR).assertDoesNotExist()
     }
 
@@ -103,7 +115,7 @@ class ProblemsScreenTest {
     fun `a first failure with nothing to fall back on shows the reason and a way out`() {
         show(withStatus(ProfileStatus(error = StatusError.Nagios(NagiosError.BadCredentials))))
 
-        composeRule.onNodeWithTag(ProblemsTags.ERROR).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.ERROR).assertIsDisplayed()
         composeRule.onNodeWithText("rejected the username or password", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Try again").performClick()
         composeRule.onNodeWithText("Edit this profile").performClick()
@@ -123,7 +135,7 @@ class ProblemsScreenTest {
 
         composeRule.onNodeWithTag(ProblemsTags.ALL_CLEAR).assertIsDisplayed()
         composeRule.onNodeWithText("No problems. Everything is OK.").assertIsDisplayed()
-        composeRule.onNodeWithTag(ProblemsTags.UPDATED).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.UPDATED).assertIsDisplayed()
     }
 
     @Test
@@ -225,7 +237,7 @@ class ProblemsScreenTest {
             assertTrue("$kind chip wraps: ${bounds.height} tall", bounds.height < 64.dp)
             assertTrue("$kind chip runs off the screen", bounds.right <= screenWidth)
         }
-        val updated = composeRule.onNodeWithTag(ProblemsTags.UPDATED).getUnclippedBoundsInRoot()
+        val updated = composeRule.onNodeWithTag(HomeTags.UPDATED).getUnclippedBoundsInRoot()
         assertTrue("the header is a sensible height, not stretched: ${updated.top}", updated.top < 320.dp)
     }
 
@@ -272,7 +284,7 @@ class ProblemsScreenTest {
 
         show(withReport(status))
 
-        composeRule.onNodeWithTag(ProblemsTags.BANNER_FAILED).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.BANNER_FAILED).assertIsDisplayed()
         composeRule.onNodeWithText("did not answer in time", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("web01 / Disk /").assertIsDisplayed()
     }
@@ -283,7 +295,7 @@ class ProblemsScreenTest {
 
         show(withReport(status).copy(now = T0 + Duration.ofMinutes(95)))
 
-        composeRule.onNodeWithTag(ProblemsTags.BANNER_STALE).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.BANNER_STALE).assertIsDisplayed()
         composeRule.onNodeWithText("1h 35m old", substring = true).assertIsDisplayed()
     }
 
@@ -291,8 +303,8 @@ class ProblemsScreenTest {
     fun `fresh data carries no stale banner`() {
         show(withReport(ProfileStatus(report = report(), lastSuccess = T0)).copy(now = T0 + Duration.ofMinutes(5)))
 
-        composeRule.onNodeWithTag(ProblemsTags.BANNER_STALE).assertDoesNotExist()
-        composeRule.onNodeWithTag(ProblemsTags.BANNER_FAILED).assertDoesNotExist()
+        composeRule.onNodeWithTag(HomeTags.BANNER_STALE).assertDoesNotExist()
+        composeRule.onNodeWithTag(HomeTags.BANNER_FAILED).assertDoesNotExist()
     }
 
     @Test
@@ -307,7 +319,7 @@ class ProblemsScreenTest {
             ),
         )
 
-        composeRule.onNodeWithTag(ProblemsTags.BANNER_DEGRADED).assertIsDisplayed()
+        composeRule.onNodeWithTag(HomeTags.BANNER_DEGRADED).assertIsDisplayed()
         composeRule.onNodeWithText("details unavailable", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("web01 / Odd").assertIsDisplayed()
     }
@@ -320,22 +332,22 @@ class ProblemsScreenTest {
             ).copy(profiles = listOf(profile(1, "Home"), profile(2, "Office"))),
         )
 
-        composeRule.onNodeWithTag(ProblemsTags.PROFILE_MENU).performClick()
+        composeRule.onNodeWithTag(HomeTags.PROFILE_MENU).performClick()
         composeRule.onNodeWithText("Office").performClick()
-        composeRule.onNodeWithTag(ProblemsTags.PROFILE_MENU).performClick()
+        composeRule.onNodeWithTag(HomeTags.PROFILE_MENU).performClick()
         composeRule.onNodeWithText("Edit this profile").performClick()
-        composeRule.onNodeWithTag(ProblemsTags.PROFILE_MENU).performClick()
+        composeRule.onNodeWithTag(HomeTags.PROFILE_MENU).performClick()
         composeRule.onNodeWithText("Manage profiles").performClick()
 
         assertEquals(listOf("select:2", "edit:1", "manage"), calls)
     }
 
-    private fun show(initial: ProblemsUiState) {
+    private fun show(initial: HomeUiState) {
         state = initial
-        composeRule.setContent { NagwatchTheme(dynamicColor = false) { ProblemsContent(state, actions) } }
+        composeRule.setContent { NagwatchTheme(dynamicColor = false) { HomeContent(state, actions) } }
     }
 
-    private fun withStatus(status: ProfileStatus) = ProblemsUiState(
+    private fun withStatus(status: ProfileStatus) = HomeUiState(
         loading = false,
         profiles = listOf(profile(1, "Home")),
         selected = profile(1, "Home"),

@@ -8,8 +8,6 @@ import net.pgmac.nagwatch.nagios.model.HostProblem
 import net.pgmac.nagwatch.nagios.model.Problem
 import net.pgmac.nagwatch.nagios.model.ServiceProblem
 import net.pgmac.nagwatch.nagios.model.Severity
-import net.pgmac.nagwatch.profile.Profile
-import net.pgmac.nagwatch.status.ProfileStatus
 
 /** The count chips along the top; tapping one filters the list to it. */
 enum class ProblemKind(val severities: Set<Severity>) {
@@ -18,33 +16,6 @@ enum class ProblemKind(val severities: Set<Severity>) {
     WARNING(setOf(Severity.WARNING)),
     UNKNOWN(setOf(Severity.UNKNOWN)),
 }
-
-data class ProblemsUiState(
-    /** True until the first list of profiles has arrived. */
-    val loading: Boolean = true,
-    val profiles: List<Profile> = emptyList(),
-    val selected: Profile? = null,
-    val status: ProfileStatus? = null,
-    val filter: Set<ProblemKind> = emptySet(),
-    val now: Instant = Instant.EPOCH,
-) {
-    /** Unhandled problems with the active filter applied. */
-    val visibleUnhandled: List<Problem>
-        get() = status?.report?.unhandled.orEmpty().filter(::matchesFilter)
-
-    val visibleHandled: List<Problem>
-        get() = status?.report?.handled.orEmpty().filter(::matchesFilter)
-
-    private fun matchesFilter(problem: Problem): Boolean =
-        filter.isEmpty() || filter.any { problem.severity in it.severities }
-}
-
-/**
- * The profile to show: the one the user picked if it still exists, otherwise
- * the first. A deleted profile must not leave the screen pointing at nothing.
- */
-fun selectProfile(profiles: List<Profile>, requestedId: Long?): Profile? =
-    profiles.firstOrNull { it.id == requestedId } ?: profiles.firstOrNull()
 
 /** A problem's host and, for a service, its name: "web01" or "web01 / Disk /". */
 fun Problem.title(): String = when (this) {
@@ -74,3 +45,11 @@ fun formatAge(since: Instant?, now: Instant): String {
 
 private const val MINUTES_PER_HOUR = 60
 private const val HOURS_PER_DAY = 24
+
+object ProblemsTags {
+    const val ALL_CLEAR = "problems_all_clear"
+    const val LIST = "problems_list"
+    const val HANDLED_TOGGLE = "problems_handled_toggle"
+
+    fun chip(kind: ProblemKind) = "problems_chip_${kind.name}"
+}

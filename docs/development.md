@@ -47,6 +47,11 @@ JVM unit tests only, for now. Compose screens are tested under Robolectric (`app
 
 A real-device launch is checked by hand: download the `nagwatch-debug-apk` artifact from a CI run and install it.
 
+Two things the tests could not see, and what to do about each:
+
+- **A test that measures layout needs real fonts.** Robolectric's default stub fonts make every piece of text a few dp wide, so a row of chips that overflows on a phone fits comfortably in the test. Annotate such a test with `@GraphicsMode(GraphicsMode.Mode.NATIVE)` and a phone-sized qualifier (`w360dp-h640dp-xhdpi`), then check it fails against the broken layout before trusting it.
+- **A cold start is its own case.** Arriving at a screen from another screen and arriving from a fresh process differ in what has loaded by then. Anything a screen needs on arrival should be driven by the view model once the data exists, not requested by the screen at the moment it starts; test it from a newly built view model.
+
 ## Nagios fixtures
 
 Parser and client tests replay responses captured from a real Nagios. This repository is public, so captures are **sanitised before they are committed**: hosts, services, plugin output and the user name are replaced with generic values; structure, states and timestamps are kept.
@@ -82,13 +87,22 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 
 ## Status and the Problems view
 
-`StatusRepository` polls a profile (`NagiosClient`, then `ProblemClassifier`) and holds the latest result in memory, per profile. Nothing is persisted until M2.
+`StatusRepository` polls a profile (`NagiosClient`, then `ProblemClassifier`) and holds the latest result in memory, per profile: the classified report for the Problems tab and the poll it was made from for the Hosts and Services lists. Both are also written to the status cache (below).
 
 - A failed refresh keeps the last *good* report and records the error beside it; the next success clears the error.
 - One refresh per profile at a time: a second request while one is running does nothing. The running marker and the `refreshing` flag change together under a lock, so seeing `refreshing = false` means a new refresh would be accepted.
 - A cancelled refresh (leaving the screen mid-fetch) resets the flag in `finally`.
 - The first poll of a profile finds the CGI directory and stores it on the profile; later polls skip the search.
 - Screens are stateless composables fed by a `...UiState` and an actions interface, so they are tested without a view model.
+
+## Navigation and the tabs
+
+`HomeScreen` holds the three tabs. One `HomeViewModel` serves all of them: which profile is shown and its status are the same whichever tab is open.
+
+- The current tab, and each tab's search, chips and scroll position, are saved UI state (`rememberSaveable` under a `SaveableStateHolder`, keyed by profile and tab), not view-model state. What is typed has to reach the text field in the same frame.
+- Rows for the lists are built by `BrowseRows` and filtered by `BrowseFilter`, both plain functions with their own tests.
+- `Routes` builds every destination. Host and service names are free text from someone's Nagios config, so they travel as encoded query arguments, never as path segments; `DetailRoutesTest` sends awkward names through the real graph.
+- Icons are vector drawables drawn for the app (`res/drawable/ic_*.xml`). There is no icon library in the build, on purpose: one more dependency to license-check for a handful of shapes.
 
 ## The status cache
 

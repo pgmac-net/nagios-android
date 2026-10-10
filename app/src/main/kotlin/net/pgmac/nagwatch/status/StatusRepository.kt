@@ -56,6 +56,8 @@ sealed interface StatusError {
  */
 data class ProfileStatus(
     val report: ProblemReport? = null,
+    /** The poll [report] was made from: every host, and every service's state, for the lists. */
+    val snapshot: StatusSnapshot? = null,
     val error: StatusError? = null,
     val refreshing: Boolean = false,
     val lastSuccess: Instant? = null,
@@ -108,7 +110,11 @@ class StatusRepository @Inject constructor(
             if (held.report != null) {
                 current
             } else {
-                current + (profileId to held.copy(report = classify(cached), lastSuccess = cached.fetchedAt))
+                current +
+                    (
+                        profileId to
+                            held.copy(report = classify(cached), snapshot = cached, lastSuccess = cached.fetchedAt)
+                        )
             }
         }
     }
@@ -133,6 +139,7 @@ class StatusRepository @Inject constructor(
                     update(profileId) {
                         ProfileStatus(
                             report = classify(outcome.snapshot),
+                            snapshot = outcome.snapshot,
                             lastSuccess = outcome.snapshot.fetchedAt,
                             refreshing = true,
                         )
