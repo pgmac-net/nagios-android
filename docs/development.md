@@ -144,7 +144,7 @@ All traffic to Nagios goes through one OkHttp interceptor (`ConnectionIntercepto
 
 `.github/workflows/ci.yml` has three jobs, `build`, `lint` and `foss`, on GitHub-hosted runners. **Those job names are required status checks** on `main`, set in `pgmac-net/terraform-github`. Rename one there first, or every merge blocks.
 
-Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `jvmToolchain()` in `app/build.gradle.kts`; Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `scorecard.yml` and `dependency-submission.yml` run on `main` only and are not required. Their findings appear under the repository's Security tab.
+Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `jvmToolchain()` in `app/build.gradle.kts`; Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `dependency-submission.yml` runs on each push to `main`, and `scorecard.yml` weekly and on demand; neither is required. Their findings appear under the repository's Security tab. Scorecard is deliberately not run on push: it only accepts that the Gradle wrapper is verified if the newest commit already has a finished CI run, and on a push it starts alongside CI and looks too early, so the alert would reopen on every merge. To see its verdict on a change straight away, run it by hand once CI on `main` has finished (`gh workflow run scorecard.yml`).
 
 
 Beside those three, and not required for a merge:
