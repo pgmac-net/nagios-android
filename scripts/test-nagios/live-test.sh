@@ -34,8 +34,9 @@ for combo in "${combos[@]}"; do
   status=0
   NAGWATCH_TEST_NAGIOS="http://127.0.0.1:8089/nagios" NAGWATCH_TEST_DATE_FORMAT="$1" \
     ./gradlew --console=plain :app:testDebugUnitTest \
-    --tests 'net.pgmac.nagwatch.nagios.command.CommandLiveTest' -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
-  grep -E 'live:|CommandLiveTest > .* (FAILED|SKIPPED)|AssertionError|IllegalStateException|^BUILD' "$log" | sed 's/^ */   /' || true
+    --tests 'net.pgmac.nagwatch.nagios.command.CommandLiveTest' \
+    --tests 'net.pgmac.nagwatch.status.CommandRepositoryLiveTest' -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
+  grep -E 'live:|LiveTest > .* (FAILED|SKIPPED)|AssertionError|IllegalStateException|^BUILD' "$log" | sed 's/^ */   /' || true
   [ "$status" -eq 0 ] || failed=1
 done
 exit "$failed"

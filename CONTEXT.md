@@ -64,6 +64,10 @@ _Avoid_: Done, succeeded, sent successfully
 The app re-read the object after a command and saw its effect. The only state reported as done.
 _Avoid_: Successful
 
+**Not confirmed**:
+Nagios accepted a command and the app did not see its effect in the time it looks for (about 25 seconds). Not a failure: the effect may still arrive, or Nagios may have dropped the command.
+_Avoid_: Failed, timed out
+
 **Refused**:
 Nagios answered a command and said no, with a reason the app can name.
 _Avoid_: Failed (which also covers "never arrived" and "nobody knows")

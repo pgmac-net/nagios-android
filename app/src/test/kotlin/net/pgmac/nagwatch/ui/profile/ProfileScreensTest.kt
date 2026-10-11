@@ -170,6 +170,26 @@ class ProfileScreensTest {
     }
 
     @Test
+    fun `a read-only user still connects, and is told what that means`() {
+        showEditor(ProfileEditorState(loading = false, test = TestState.Succeeded("4.5.9", readOnly = true)))
+
+        composeRule.onNodeWithTag(
+            ProfileEditorTags.TEST_RESULT,
+        ).performScrollTo().assertTextContains("Connected", substring = true)
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_READ_ONLY)
+            .performScrollTo()
+            .assertTextContains("read-only", substring = true)
+    }
+
+    @Test
+    fun `a user who may send commands gets no note about it`() {
+        showEditor(ProfileEditorState(loading = false, test = TestState.Succeeded("4.5.9")))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_RESULT).performScrollTo()
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_READ_ONLY).assertDoesNotExist()
+    }
+
+    @Test
     fun `an older Nagios still connects, and is told what to expect`() {
         showEditor(ProfileEditorState(loading = false, test = TestState.Succeeded("4.3.4")))
 

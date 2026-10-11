@@ -32,7 +32,8 @@ sealed interface TestState {
 
     data object Running : TestState
 
-    data class Succeeded(val nagiosVersion: String) : TestState
+    /** [readOnly] is set only when Nagios said so; not being able to tell is not read-only. */
+    data class Succeeded(val nagiosVersion: String, val readOnly: Boolean = false) : TestState
 
     data class Failed(val error: NagiosError) : TestState
 

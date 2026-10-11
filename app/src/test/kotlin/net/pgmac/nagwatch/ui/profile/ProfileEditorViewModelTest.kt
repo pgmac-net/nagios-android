@@ -115,6 +115,35 @@ class ProfileEditorViewModelTest {
     }
 
     @Test
+    fun `a test says so when Nagios takes no commands from the user`() {
+        val id = saveProfile()
+        val viewModel = editor(id)
+        tester.mayCommand = false
+
+        viewModel.testConnection()
+        viewModel.awaitState { it.test is TestState.Succeeded }
+
+        assertEquals(TestState.Succeeded("4.5.9", readOnly = true), viewModel.state.value.test)
+    }
+
+    @Test
+    fun `not being able to tell is not called read-only, and a failed test does not ask`() {
+        val id = saveProfile()
+        val viewModel = editor(id)
+        tester.mayCommand = null
+
+        viewModel.testConnection()
+        viewModel.awaitState { it.test is TestState.Succeeded }
+        assertEquals(TestState.Succeeded("4.5.9", readOnly = false), viewModel.state.value.test)
+        assertEquals(1, tester.asked)
+
+        tester.result = NagiosResult.Failure(NagiosError.BadCredentials)
+        viewModel.testConnection()
+        viewModel.awaitState { it.test is TestState.Failed }
+        assertEquals("nothing more is asked of a Nagios that would not let us in", 1, tester.asked)
+    }
+
+    @Test
     fun `test connection uses what is on screen, with kept secrets from storage`() {
         val id = saveProfile()
         val viewModel = editor(id)
@@ -249,6 +278,14 @@ class ProfileEditorViewModelTest {
         override suspend fun test(settings: ConnectionSettings): NagiosResult<NagiosClient.Connection> {
             last = settings
             return result
+        }
+
+        var mayCommand: Boolean? = true
+        var asked = 0
+
+        override suspend fun mayCommand(settings: ConnectionSettings): Boolean? {
+            asked++
+            return mayCommand
         }
     }
 

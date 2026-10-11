@@ -136,6 +136,18 @@ Everything the app writes to a Nagios goes through `CommandClient` (`nagios/comm
 - **Outcomes are four different things**, and the difference is the point: accepted, refused (Nagios said no), not sent (certain), unknown (not certain). Only "not sent" is safe to repeat without looking.
 - `storedCommentText` is what Nagios will keep of a comment. Use it wherever the app has to recognise its own comment or show the user what will be stored.
 
+### Sending a command from a screen
+
+`CommandRepository` (`status/`) is what screens use; they never hold a `CommandClient`.
+
+- `run(profileId, command)` is a flow of `ActionProgress`: `Sending`, then one of `Refused`, `NotSent`, `Unknown`, or `Sent` followed by `Confirmed` or `NotConfirmed`. **Only `Confirmed` may be worded as done.**
+- Confirming is reading the object again and looking for the effect (`effectSeen`). A new command needs a new case there; a command with no case is never confirmed.
+- The send itself runs in `NonCancellable`: leaving the screen must not cut a request off part-way. Nothing after it is protected, so the waiting stops when the screen goes.
+- `permission(profileId)` asks once whether the user is read-only and remembers the answer for the process, keyed by profile, address and user. A failure to find out is `UNKNOWN` and is not remembered. `UNKNOWN` leaves the buttons on.
+- `DetailViewModel` allows one command in flight and ignores taps until it has an answer.
+
+**Text fields do not go in dialogs.** Under Robolectric a Compose text field inside any dialog window never lets the test go idle (the test fails after a minute with "Compose did not get idle"; a bare `BasicTextField` in a plain `Dialog` is enough to show it). So the forms that take text open in the page. A dialog with only text and buttons, such as the one confirming removal of an acknowledgement, is fine.
+
 ### The test Nagios
 
 Commands change a server, so they are never tried against a real one. `scripts/test-nagios/start.sh` starts a throwaway Nagios Core in Docker with made-up hosts and three users (`operator` may command anything, `viewer` is read-only, `limited` may only command `web01`), listening on this machine only.

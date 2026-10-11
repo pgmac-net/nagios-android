@@ -58,7 +58,8 @@ class ProfileEditorViewModel @Inject constructor(
                 is SettingsResult.Ready -> when (val result = tester.test(settings.settings)) {
                     is NagiosResult.Success -> {
                         tested = draft.baseUrl.trim() to result.value.cgiBase
-                        TestState.Succeeded(result.value.server.version)
+                        val readOnly = tester.mayCommand(settings.settings) == false
+                        TestState.Succeeded(result.value.server.version, readOnly)
                     }
 
                     is NagiosResult.Failure -> TestState.Failed(result.error)
