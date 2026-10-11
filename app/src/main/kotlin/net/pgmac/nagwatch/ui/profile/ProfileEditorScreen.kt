@@ -42,7 +42,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.ProfileProblem
+import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
+import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
 import net.pgmac.nagwatch.ui.toUiText
 
 object ProfileEditorTags {
@@ -60,7 +65,7 @@ object ProfileEditorTags {
 }
 
 /** What the editor can ask for. One object rather than a dozen lambdas. */
-interface ProfileEditorActions {
+interface ProfileEditorActions : LocalNetworkActions {
     fun edit(change: (ProfileEditorState) -> ProfileEditorState)
 
     fun testConnection()
@@ -77,10 +82,20 @@ fun ProfileEditorScreen(onDone: () -> Unit, viewModel: ProfileEditorViewModel = 
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.done) { if (state.done) onDone() }
 
+    val request = rememberLocalNetworkRequest(viewModel::localNetworkAnswered)
     val actions = object : ProfileEditorActions {
         override fun edit(change: (ProfileEditorState) -> ProfileEditorState) = viewModel.edit(change)
 
         override fun testConnection() = viewModel.testConnection()
+
+        override fun localNetworkContinue() {
+            viewModel.localNetworkExplained()
+            request.askAndroid()
+        }
+
+        override fun localNetworkNotNow() = viewModel.localNetworkDeclined()
+
+        override fun allowLocalNetwork() = viewModel.allowLocalNetwork(request)
 
         override fun save() = viewModel.save()
 
@@ -129,10 +144,13 @@ fun ProfileEditorContent(state: ProfileEditorState, actions: ProfileEditorAction
                 HeaderFields(state, actions)
                 HorizontalDivider()
                 Problems(state.problems)
-                TestResult(state.test)
+                TestResult(state.test, actions)
                 Buttons(state, actions)
             }
         }
+    }
+    if (state.explainLocalNetwork) {
+        LocalNetworkExplanation(onContinue = actions::localNetworkContinue, onNotNow = actions::localNetworkNotNow)
     }
     if (confirmDelete) {
         AlertDialog(
@@ -246,7 +264,7 @@ private fun Problems(problems: Set<ProfileProblem>) {
 }
 
 @Composable
-private fun TestResult(test: TestState) {
+private fun TestResult(test: TestState, actions: ProfileEditorActions) {
     val (text, isError) = when (test) {
         TestState.Idle -> return
         TestState.Running -> stringResource(R.string.profile_test_running) to false
@@ -267,6 +285,10 @@ private fun TestResult(test: TestState) {
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.testTag(ProfileEditorTags.TEST_NOTE),
         )
+    }
+    // Probably Android, not the network: the way to put it right goes with the news.
+    if (test is TestState.Failed && test.error == NagiosError.LocalNetworkBlocked) {
+        AllowLocalNetworkButton(onClick = actions::allowLocalNetwork)
     }
     // Not a failure either: plenty of people give a phone a user that can only look.
     if (test is TestState.Succeeded && test.readOnly) {

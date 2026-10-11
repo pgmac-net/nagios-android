@@ -213,6 +213,18 @@ The contract under test is "a result or a `NagiosError`, nothing else". An excep
 
 **Licence.** Jazzer is Apache-2.0 and test-only: it is on a `fuzzer` configuration of its own, outside every classpath the app or its tests use, so it is in no APK and is not seen by Licensee. The targets compile against nothing from it.
 
+## Local network access
+
+Android 17 gates the local network behind `ACCESS_LOCAL_NETWORK`; the reasoning is ADR 0007. The pieces:
+
+- `LocalAddresses` (`localnet/`) is the one place that decides whether an address looks local. It has no Android in it and takes its resolver as a parameter. Android's own ranges are in its comments, with the link; every range is tested at both edges.
+- `LocalNetwork` is the service: `shouldAsk(host)` before a first load or a test, `likelyBlocking(host)` after a timeout. The second is what `NagiosApi` asks through the `LocalNetworkGuard` seam, so the Nagios client does not know about Android.
+- `AndroidLocalNetworkPermission` answers "held" without asking below Android 17. `DataStoreLocalNetworkHistory` keeps two flags for the whole install: the app has explained, and Android has stopped offering the prompt.
+- Screens ask through `rememberLocalNetworkRequest`, because both the prompt and the settings page need an Activity. The view models decide which one; they are handed the request, not an Activity.
+- **Every fetch of a profile goes through `HomeViewModel.load`**, so none can get ahead of the question. Do not call `StatusRepository.refresh` from elsewhere in that view model.
+- The system prompt, the settings page and `checkSelfPermission` at Android 17 cannot be exercised by Robolectric here (the unit tests run as Android 15). They are covered by the device check in the work record, on a phone running Android 17.
+- To try it on a phone: `adb shell pm revoke net.pgmac.nagwatch.debug android.permission.ACCESS_LOCAL_NETWORK`, and clear the app's data to forget that it has explained.
+
 ## Network rules
 
 All traffic to Nagios goes through one OkHttp interceptor (`ConnectionInterceptor`) that refuses `http://` unless the profile opted in, never sends Cloudflare Access credentials over `http://`, and only sends credentials to the configured origin. Redirects are not followed. Any new HTTP client must be derived from the per-profile client so it inherits these rules; see [ADR 0004](adr/0004-cleartext-permitted-in-manifest-enforced-in-app.md).

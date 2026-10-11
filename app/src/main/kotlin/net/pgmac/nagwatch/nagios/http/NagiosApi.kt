@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import net.pgmac.nagwatch.nagios.LocalNetworkGuard
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosError.Unreachable.Reason
 import net.pgmac.nagwatch.nagios.NagiosResult
@@ -33,6 +34,7 @@ internal class NagiosApi(
     private val json: Json,
     private val io: CoroutineDispatcher,
     private val maxBodyBytes: Long = MAX_BODY_BYTES,
+    private val localNetwork: LocalNetworkGuard = LocalNetworkGuard.Never,
 ) {
     /** @param cgiBase the CGI directory, ending in `/`. */
     suspend fun query(cgiBase: HttpUrl, cgi: String, params: List<Pair<String, String>>): NagiosResult<JsonObject> {
@@ -47,7 +49,7 @@ internal class NagiosApi(
             } catch (e: PolicyViolationException) {
                 NagiosResult.Failure(e.error)
             } catch (e: IOException) {
-                NagiosResult.Failure(classify(e))
+                NagiosResult.Failure(classify(e, url.host))
             }
         }
     }
@@ -67,7 +69,7 @@ internal class NagiosApi(
             } catch (e: PolicyViolationException) {
                 NagiosResult.Failure(e.error)
             } catch (e: IOException) {
-                NagiosResult.Failure(classify(e))
+                NagiosResult.Failure(classify(e, url.host))
             }
         }
     }
@@ -103,7 +105,7 @@ internal class NagiosApi(
                 // Refused by this app before anything was put on the wire.
                 Submission.NotSent(e.error)
             } catch (e: IOException) {
-                val error = classify(e)
+                val error = classify(e, url.host)
                 if (error.meansNothingWasSent()) Submission.NotSent(error) else Submission.Unknown(error)
             }
         }
@@ -194,7 +196,7 @@ internal class NagiosApi(
      * certificate". So every attempt is considered, and a TLS failure wins, because
      * it means something did answer.
      */
-    internal fun classify(e: IOException): NagiosError {
+    internal fun classify(e: IOException, host: String = ""): NagiosError {
         val attempts = listOf<Throwable>(e) + e.suppressed
         val tls = attempts.firstOrNull { it is SSLException || it.cause is CertificateException }
         val detail = (tls ?: e).let { it.message ?: it.javaClass.simpleName }
@@ -202,6 +204,7 @@ internal class NagiosApi(
             tls != null -> NagiosError.Certificate(detail)
             e is UnknownHostException -> NagiosError.Unreachable(Reason.DNS, detail)
             e is ConnectException -> NagiosError.Unreachable(Reason.REFUSED, detail)
+            e is SocketTimeoutException && localNetwork.likelyBlocking(host) -> NagiosError.LocalNetworkBlocked
             e is SocketTimeoutException -> NagiosError.Unreachable(Reason.TIMEOUT, detail)
             else -> NagiosError.Unreachable(Reason.OTHER, detail)
         }

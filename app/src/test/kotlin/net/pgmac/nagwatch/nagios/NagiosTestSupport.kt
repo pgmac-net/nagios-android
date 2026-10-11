@@ -26,8 +26,8 @@ internal fun testHttpClient(configure: OkHttpClient.Builder.() -> Unit = {}): Ok
     .apply(configure)
     .build()
 
-internal fun testFactory(client: OkHttpClient = testHttpClient()) =
-    NagiosClientFactory(client, TEST_JSON, Dispatchers.IO, FIXED_CLOCK)
+internal fun testFactory(client: OkHttpClient = testHttpClient(), guard: LocalNetworkGuard = LocalNetworkGuard.Never) =
+    NagiosClientFactory(client, TEST_JSON, Dispatchers.IO, FIXED_CLOCK, guard)
 
 internal fun testApi(client: OkHttpClient = testHttpClient()) = NagiosApi(client, TEST_JSON, Dispatchers.IO)
 

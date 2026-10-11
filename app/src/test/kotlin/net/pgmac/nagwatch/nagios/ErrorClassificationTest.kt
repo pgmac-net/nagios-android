@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.SocketEffect
 import net.pgmac.nagwatch.nagios.NagiosError.Unreachable.Reason
 import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
 import net.pgmac.nagwatch.nagios.http.NagiosApi
@@ -182,6 +183,77 @@ class ErrorClassificationTest {
         val error = runBlocking { testFactory(impatient).create(settingsFor(server.url("/"))).connect() }.errorOrFail()
 
         assertEquals(Reason.TIMEOUT, (error as NagiosError.Unreachable).reason)
+    }
+
+    @Test
+    fun `a timeout to a host Android may be blocking is its own error, not an ordinary timeout`() {
+        server.respond { MockResponse.Builder().headersDelay(5, TimeUnit.SECONDS).body("late").build() }
+        val impatient = testHttpClient { readTimeout(Duration.ofMillis(200)) }
+        val asked = mutableListOf<String>()
+        val guard = LocalNetworkGuard { host ->
+            asked += host
+            true
+        }
+
+        val error = runBlocking {
+            testFactory(impatient, guard).create(settingsFor(server.url("/"))).connect()
+        }.errorOrFail()
+
+        assertEquals(NagiosError.LocalNetworkBlocked, error)
+        assertEquals("it is asked about the host the request went to", listOf(server.url("/").host), asked)
+    }
+
+    @Test
+    fun `a guard that says no leaves a timeout what it was`() {
+        server.respond { MockResponse.Builder().headersDelay(5, TimeUnit.SECONDS).body("late").build() }
+        val impatient = testHttpClient { readTimeout(Duration.ofMillis(200)) }
+
+        val error = runBlocking {
+            testFactory(impatient, guard = { false }).create(settingsFor(server.url("/"))).connect()
+        }.errorOrFail()
+
+        assertEquals(Reason.TIMEOUT, (error as NagiosError.Unreachable).reason)
+    }
+
+    @Test
+    fun `only a timeout is put down to Android, not a refusal, a missing name or an answer`() {
+        val blocking = LocalNetworkGuard { true }
+        val refusedUrl = server.url("/")
+
+        server.respond { status(401, "", "WWW-Authenticate" to "Basic realm=\"Nagios Access\"") }
+        val credentials = runBlocking { testFactory(guard = blocking).create(settingsFor(refusedUrl)).connect() }
+        assertEquals(NagiosError.BadCredentials, credentials.errorOrFail())
+
+        val missing = settingsFor("https://nagwatch-does-not-exist.invalid/".toHttpUrl())
+        val dns = runBlocking { testFactory(guard = blocking).create(missing).connect() }
+        assertEquals(Reason.DNS, (dns.errorOrFail() as NagiosError.Unreachable).reason)
+
+        server.close()
+        val refused = runBlocking { testFactory(guard = blocking).create(settingsFor(refusedUrl)).connect() }
+        assertEquals(Reason.REFUSED, (refused.errorOrFail() as NagiosError.Unreachable).reason)
+    }
+
+    @Test
+    fun `a connection that is cut is not put down to Android, which only ever causes a timeout`() {
+        server.respond { MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build() }
+
+        val error = runBlocking {
+            testFactory(guard = { true }).create(settingsFor(server.url("/"))).connect()
+        }.errorOrFail()
+
+        assertEquals(Reason.OTHER, (error as NagiosError.Unreachable).reason)
+    }
+
+    @Test
+    fun `a command that times out for this reason is unknown, not not sent`() {
+        // Nothing says the request did not arrive: this is an inference about Android, not a report.
+        server.respond { MockResponse.Builder().headersDelay(5, TimeUnit.SECONDS).body("late").build() }
+        val client = testHttpClient { readTimeout(Duration.ofMillis(200)) }
+        val api = NagiosApi(client, TEST_JSON, Dispatchers.IO, localNetwork = { true })
+
+        val sent = runBlocking { api.submit(server.url("/cgi-bin/"), "cmd.cgi", listOf("cmd_typ" to "7")) }
+
+        assertEquals(NagiosError.LocalNetworkBlocked, (sent as NagiosApi.Submission.Unknown).error)
     }
 
     @Test

@@ -57,6 +57,8 @@ data class ProfileEditorState(
     val test: TestState = TestState.Idle,
     /** Set when the editor has finished (saved or deleted) and should close. */
     val done: Boolean = false,
+    /** The app's own sentence about local network access is to be shown before Android's prompt. */
+    val explainLocalNetwork: Boolean = false,
 ) {
     val isNew: Boolean get() = profileId == null
 

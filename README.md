@@ -17,6 +17,8 @@ Nagwatch is an independent open-source project. It is **not affiliated with, end
 
 No backend, no Play Services, no telemetry. Talks straight to your Nagios.
 
+**What Nagwatch asks Android for.** Two permissions: Internet, and, on Android 17 and later, access to your local network (which Android words as "Nearby devices"). The second is asked for only the first time you test or load a profile whose address looks like one on your own network (`192.168.x.x`, `10.x.x.x`, a `.local` name and the like), and Nagwatch explains why first. It only talks to the address you entered: it does not scan or look for other devices. If you say no it still tries, which is right when you reach Nagios over a VPN; if the connection then times out it says Android may be blocking it and offers to ask again.
+
 **Nagios versions.** Tested on Nagios Core 4.5. Versions from 4.0.7 (the first with the JSON CGIs) are expected to work but have not been tried. Nothing is refused because of a version number; if part of a screen cannot get its data, that part says so. If you run another version, a note in the issues on what works and what does not would be very welcome.
 
 ## Security

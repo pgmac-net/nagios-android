@@ -15,6 +15,10 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import net.pgmac.nagwatch.localnet.FakeLocalNetworkHistory
+import net.pgmac.nagwatch.localnet.FakeLocalNetworkPermission
+import net.pgmac.nagwatch.localnet.TestLocalNetwork
+import net.pgmac.nagwatch.localnet.noLocalNetworkQuestions
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.ProfileRepository
@@ -34,9 +38,11 @@ import net.pgmac.nagwatch.status.failure
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
 import net.pgmac.nagwatch.status.provider
 import net.pgmac.nagwatch.status.snapshot
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkRequest
 import net.pgmac.nagwatch.ui.problems.ProblemKind
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -103,6 +109,7 @@ class HomeViewModelTest {
                 profiles,
                 StatusRepository(profiles, provider(offline), cache, clock),
                 FakeSelectedProfile(),
+                noLocalNetworkQuestions(),
             ).also(created::add)
         clock.advance(java.time.Duration.ofMinutes(5))
 
@@ -229,6 +236,156 @@ class HomeViewModelTest {
         assertEquals(2, client.fetches)
     }
 
+    @Test
+    fun `the first load of a local-looking profile asks first, and fetches nothing yet`() {
+        saveProfile("Home")
+        val local = asking()
+
+        val state = viewModel(local = local).awaitState { it.explainLocalNetwork }
+
+        assertEquals("nothing is fetched while the question is open", 0, client.fetches)
+        assertEquals("a profile was selected for it", "Home", state.selected?.name)
+    }
+
+    @Test
+    fun `Not now is remembered, and the profile is fetched anyway`() {
+        saveProfile("Home")
+        val local = asking()
+        val viewModel = viewModel(local = local)
+        viewModel.awaitState { it.explainLocalNetwork }
+
+        viewModel.localNetworkDeclined()
+
+        awaitFetches(1)
+        assertTrue("it will not ask again", local.history.explained)
+        assertFalse(viewModel.awaitState { !it.explainLocalNetwork }.explainLocalNetwork)
+    }
+
+    @Test
+    fun `Continue waits for Android, and a grant then fetches`() =
+        continueThenAnswer(granted = true, canAskAgain = true)
+
+    @Test
+    fun `a first refusal still fetches, and Android may ask again`() =
+        continueThenAnswer(granted = false, canAskAgain = true)
+
+    @Test
+    fun `a refusal with no prompt left still fetches, and is remembered as the end of the prompt`() =
+        continueThenAnswer(granted = false, canAskAgain = false)
+
+    private fun continueThenAnswer(granted: Boolean, canAskAgain: Boolean) {
+        saveProfile("Home")
+        val local = asking()
+        val viewModel = viewModel(local = local)
+        viewModel.awaitState { it.explainLocalNetwork }
+
+        viewModel.localNetworkExplained()
+        viewModel.awaitState { !it.explainLocalNetwork }
+        // The question has been explained and Android's prompt is up. A screen that resumes
+        // underneath it (the prompt is another window) must not fetch in the meantime.
+        runBlocking { while (!local.history.explained) delay(POLL_MS) }
+        viewModel.refreshIfNeeded()
+        viewModel.refresh()
+        pause()
+        assertEquals("not before Android has answered", 0, client.fetches)
+
+        viewModel.localNetworkAnswered(granted, canAskAgain)
+
+        awaitFetches(1)
+        assertEquals(!granted && !canAskAgain, local.history.exhausted)
+        assertTrue(local.history.explained)
+    }
+
+    @Test
+    fun `nothing is fetched while the question is open, however a fetch is asked for`() {
+        saveProfile("Home")
+        val viewModel = viewModel(local = asking())
+        viewModel.awaitState { it.explainLocalNetwork }
+
+        viewModel.refresh()
+        viewModel.refreshIfNeeded()
+        pause()
+
+        assertEquals(0, client.fetches)
+    }
+
+    @Test
+    fun `once explained, a later start or another profile fetches straight away`() {
+        saveProfile("Home")
+        val local = asking(explained = true)
+
+        viewModel(local = local).awaitState { it.status?.report != null || it.status?.error != null }
+
+        assertEquals(1, client.fetches)
+        assertFalse(runBlocking { local.network.shouldAsk("another.example.org") })
+    }
+
+    @Test
+    fun `a public address is never asked about`() {
+        saveProfile("Home")
+
+        viewModel(local = asking(addresses = listOf("93.184.216.34"))).awaitState { it.status?.report != null }
+
+        assertEquals(1, client.fetches)
+    }
+
+    @Test
+    fun `a held permission is never asked about`() {
+        saveProfile("Home")
+
+        viewModel(local = asking(held = true)).awaitState { it.status?.report != null }
+
+        assertEquals(1, client.fetches)
+    }
+
+    @Test
+    fun `the button retries after a grant, and does nothing after a refusal`() {
+        saveProfile("Home")
+        val viewModel = viewModel(local = asking(explained = true))
+        viewModel.awaitState { it.status?.report != null || it.status?.error != null }
+        awaitFetches(1)
+
+        viewModel.localNetworkAnswered(granted = false, canAskAgain = true)
+        pause()
+        assertEquals("a refusal is not a reason to try again", 1, client.fetches)
+
+        viewModel.localNetworkAnswered(granted = true, canAskAgain = true)
+        awaitFetches(2)
+    }
+
+    @Test
+    fun `the button raises Android's prompt, and opens settings once Android has stopped showing it`() {
+        saveProfile("Home")
+        val local = asking(explained = true)
+        val viewModel = viewModel(local = local)
+        viewModel.awaitState { !it.loading }
+        val calls = mutableListOf<String>()
+        val request = LocalNetworkRequest({ calls += "prompt" }, { calls += "settings" })
+
+        viewModel.allowLocalNetwork(request)
+        awaitCalls(calls, 1)
+        local.history.exhausted = true
+        viewModel.allowLocalNetwork(request)
+        awaitCalls(calls, 2)
+
+        assertEquals(listOf("prompt", "settings"), calls)
+    }
+
+    private fun asking(
+        held: Boolean = false,
+        explained: Boolean = false,
+        addresses: List<String> = listOf("192.168.1.20"),
+    ) = TestLocalNetwork(FakeLocalNetworkPermission(held), FakeLocalNetworkHistory(explained), addresses)
+
+    /** For the cases that are about something not happening: give it a moment to happen. */
+    private fun pause() = runBlocking { delay(NOTHING_HAPPENS_MS) }
+
+    private fun awaitCalls(calls: List<String>, count: Int) = runBlocking {
+        withTimeout(TIMEOUT_MS) {
+            while (calls.size < count) delay(POLL_MS)
+        }
+    }
+
     /** The fetch runs off the test thread (it goes through the database first), so wait for it. */
     private fun awaitFetches(count: Int) = runBlocking {
         withTimeout(TIMEOUT_MS) {
@@ -236,8 +393,10 @@ class HomeViewModelTest {
         }
     }
 
-    private fun viewModel(selected: FakeSelectedProfile = FakeSelectedProfile()) =
-        HomeViewModel(profiles, statuses, selected).also(created::add)
+    private fun viewModel(
+        selected: FakeSelectedProfile = FakeSelectedProfile(),
+        local: TestLocalNetwork = TestLocalNetwork(FakeLocalNetworkPermission(held = true)),
+    ) = HomeViewModel(profiles, statuses, selected, local.network).also(created::add)
 
     private fun HomeViewModel.awaitState(predicate: (HomeUiState) -> Boolean): HomeUiState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }
@@ -261,5 +420,6 @@ class HomeViewModelTest {
     private companion object {
         const val TIMEOUT_MS = 5_000L
         const val POLL_MS = 10L
+        const val NOTHING_HAPPENS_MS = 300L
     }
 }
