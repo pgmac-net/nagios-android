@@ -11,7 +11,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -67,13 +71,14 @@ class AndroidLocalNetworkTest {
 
         first.markExplained()
         first.setExhausted(true)
-        scope.cancel()
+        // A store is only allowed once per file at a time: close this one before "restarting".
+        scope.coroutineContext.job.cancelAndJoin()
 
-        // A new process over the same file.
         val restartScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         try {
             val second = DataStoreLocalNetworkHistory(PreferenceDataStoreFactory.create(scope = restartScope) { file })
-            assertTrue(second.explained())
+            // The first store releases the file from its own scope's completion, which can trail the join.
+            assertTrue(whenTheFileIsFree { second.explained() })
             assertTrue(second.exhausted())
 
             second.setExhausted(false)
@@ -82,5 +87,23 @@ class AndroidLocalNetworkTest {
         } finally {
             restartScope.cancel()
         }
+    }
+
+    /** Retries while the previous store still holds the file; anything else is a real failure. */
+    private suspend fun <T> whenTheFileIsFree(read: suspend () -> T): T = withTimeout(FREE_WITHIN_MS) {
+        while (true) {
+            try {
+                return@withTimeout read()
+            } catch (_: IllegalStateException) {
+                delay(RETRY_MS)
+            }
+        }
+        @Suppress("UNREACHABLE_CODE")
+        error("unreachable")
+    }
+
+    private companion object {
+        const val FREE_WITHIN_MS = 10_000L
+        const val RETRY_MS = 20L
     }
 }
