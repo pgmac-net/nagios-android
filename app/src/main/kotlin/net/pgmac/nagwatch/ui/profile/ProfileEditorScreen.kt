@@ -43,11 +43,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.ProfileProblem
 import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
 import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
+import net.pgmac.nagwatch.ui.notify.NotificationFieldActions
+import net.pgmac.nagwatch.ui.notify.NotificationFields
+import net.pgmac.nagwatch.ui.notify.rememberNotificationRequest
 import net.pgmac.nagwatch.ui.toUiText
 
 object ProfileEditorTags {
@@ -65,7 +69,9 @@ object ProfileEditorTags {
 }
 
 /** What the editor can ask for. One object rather than a dozen lambdas. */
-interface ProfileEditorActions : LocalNetworkActions {
+interface ProfileEditorActions :
+    LocalNetworkActions,
+    NotificationFieldActions {
     fun edit(change: (ProfileEditorState) -> ProfileEditorState)
 
     fun testConnection()
@@ -83,8 +89,14 @@ fun ProfileEditorScreen(onDone: () -> Unit, viewModel: ProfileEditorViewModel = 
     LaunchedEffect(state.done) { if (state.done) onDone() }
 
     val request = rememberLocalNetworkRequest(viewModel::localNetworkAnswered)
+    val notificationRequest = rememberNotificationRequest(viewModel::notificationsAnswered)
     val actions = object : ProfileEditorActions {
         override fun edit(change: (ProfileEditorState) -> ProfileEditorState) = viewModel.edit(change)
+
+        override fun setNotifications(enabled: Boolean) = viewModel.setNotifications(enabled, notificationRequest)
+
+        override fun editNotifications(change: (NotificationSettings) -> NotificationSettings) =
+            viewModel.edit { it.copy(notifications = change(it.notifications)) }
 
         override fun testConnection() = viewModel.testConnection()
 
@@ -142,6 +154,8 @@ fun ProfileEditorContent(state: ProfileEditorState, actions: ProfileEditorAction
                 AccessFields(state, actions)
                 HorizontalDivider()
                 HeaderFields(state, actions)
+                HorizontalDivider()
+                NotificationFields(state.notifications, state.notificationsRefused, actions)
                 HorizontalDivider()
                 Problems(state.problems)
                 TestResult(state.test, actions)

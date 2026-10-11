@@ -16,6 +16,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import net.pgmac.nagwatch.notify.NOTIFICATION_PERMISSION
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -39,7 +40,7 @@ class AndroidLocalNetworkTest {
     fun stop() = scope.cancel()
 
     @Test
-    fun `the app declares the internet and, now, local network access, and nothing else`() {
+    fun `the app asks Android for what the README says it does, and nothing else`() {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
 
         val declared = context.packageManager
@@ -50,7 +51,21 @@ class AndroidLocalNetworkTest {
             .toSet()
 
         // The README says this is everything Nagwatch asks Android for. A new line here is a new promise to keep.
-        assertEquals(setOf("android.permission.INTERNET", LOCAL_NETWORK_PERMISSION), declared)
+        assertEquals(
+            setOf(
+                "android.permission.INTERNET",
+                LOCAL_NETWORK_PERMISSION,
+                NOTIFICATION_PERMISSION,
+                // Background polling's own (WorkManager): stay awake for one poll, wait for a
+                // network, and put the schedule back after a restart. None is ever asked of the person.
+                "android.permission.WAKE_LOCK",
+                "android.permission.ACCESS_NETWORK_STATE",
+                "android.permission.RECEIVE_BOOT_COMPLETED",
+            ),
+            declared,
+        )
+        // WorkManager would add this too, for work shown with a permanent notification. The app does none.
+        assertFalse("android.permission.FOREGROUND_SERVICE" in declared)
     }
 
     @Test

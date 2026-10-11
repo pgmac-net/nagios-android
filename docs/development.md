@@ -187,6 +187,29 @@ scripts/test-nagios/stop.sh
 - `AnnouncedStore` keeps the state in `status.db`. Losing it is survivable by design: the next poll is a first poll. Severities and outage causes are stored by name, and a name this version does not know is dropped on load.
 - Adding a `StatusError` or `NagiosError` will not compile until `OutageCause.of` says whether it may pass by itself. Decide that, don't default it.
 
+## Background polling
+
+A profile is polled in the background exactly while its notifications are on. The pieces, all in `notify/`:
+
+- `PollSchedule` follows the stored profiles and tells a `PollScheduler` what to schedule and cancel. It is the only place that does: the editor and the offer just save the profile. It starts with the application.
+- `WorkManagerPollScheduler` is the real scheduler: one unique periodic job per profile, named from the profile's id, needing a network, enqueued with `UPDATE` so that opening the app does not restart every profile's cycle.
+- `PollWorker` is what WorkManager runs. WorkManager constructs it, so it finds `BackgroundPoller` through a Hilt entry point. That is deliberate: it avoids `hilt-work` and a custom WorkManager configuration, and WorkManager starts itself in the default way.
+- `BackgroundPoller.poll(profileId)` is everything a run does: the same `StatusRepository.refresh` the screens use, then `Announcer.decide`, then save. A job whose profile is gone or has notifications off cancels itself.
+- A failed poll returns success to WorkManager on purpose. Its retry would poll more often than the person asked for; the failure is counted by `Announcer` instead.
+
+Things to know:
+
+- **Permissions.** `AndroidLocalNetworkTest` pins the full list the merged manifest asks for, WorkManager's included, and the README repeats it. WorkManager also declares `FOREGROUND_SERVICE`; the manifest removes it because the app runs no foreground work. If a WorkManager upgrade adds another, that test fails and the README needs a decision.
+- **The notification permission** is asked for from the editor's switch and from the offer, never at launch and never from the background. `NotificationAccess` is the seam; screens raise the prompt through `rememberNotificationRequest`, the same `PermissionRequest` local network access uses.
+- **Tests.** `PollScheduleTest` uses a fake scheduler and a real profile database. `WorkManagerPollSchedulerTest` uses WorkManager's test helpers to read back what was enqueued. `PollWorkerTest` is the only test that runs in the real `NagwatchApplication`, to show the worker can find its dependencies.
+- **The profiles database changed (version 3).** `ProfileDatabase.MIGRATIONS` is the one list of migrations; the app and `ProfileMigrationTest` both open the database with it, and a test fails if a version has no migration in it.
+- **On a phone**, Android decides when a job runs. To run one now, find its id and force it (both commands touch only the debug app):
+  ```
+  adb shell dumpsys jobscheduler | grep -A2 'net.pgmac.nagwatch.debug/androidx.work'
+  adb shell cmd jobscheduler run -f net.pgmac.nagwatch.debug <job id>
+  ```
+  The "Updated" time on the Problems tab moves when the run has finished.
+
 ## Fuzzing
 
 What a Nagios server sends back is the app's main untrusted input, so it is fuzzed with [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer).

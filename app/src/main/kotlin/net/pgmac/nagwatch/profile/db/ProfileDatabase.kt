@@ -38,7 +38,18 @@ data class ProfileEntity(
      * own form cannot show it. Null until a downtime has been scheduled. See docs/adr/0006.
      */
     @ColumnInfo(name = "date_format") val dateFormat: String? = null,
-)
+    /** Background polling and notifications for this profile. Off until the person switches it on. */
+    @ColumnInfo(name = "notify", defaultValue = "0") val notify: Boolean = false,
+    @ColumnInfo(name = "poll_minutes", defaultValue = "15") val pollMinutes: Int = DEFAULT_POLL_MINUTES,
+    @ColumnInfo(name = "notify_unhandled_only", defaultValue = "1") val notifyUnhandledOnly: Boolean = true,
+    @ColumnInfo(name = "notify_unreachable", defaultValue = "1") val notifyUnreachable: Boolean = true,
+    /** The app has offered notifications for this profile, so it does not offer again. */
+    @ColumnInfo(name = "notify_offered", defaultValue = "0") val notifyOffered: Boolean = false,
+) {
+    companion object {
+        const val DEFAULT_POLL_MINUTES = 15
+    }
+}
 
 @Dao
 interface ProfileDao {
@@ -60,6 +71,12 @@ interface ProfileDao {
     @Query("UPDATE profiles SET date_format = :dateFormat WHERE id = :id")
     suspend fun setDateFormat(id: Long, dateFormat: String?)
 
+    /** One statement, so the offer is never recorded as made with its answer still to be written. */
+    @Query(
+        "UPDATE profiles SET notify_offered = 1, notify = CASE WHEN :accepted THEN 1 ELSE notify END WHERE id = :id",
+    )
+    suspend fun answerNotifyOffer(id: Long, accepted: Boolean)
+
     @Query("DELETE FROM profiles WHERE id = :id")
     suspend fun delete(id: Long)
 }
@@ -75,7 +92,7 @@ abstract class ProfileDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "profiles.db"
-        const val VERSION = 2
+        const val VERSION = 3
 
         /** Adds the remembered date format. Existing profiles have none, which is the truth. */
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
@@ -83,5 +100,22 @@ abstract class ProfileDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE profiles ADD COLUMN date_format TEXT")
             }
         }
+
+        /**
+         * Adds the notification settings. Existing profiles get notifications off, which is what
+         * they had, and have not been offered them, so the app will offer once.
+         */
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN notify INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN poll_minutes INTEGER NOT NULL DEFAULT 15")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN notify_unhandled_only INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN notify_unreachable INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN notify_offered INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** Every migration, in order. One list, so the app and the tests cannot open the database differently. */
+        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

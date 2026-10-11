@@ -3,6 +3,36 @@
 package net.pgmac.nagwatch.profile
 
 /**
+ * How often a profile is polled in the background. Android will not run this kind of work more
+ * often than the first.
+ */
+@Suppress("MagicNumber") // The numbers are the definition.
+enum class PollInterval(val minutes: Int) {
+    FIFTEEN_MINUTES(15),
+    THIRTY_MINUTES(30),
+    ONE_HOUR(60),
+    ;
+
+    companion object {
+        /** A number this version does not offer falls back to the shortest: sooner is the safer mistake. */
+        fun ofMinutes(minutes: Int): PollInterval = entries.firstOrNull { it.minutes == minutes } ?: FIFTEEN_MINUTES
+    }
+}
+
+/**
+ * What a profile says about notifications. A profile is polled in the background only while
+ * [enabled] is true: with it off the app makes no request the person did not ask for.
+ */
+data class NotificationSettings(
+    val enabled: Boolean = false,
+    val interval: PollInterval = PollInterval.FIFTEEN_MINUTES,
+    /** Off means acknowledged problems and those in downtime are announced as well. */
+    val unhandledOnly: Boolean = true,
+    /** Whether an outage that may pass by itself is worth a notification. */
+    val tellUnreachable: Boolean = true,
+)
+
+/**
  * A saved connection to a Nagios instance, as the UI sees it. Carries no
  * secrets: only whether each one is set. Secrets are write-only from the UI's
  * point of view and are never read back for display.
@@ -17,6 +47,9 @@ data class Profile(
     val hasAccessClientSecret: Boolean,
     val customHeaderNames: List<String>,
     val allowCleartext: Boolean,
+    val notifications: NotificationSettings = NotificationSettings(),
+    /** The app has offered to switch notifications on for this profile. It offers once. */
+    val notificationsOffered: Boolean = false,
 ) {
     val isCleartext: Boolean get() = baseUrl.trim().startsWith("http://", ignoreCase = true)
 }
@@ -47,4 +80,5 @@ data class ProfileDraft(
     val accessClientSecret: SecretInput,
     val customHeaders: List<HeaderDraft>,
     val allowCleartext: Boolean,
+    val notifications: NotificationSettings = NotificationSettings(),
 )

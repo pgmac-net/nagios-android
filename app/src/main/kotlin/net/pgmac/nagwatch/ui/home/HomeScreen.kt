@@ -54,6 +54,7 @@ import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
 import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
+import net.pgmac.nagwatch.ui.notify.NotificationOffer
 import net.pgmac.nagwatch.ui.problems.ProblemKind
 import net.pgmac.nagwatch.ui.problems.ProblemsTab
 
@@ -142,6 +143,8 @@ fun HomeScreen(navigation: HomeNavigation, viewModel: HomeViewModel = hiltViewMo
         }
     }
     HomeContent(state, actions)
+    // One question at a time: the offer waits while local network access is being explained.
+    if (!state.explainLocalNetwork) NotificationOffer()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

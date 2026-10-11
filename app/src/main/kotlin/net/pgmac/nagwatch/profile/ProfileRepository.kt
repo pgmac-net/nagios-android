@@ -78,6 +78,13 @@ class ProfileRepository @Inject constructor(
 
     suspend fun rememberDateFormat(id: Long, format: ServerDateFormat) = dao.setDateFormat(id, format.name)
 
+    /**
+     * The offer of notifications has been made for this profile, so it is not made again.
+     * [accepted] switches them on, leaving the profile's other choices as they are; a refusal
+     * changes nothing else.
+     */
+    suspend fun notificationsOffered(id: Long, accepted: Boolean) = dao.answerNotifyOffer(id, accepted)
+
     suspend fun settingsFor(id: Long): SettingsResult = dao.get(id)?.let(::settings) ?: SettingsResult.NotFound
 
     /**
@@ -119,6 +126,12 @@ class ProfileRepository @Inject constructor(
             allowCleartext = draft.allowCleartext,
             // Like the CGI directory, what was learned about a server belongs to its address.
             dateFormat = stored?.dateFormat.takeIf { stored?.baseUrl == baseUrl },
+            notify = draft.notifications.enabled,
+            pollMinutes = draft.notifications.interval.minutes,
+            notifyUnhandledOnly = draft.notifications.unhandledOnly,
+            notifyUnreachable = draft.notifications.tellUnreachable,
+            // Someone who switched it on in the editor has found it; there is nothing left to offer.
+            notifyOffered = stored?.notifyOffered == true || draft.notifications.enabled,
         )
     }
 
@@ -165,6 +178,13 @@ class ProfileRepository @Inject constructor(
         hasAccessClientSecret = entity.encryptedAccessClientSecret != null,
         customHeaderNames = headers(entity.customHeaders).map { it.first },
         allowCleartext = entity.allowCleartext,
+        notifications = NotificationSettings(
+            enabled = entity.notify,
+            interval = PollInterval.ofMinutes(entity.pollMinutes),
+            unhandledOnly = entity.notifyUnhandledOnly,
+            tellUnreachable = entity.notifyUnreachable,
+        ),
+        notificationsOffered = entity.notifyOffered,
     )
 
     /** Stored headers as (name, encrypted value). Anything malformed is dropped, not fatal. */

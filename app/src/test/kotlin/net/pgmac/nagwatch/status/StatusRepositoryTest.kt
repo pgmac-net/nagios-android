@@ -67,6 +67,22 @@ class StatusRepositoryTest {
     }
 
     @Test
+    fun `a refresh hands back what it came to, for a caller with no screen to watch`() = runBlocking {
+        val id = saveProfile()
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        val fresh = repository.refresh(id) as Refreshed.Fresh
+        assertEquals(1, fresh.report.counts.critical)
+        assertSame("the very report the screens are shown", repository.statuses.value[id]?.report, fresh.report)
+
+        client.statusResult = { failure(NagiosError.BadCredentials) }
+        val failed = repository.refresh(id) as Refreshed.Failed
+        assertEquals(StatusError.Nagios(NagiosError.BadCredentials), failed.error)
+
+        assertEquals(StatusError.ProfileMissing, (repository.refresh(id + 1) as Refreshed.Failed).error)
+    }
+
+    @Test
     fun `a failed refresh keeps the last good report and records the error`() = runBlocking {
         val id = saveProfile()
         client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
