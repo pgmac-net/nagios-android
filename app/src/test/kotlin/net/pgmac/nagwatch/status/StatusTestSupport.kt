@@ -14,6 +14,11 @@ import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
+import net.pgmac.nagwatch.nagios.command.Command
+import net.pgmac.nagwatch.nagios.command.CommandClient
+import net.pgmac.nagwatch.nagios.command.CommandOutcome
+import net.pgmac.nagwatch.nagios.command.CommandReport
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
@@ -157,3 +162,28 @@ suspend fun ProfileRepository.saveTestProfile(name: String = "Home"): Long = sav
         allowCleartext = false,
     ),
 )
+
+/** Scripted stand-in for the command side of a Nagios: what it answers, and everything it was sent. */
+class FakeCommandClient(
+    var mayCommandResult: NagiosResult<Boolean> = NagiosResult.Success(true),
+    var outcome: (Command) -> CommandOutcome = { CommandOutcome.Accepted },
+) : CommandClient {
+    var probes = 0
+    val sent = mutableListOf<Command>()
+
+    override suspend fun mayCommand(): NagiosResult<Boolean> {
+        probes++
+        return mayCommandResult
+    }
+
+    override suspend fun send(command: Command, rememberedFormat: ServerDateFormat?): CommandReport {
+        sent += command
+        return CommandReport(outcome(command))
+    }
+}
+
+fun commandProvider(client: FakeCommandClient, onCreate: (ConnectionSettings) -> Unit = {}) =
+    CommandClientProvider { settings ->
+        onCreate(settings)
+        client
+    }

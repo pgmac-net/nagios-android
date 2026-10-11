@@ -12,6 +12,8 @@ import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.status.ActionProgress
+import net.pgmac.nagwatch.status.CommandPermission
 import net.pgmac.nagwatch.status.ObjectDetail
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.cache.CachedDetail
@@ -31,6 +33,10 @@ data class DetailUiState(
     /** For a service: the host it is on, if the last poll knew it. */
     val host: BrowseRow<HostState>? = null,
     val now: Instant = Instant.EPOCH,
+    /** Whether this profile's Nagios user can send commands at all. */
+    val permission: CommandPermission = CommandPermission.UNKNOWN,
+    /** The command last sent from this screen and where it has got to; null until one is sent. */
+    val action: ActionProgress? = null,
 ) {
     val ref: ObjectRef get() = detail.ref
 
@@ -51,6 +57,25 @@ data class DetailUiState(
             is CachedDetail.Service -> record.status.state
             null -> polledState
         }
+
+    private val isProblem: Boolean
+        get() = when (val current = state) {
+            is HostState -> current.isProblem
+            is ServiceState -> current.isProblem
+            else -> false
+        }
+
+    /** Actions are offered once anything at all is known of the object. */
+    val actionsOffered: Boolean get() = state != null
+
+    /** Nagios drops an acknowledgement of something that is not a problem, so it is not offered. */
+    val canAcknowledge: Boolean get() = isProblem && check?.acknowledged != true
+
+    val canRemoveAcknowledgement: Boolean get() = check?.acknowledged == true
+
+    /** One command at a time, and none at all for a user Nagios takes no commands from. */
+    val actionsEnabled: Boolean
+        get() = permission != CommandPermission.READ_ONLY && action?.inFlight != true
 }
 
 /**

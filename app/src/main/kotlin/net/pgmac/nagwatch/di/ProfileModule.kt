@@ -28,7 +28,9 @@ import net.pgmac.nagwatch.profile.SecretKeySource
 import net.pgmac.nagwatch.profile.SelectedProfile
 import net.pgmac.nagwatch.profile.db.ProfileDao
 import net.pgmac.nagwatch.profile.db.ProfileDatabase
+import net.pgmac.nagwatch.status.CommandClientProvider
 import net.pgmac.nagwatch.status.FactoryClientProvider
+import net.pgmac.nagwatch.status.FactoryCommandClientProvider
 import net.pgmac.nagwatch.status.NagiosClientProvider
 import net.pgmac.nagwatch.status.cache.StatusCache
 import net.pgmac.nagwatch.status.cache.StatusCacheDao
@@ -52,6 +54,9 @@ abstract class ProfileModule {
 
     @Binds
     abstract fun clientProvider(provider: FactoryClientProvider): NagiosClientProvider
+
+    @Binds
+    abstract fun commandClientProvider(provider: FactoryCommandClientProvider): CommandClientProvider
 
     @Binds
     abstract fun selectedProfile(selected: DataStoreSelectedProfile): SelectedProfile

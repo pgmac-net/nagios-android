@@ -76,6 +76,14 @@ interface DetailActions {
 
     /** Hands a page of the Nagios web interface to the browser. */
     fun openInNagios(url: String)
+
+    fun acknowledge(comment: String, sticky: Boolean, notify: Boolean, persistent: Boolean)
+
+    fun removeAcknowledgement()
+
+    fun addComment(comment: String)
+
+    fun forceCheck()
 }
 
 /** Where the detail screen can send the user. */
@@ -103,6 +111,16 @@ fun DetailScreen(navigation: DetailNavigation, viewModel: DetailViewModel = hilt
             navigation.openService(viewModel.profileId, hostName, description)
 
         override fun openInNagios(url: String) = navigation.openInBrowser(url)
+
+        override fun acknowledge(comment: String, sticky: Boolean, notify: Boolean, persistent: Boolean) {
+            viewModel.acknowledge(comment, sticky, notify, persistent)
+        }
+
+        override fun removeAcknowledgement() = viewModel.removeAcknowledgement()
+
+        override fun addComment(comment: String) = viewModel.addComment(comment)
+
+        override fun forceCheck() = viewModel.forceCheck()
     }
     DetailContent(state, actions)
 }
@@ -139,6 +157,7 @@ fun DetailContent(state: DetailUiState, actions: DetailActions, modifier: Modifi
             LazyColumn(modifier = Modifier.fillMaxSize().testTag(DetailTags.LIST)) {
                 item { Header(state) }
                 item { Freshness(state, actions) }
+                if (state.actionsOffered) item { Actions(state, actions) }
                 val check = state.check
                 if (check != null && check.detailsAvailable) {
                     item { Output(check) }
@@ -503,7 +522,7 @@ private fun OpenInNagios(url: String, actions: DetailActions) {
 }
 
 @Composable
-private fun Section(title: Int, modifier: Modifier = Modifier, count: Int? = null, content: @Composable () -> Unit) {
+internal fun Section(title: Int, modifier: Modifier = Modifier, count: Int? = null, content: @Composable () -> Unit) {
     Column(modifier.fillMaxWidth()) {
         val heading = stringResource(title)
         SectionTitle(if (count == null) heading else stringResource(R.string.detail_counted, heading, count))

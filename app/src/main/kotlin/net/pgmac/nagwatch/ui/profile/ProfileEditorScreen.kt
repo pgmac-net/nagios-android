@@ -53,6 +53,7 @@ object ProfileEditorTags {
     const val PASSWORD_SAVED = "editor_password_saved"
     const val TEST_RESULT = "editor_test_result"
     const val TEST_NOTE = "editor_test_note"
+    const val TEST_READ_ONLY = "editor_test_read_only"
     const val PROBLEMS = "editor_problems"
     const val SAVE = "editor_save"
     const val TEST = "editor_test"
@@ -265,6 +266,14 @@ private fun TestResult(test: TestState) {
             text = stringResource(R.string.profile_test_old_version),
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.testTag(ProfileEditorTags.TEST_NOTE),
+        )
+    }
+    // Not a failure either: plenty of people give a phone a user that can only look.
+    if (test is TestState.Succeeded && test.readOnly) {
+        Text(
+            text = stringResource(R.string.profile_test_read_only),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag(ProfileEditorTags.TEST_READ_ONLY),
         )
     }
 }

@@ -260,7 +260,7 @@ How M2 implements them:
 
 Host detail is the same minus the service name, with the host check graph if one exists.
 
-How M2 implements the detail screens (actions are M3 and graphs M6, so neither is here yet):
+How M2 implements the detail screens (graphs are M6, so not here yet; actions are described after this list):
 
 - **Opening one shows something at once.** In order of preference: what was saved the last time it was opened, then what the last poll carried (every host, and every service with a problem). It is labelled "As of" with its date, and with its age once that passes 30 minutes. Then the record, its comments and its downtimes are fetched, and each is saved as it arrives.
 - **A service that was fine and has never been opened** has no details anywhere until Nagios answers. It shows the state the last poll gave it, and "Loading".
@@ -274,7 +274,23 @@ How M2 implements the detail screens (actions are M3 and graphs M6, so neither i
 - **A record Nagios cannot serialise** (section 5) shows its state and says details are unavailable; it does not show empty output as if the check had said nothing.
 - **Open in Nagios** hands the object's page in the web interface to the browser. The link is built from the profile's address alone: no credentials are ever put in a URL passed to another app.
 
-### Acknowledge dialog
+How M3 adds the actions (downtime follows in its own change):
+
+- **Actions** sits under the header: Acknowledge (only for a problem that is not acknowledged; Nagios drops an acknowledgement of anything else), Remove acknowledgement (only when acknowledged), Recheck, Comment.
+- **One command at a time.** While one is on its way the buttons are off, so a second tap cannot send a second command.
+- **What became of it is said in words, under the buttons**, and the words keep four things apart:
+  - *Sending*, then *Nagios accepted it. Waiting to see it take effect*.
+  - **Confirmed** ("Acknowledged.", "Comment added.", ...): only after the object was read again and showed the effect. The app looks six times over about 25 seconds; on the test Nagios effects took 3 to 10.
+  - **Not confirmed**: accepted, but not seen in that time. Not shown as an error and not shown as done.
+  - **Refused**, with which refusal it was; **not sent** ("Nothing was changed"); and **unknown** ("may or may not have reached Nagios. Look at what it shows now before trying again").
+- **How each is confirmed:** an acknowledgement by the object saying it is acknowledged; a removal by it saying it is not; a recheck by a last-check time later than the one read just before sending; a comment by a comment whose text is what Nagios keeps of what was typed.
+- **A read-only user** is found out with one request that changes nothing (the form for a command, section 5), once per profile for as long as the app runs. The buttons are then shown disabled with "This Nagios user is read-only, so actions are unavailable." If it could not be found out, the buttons work, and a refusal says so when it comes. "Test connection" in the profile editor says the same.
+- **Not being authorised for one object cannot be known in advance** (section 5), so it is reported when Nagios refuses.
+- **A send that has begun is finished** even if the screen is left: a request cut off part-way is the one case where nobody could say whether it arrived.
+- **Nothing is retried and nothing is queued.** A command that cannot be sent now is reported as not sent.
+- After a confirmed command the screen and the lists behind it are refreshed.
+
+### Acknowledge form
 
 ```
 +--------------------------------------+
@@ -288,6 +304,10 @@ How M2 implements the detail screens (actions are M3 and graphs M6, so neither i
 |            [Cancel]  [Acknowledge]   |
 +--------------------------------------+
 ```
+
+This opens in the page, in place of the action buttons, not as a dialog: it stays clear of the keyboard, and a text field in a dialog window cannot be exercised by the project's screen tests (see `docs/development.md`). The comment form is the same without the three options. Removing an acknowledgement asks first, in a dialog; a recheck does not ask.
+
+Notify starts on and persistent off, as in Nagios' own web interface; nothing chosen is remembered. If Nagios would alter the comment (section 5), the form shows what it will store before it is sent.
 
 Sticky is **off by default** and shows the warning when ticked. Rationale: a sticky acknowledgement hid a failed drive on 2026-10-02 in the maintainer's homelab.
 
