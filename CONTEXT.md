@@ -108,6 +108,14 @@ _Avoid_: Favourite, pinned
 One of four responsive widget layouts: Badge, Counts, Short list, Full list.
 _Avoid_: Size, mode
 
+**Local network access**:
+Android 17's permission (`ACCESS_LOCAL_NETWORK`, shown to the user as "Nearby devices") for reaching an address on the local network. Without it Android drops the connection and the app sees only a timeout.
+_Avoid_: Wi-Fi permission, network permission
+
+**Looks local**:
+An address in one of the ranges Android 17 treats as the local network, or a `.local` name. The app can tell this much and no more: whether a request will actually go over the local network or over a VPN is not known until it is made.
+_Avoid_: Is local, private address
+
 **Access token**:
 A Cloudflare Access service token (Client ID and Client Secret) sent as headers on every request to a profile.
 _Avoid_: API key, login

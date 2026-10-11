@@ -26,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileProblem
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkTags
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.ui.toUiText
 import org.junit.Assert.assertEquals
@@ -51,6 +52,18 @@ class ProfileScreensTest {
 
         override fun testConnection() {
             calls += "test"
+        }
+
+        override fun localNetworkContinue() {
+            calls += "localNetworkContinue"
+        }
+
+        override fun localNetworkNotNow() {
+            calls += "localNetworkNotNow"
+        }
+
+        override fun allowLocalNetwork() {
+            calls += "allowLocalNetwork"
         }
 
         override fun save() {
@@ -167,6 +180,36 @@ class ProfileScreensTest {
 
         composeRule.onNodeWithTag(ProfileEditorTags.TEST_RESULT).performScrollTo()
         composeRule.onNodeWithTag(ProfileEditorTags.TEST_NOTE).assertDoesNotExist()
+    }
+
+    @Test
+    fun `testing a local address asks first with the app's own sentence`() {
+        showEditor(ProfileEditorState(loading = false, explainLocalNetwork = true))
+
+        composeRule.onNodeWithTag(LocalNetworkTags.EXPLANATION).assertIsDisplayed()
+        composeRule.onNodeWithTag(LocalNetworkTags.CONTINUE).performClick()
+        composeRule.onNodeWithTag(LocalNetworkTags.NOT_NOW).performClick()
+
+        assertEquals(listOf("localNetworkContinue", "localNetworkNotNow"), calls)
+    }
+
+    @Test
+    fun `a test that failed because Android is probably blocking it says so, with the way to grant it`() {
+        showEditor(ProfileEditorState(loading = false, test = TestState.Failed(NagiosError.LocalNetworkBlocked)))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_RESULT).performScrollTo()
+            .assertTextContains("Android may be blocking Nagwatch", substring = true)
+        composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).performScrollTo().performClick()
+
+        assertEquals(listOf("allowLocalNetwork"), calls)
+    }
+
+    @Test
+    fun `other failed tests have no such button`() {
+        showEditor(ProfileEditorState(loading = false, test = TestState.Failed(NagiosError.BadCredentials)))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.TEST_RESULT).performScrollTo()
+        composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertDoesNotExist()
     }
 
     @Test

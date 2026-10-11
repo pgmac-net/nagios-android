@@ -7,12 +7,16 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import net.pgmac.nagwatch.localnet.FakeLocalNetworkHistory
+import net.pgmac.nagwatch.localnet.FakeLocalNetworkPermission
+import net.pgmac.nagwatch.localnet.TestLocalNetwork
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosError
@@ -24,6 +28,7 @@ import net.pgmac.nagwatch.profile.SecretCipher
 import net.pgmac.nagwatch.profile.SettingsResult
 import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkRequest
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -144,6 +149,127 @@ class ProfileEditorViewModelTest {
     }
 
     @Test
+    fun `testing a local-looking address asks first, and does not test yet`() {
+        val local = asking()
+        val viewModel = editor(local = local)
+        viewModel.fill()
+
+        viewModel.testConnection()
+        val state = viewModel.awaitStateValue { it.explainLocalNetwork }
+
+        assertEquals(TestState.Idle, state.test)
+        assertEquals(0, tester.tests)
+    }
+
+    @Test
+    fun `Not now is remembered, and the test is run anyway`() {
+        val local = asking()
+        val viewModel = editor(local = local)
+        viewModel.fill()
+        viewModel.testConnection()
+        viewModel.awaitState { it.explainLocalNetwork }
+
+        viewModel.localNetworkDeclined()
+        viewModel.awaitState { it.test is TestState.Succeeded }
+
+        assertEquals(1, tester.tests)
+        assertTrue(local.history.explained)
+        assertFalse(viewModel.state.value.explainLocalNetwork)
+    }
+
+    @Test
+    fun `Continue waits for Android, and the test then runs whatever Android said`() {
+        listOf(true to true, false to true, false to false).forEach { (granted, canAskAgain) ->
+            tester.tests = 0
+            val local = asking()
+            val viewModel = editor(local = local)
+            viewModel.fill()
+            viewModel.testConnection()
+            viewModel.awaitState { it.explainLocalNetwork }
+
+            viewModel.localNetworkExplained()
+            viewModel.awaitState { !it.explainLocalNetwork }
+            pause()
+            assertEquals("not before Android has answered", 0, tester.tests)
+
+            viewModel.localNetworkAnswered(granted, canAskAgain)
+            viewModel.awaitState { it.test is TestState.Succeeded }
+
+            assertEquals(1, tester.tests)
+            assertEquals(!granted && !canAskAgain, local.history.exhausted)
+        }
+    }
+
+    @Test
+    fun `once explained, the next test runs at once`() {
+        val viewModel = editor(local = asking(explained = true))
+        viewModel.fill()
+
+        viewModel.testConnection()
+        viewModel.awaitState { it.test is TestState.Succeeded }
+
+        assertEquals(1, tester.tests)
+        assertFalse(viewModel.state.value.explainLocalNetwork)
+    }
+
+    @Test
+    fun `an address that is not local-looking is never asked about`() {
+        val viewModel = editor(local = asking(addresses = listOf("93.184.216.34")))
+        viewModel.fill()
+
+        viewModel.testConnection()
+        viewModel.awaitState { it.test is TestState.Succeeded }
+
+        assertFalse(viewModel.state.value.explainLocalNetwork)
+    }
+
+    @Test
+    fun `after a test that failed for this reason, a grant tests again and a refusal does not`() {
+        tester.result = NagiosResult.Failure(NagiosError.LocalNetworkBlocked)
+        val viewModel = editor(local = asking(explained = true))
+        viewModel.fill()
+        viewModel.testConnection()
+        viewModel.awaitState { it.test == TestState.Failed(NagiosError.LocalNetworkBlocked) }
+        assertEquals(1, tester.tests)
+
+        viewModel.localNetworkAnswered(granted = false, canAskAgain = true)
+        pause()
+        assertEquals("a refusal is not a reason to test again", 1, tester.tests)
+
+        tester.result = NagiosResult.Success(tester.connection)
+        viewModel.localNetworkAnswered(granted = true, canAskAgain = true)
+        viewModel.awaitState { it.test is TestState.Succeeded }
+        assertEquals(2, tester.tests)
+    }
+
+    @Test
+    fun `the button raises Android's prompt, and opens settings once Android has stopped showing it`() {
+        val local = asking(explained = true)
+        val viewModel = editor(local = local)
+        val calls = mutableListOf<String>()
+        val request = LocalNetworkRequest({ calls += "prompt" }, { calls += "settings" })
+
+        viewModel.allowLocalNetwork(request)
+        awaitCalls(calls, 1)
+        local.history.exhausted = true
+        viewModel.allowLocalNetwork(request)
+        awaitCalls(calls, 2)
+
+        assertEquals(listOf("prompt", "settings"), calls)
+    }
+
+    private fun awaitCalls(calls: List<String>, count: Int) = runBlocking {
+        withTimeout(TIMEOUT_MS) {
+            while (calls.size < count) delay(POLL_MS)
+        }
+    }
+
+    private fun ProfileEditorViewModel.awaitStateValue(predicate: (ProfileEditorState) -> Boolean): ProfileEditorState {
+        awaitState(predicate)
+        return state.value
+    }
+
+    @Test
     fun `test connection uses what is on screen, with kept secrets from storage`() {
         val id = saveProfile()
         val viewModel = editor(id)
@@ -240,10 +366,20 @@ class ProfileEditorViewModelTest {
         assertNull(runBlocking { repository.get(id) })
     }
 
-    private fun editor(id: Long? = null): ProfileEditorViewModel {
+    private fun editor(
+        id: Long? = null,
+        local: TestLocalNetwork = TestLocalNetwork(FakeLocalNetworkPermission(true)),
+    ): ProfileEditorViewModel {
         val handle = SavedStateHandle(mapOf(ProfileEditorViewModel.ARG_PROFILE_ID to (id ?: 0L)))
-        return ProfileEditorViewModel(handle, repository, tester).also { vm -> vm.awaitState { !it.loading } }
+        return ProfileEditorViewModel(handle, repository, tester, local.network)
+            .also { vm -> vm.awaitState { !it.loading } }
     }
+
+    private fun asking(explained: Boolean = false, addresses: List<String> = listOf("192.168.1.20")) =
+        TestLocalNetwork(FakeLocalNetworkPermission(held = false), FakeLocalNetworkHistory(explained), addresses)
+
+    /** For the cases that are about something not happening: give it a moment to happen. */
+    private fun pause() = runBlocking { delay(NOTHING_HAPPENS_MS) }
 
     private fun saveProfile(): Long {
         val viewModel = editor()
@@ -271,12 +407,16 @@ class ProfileEditorViewModelTest {
 
     private class RecordingTester : ConnectionTester {
         var last: ConnectionSettings? = null
-        var result: NagiosResult<NagiosClient.Connection> = NagiosResult.Success(
-            NagiosClient.Connection(CGI_BASE.toHttpUrl(), ServerInfo("4.5.9", Instant.EPOCH, Instant.EPOCH)),
+        var tests = 0
+        val connection = NagiosClient.Connection(
+            CGI_BASE.toHttpUrl(),
+            ServerInfo("4.5.9", Instant.EPOCH, Instant.EPOCH),
         )
+        var result: NagiosResult<NagiosClient.Connection> = NagiosResult.Success(connection)
 
         override suspend fun test(settings: ConnectionSettings): NagiosResult<NagiosClient.Connection> {
             last = settings
+            tests++
             return result
         }
 
@@ -293,5 +433,7 @@ class ProfileEditorViewModelTest {
         const val PASSWORD = "p4ssw0rd-do-not-leak"
         const val CGI_BASE = "https://nagios.example.org/nagios/cgi-bin/"
         const val TIMEOUT_MS = 5_000L
+        const val POLL_MS = 10L
+        const val NOTHING_HAPPENS_MS = 300L
     }
 }

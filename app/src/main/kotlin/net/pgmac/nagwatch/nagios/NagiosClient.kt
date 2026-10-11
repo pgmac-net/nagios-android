@@ -65,9 +65,11 @@ class NagiosClientFactory internal constructor(
     private val json: Json,
     private val io: CoroutineDispatcher,
     private val clock: Clock,
+    private val localNetwork: LocalNetworkGuard = LocalNetworkGuard.Never,
 ) {
     @Inject
-    constructor(baseClient: OkHttpClient, json: Json) : this(baseClient, json, Dispatchers.IO, Clock.systemUTC())
+    constructor(baseClient: OkHttpClient, json: Json, localNetwork: LocalNetworkGuard) :
+        this(baseClient, json, Dispatchers.IO, Clock.systemUTC(), localNetwork)
 
     fun create(settings: ConnectionSettings): NagiosClient {
         val client = baseClient.newBuilder()
@@ -77,7 +79,7 @@ class NagiosClientFactory internal constructor(
             .followSslRedirects(false)
             .addInterceptor(ConnectionInterceptor(settings))
             .build()
-        return OkHttpNagiosClient(settings, NagiosApi(client, json, io), clock)
+        return OkHttpNagiosClient(settings, NagiosApi(client, json, io, localNetwork = localNetwork), clock)
     }
 
     /**
@@ -97,7 +99,7 @@ class NagiosClientFactory internal constructor(
             .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
             .addInterceptor(ConnectionInterceptor(settings))
             .build()
-        val api = NagiosApi(client, json, io)
+        val api = NagiosApi(client, json, io, localNetwork = localNetwork)
         // Finding the CGI directory is a read, and is done the way reads are done.
         val reader = create(settings) as OkHttpNagiosClient
         return OkHttpCommandClient(settings, api, reader::cgiBase)

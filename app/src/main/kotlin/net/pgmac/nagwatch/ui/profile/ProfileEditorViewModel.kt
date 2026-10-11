@@ -12,19 +12,26 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import net.pgmac.nagwatch.localnet.LocalNetwork
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.ProfileValidator
 import net.pgmac.nagwatch.profile.SettingsResult
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkRequest
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @HiltViewModel
 class ProfileEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ProfileRepository,
     private val tester: ConnectionTester,
+    private val network: LocalNetwork,
 ) : ViewModel() {
+    /** "Test connection" is held back until the question about local network access is answered. */
+    private var awaitingTest = false
+
     private val editedId: Long? = savedStateHandle.get<Long>(ARG_PROFILE_ID)?.takeIf { it > 0 }
     private val mutableState = MutableStateFlow(ProfileEditorState(profileId = editedId))
     val state: StateFlow<ProfileEditorState> = mutableState.asStateFlow()
@@ -51,24 +58,68 @@ class ProfileEditorViewModel @Inject constructor(
 
     fun testConnection() {
         if (!validate()) return
-        val draft = state.value.toDraft()
         mutableState.update { it.copy(test = TestState.Running) }
         viewModelScope.launch {
-            val outcome = when (val settings = repository.settingsFor(draft)) {
-                is SettingsResult.Ready -> when (val result = tester.test(settings.settings)) {
-                    is NagiosResult.Success -> {
-                        tested = draft.baseUrl.trim() to result.value.cgiBase
-                        val readOnly = tester.mayCommand(settings.settings) == false
-                        TestState.Succeeded(result.value.server.version, readOnly)
-                    }
+            val host = state.value.baseUrl.trim().toHttpUrlOrNull()?.host
+            if (host != null && network.shouldAsk(host)) {
+                awaitingTest = true
+                mutableState.update { it.copy(test = TestState.Idle, explainLocalNetwork = true) }
+                return@launch
+            }
+            runTest()
+        }
+    }
 
-                    is NagiosResult.Failure -> TestState.Failed(result.error)
+    /** "Continue": the explanation is done with; the screen now raises Android's prompt. */
+    fun localNetworkExplained() {
+        mutableState.update { it.copy(explainLocalNetwork = false) }
+        viewModelScope.launch { network.explained() }
+    }
+
+    /** "Not now". The test is still run: a VPN needs no permission. */
+    fun localNetworkDeclined() {
+        mutableState.update { it.copy(explainLocalNetwork = false) }
+        viewModelScope.launch {
+            network.explained()
+            proceed()
+        }
+    }
+
+    /** Android's prompt came back, or the button's did. A test that was asked for goes ahead whatever the answer. */
+    fun localNetworkAnswered(granted: Boolean, canAskAgain: Boolean) {
+        viewModelScope.launch {
+            network.answered(granted, canAskAgain)
+            if (awaitingTest || granted) proceed()
+        }
+    }
+
+    /** The button on the error: Android's prompt, or its settings page once it will not show the prompt. */
+    fun allowLocalNetwork(request: LocalNetworkRequest) {
+        viewModelScope.launch { if (network.exhausted()) request.openSettings() else request.askAndroid() }
+    }
+
+    private suspend fun proceed() {
+        awaitingTest = false
+        runTest()
+    }
+
+    private suspend fun runTest() {
+        val draft = state.value.toDraft()
+        mutableState.update { it.copy(test = TestState.Running) }
+        val outcome = when (val settings = repository.settingsFor(draft)) {
+            is SettingsResult.Ready -> when (val result = tester.test(settings.settings)) {
+                is NagiosResult.Success -> {
+                    tested = draft.baseUrl.trim() to result.value.cgiBase
+                    val readOnly = tester.mayCommand(settings.settings) == false
+                    TestState.Succeeded(result.value.server.version, readOnly)
                 }
 
-                else -> TestState.CredentialsUnavailable
+                is NagiosResult.Failure -> TestState.Failed(result.error)
             }
-            mutableState.update { it.copy(test = outcome) }
+
+            else -> TestState.CredentialsUnavailable
         }
+        mutableState.update { it.copy(test = outcome) }
     }
 
     fun save() {

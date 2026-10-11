@@ -17,6 +17,7 @@ fun NagiosError.toUiText(): UiText = when (this) {
     NagiosError.Forbidden -> UiText(R.string.error_forbidden)
     is NagiosError.Certificate -> UiText(R.string.error_certificate, listOf(detail))
     is NagiosError.Unreachable -> unreachableText()
+    NagiosError.LocalNetworkBlocked -> UiText(R.string.error_local_network_blocked)
     NagiosError.NotNagios -> UiText(R.string.error_not_nagios)
     is NagiosError.Api -> UiText(R.string.error_nagios_api, listOf(message.ifBlank { type }))
     NagiosError.CleartextRefused -> UiText(R.string.error_cleartext_refused)

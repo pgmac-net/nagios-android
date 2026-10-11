@@ -20,6 +20,8 @@ data class HomeUiState(
     /** The count chips switched on in the Problems tab. */
     val filter: Set<ProblemKind> = emptySet(),
     val now: Instant = Instant.EPOCH,
+    /** The app's own sentence about local network access is to be shown before Android's prompt. */
+    val explainLocalNetwork: Boolean = false,
 ) {
     /** Unhandled problems with the active filter applied. */
     val visibleUnhandled: List<Problem>

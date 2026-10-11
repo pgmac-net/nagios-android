@@ -44,11 +44,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.ui.browse.HostsTab
 import net.pgmac.nagwatch.ui.browse.ServicesTab
+import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
+import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
 import net.pgmac.nagwatch.ui.problems.ProblemKind
 import net.pgmac.nagwatch.ui.problems.ProblemsTab
 
@@ -67,7 +72,7 @@ object HomeTags {
 }
 
 /** What the home screen and its tabs can ask for. */
-interface HomeActions {
+interface HomeActions : LocalNetworkActions {
     fun refresh()
 
     fun toggleFilter(kind: ProblemKind)
@@ -105,8 +110,18 @@ fun HomeScreen(navigation: HomeNavigation, viewModel: HomeViewModel = hiltViewMo
     // not depend on this: the view model loads as soon as it knows which profile is shown.
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.refreshIfNeeded() }
 
+    val request = rememberLocalNetworkRequest(viewModel::localNetworkAnswered)
     val actions = object : HomeActions {
         override fun refresh() = viewModel.refresh()
+
+        override fun localNetworkContinue() {
+            viewModel.localNetworkExplained()
+            request.askAndroid()
+        }
+
+        override fun localNetworkNotNow() = viewModel.localNetworkDeclined()
+
+        override fun allowLocalNetwork() = viewModel.allowLocalNetwork(request)
 
         override fun toggleFilter(kind: ProblemKind) = viewModel.toggleFilter(kind)
 
@@ -161,6 +176,9 @@ fun HomeContent(
                 }
             }
         }
+    }
+    if (state.explainLocalNetwork) {
+        LocalNetworkExplanation(onContinue = actions::localNetworkContinue, onNotNow = actions::localNetworkNotNow)
     }
 }
 
@@ -272,8 +290,8 @@ private fun ProfileBody(state: HomeUiState, profile: Profile, tab: HomeTab, acti
 private fun TabBody(tab: HomeTab, state: HomeUiState, status: ProfileStatus, actions: HomeActions) {
     when (tab) {
         HomeTab.PROBLEMS -> ProblemsTab(state, status, actions)
-        HomeTab.HOSTS -> HostsTab(status, state.now, onOpen = actions::openHost)
-        HomeTab.SERVICES -> ServicesTab(status, state.now, onOpen = actions::openService)
+        HomeTab.HOSTS -> HostsTab(status, state.now, actions::openHost, actions::allowLocalNetwork)
+        HomeTab.SERVICES -> ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork)
     }
 }
 
@@ -287,6 +305,9 @@ private fun FirstFailure(error: StatusError?, profile: Profile, actions: HomeAct
     ) {
         Text(stringResource(R.string.problems_failed_title), style = MaterialTheme.typography.titleLarge)
         Text(error.message())
+        if (error is StatusError.Nagios && error.error == NagiosError.LocalNetworkBlocked) {
+            AllowLocalNetworkButton(onClick = actions::allowLocalNetwork)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = actions::refresh) { Text(stringResource(R.string.action_retry)) }
             OutlinedButton(onClick = { actions.editProfile(profile.id) }) {

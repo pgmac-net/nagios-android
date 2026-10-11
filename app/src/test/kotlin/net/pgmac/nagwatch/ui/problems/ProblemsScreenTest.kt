@@ -85,6 +85,18 @@ class ProblemsScreenTest {
         override fun openService(hostName: String, description: String) {
             calls += "service:$hostName/$description"
         }
+
+        override fun localNetworkContinue() {
+            calls += "localNetworkContinue"
+        }
+
+        override fun localNetworkNotNow() {
+            calls += "localNetworkNotNow"
+        }
+
+        override fun allowLocalNetwork() {
+            calls += "allowLocalNetwork"
+        }
     }
 
     @Test

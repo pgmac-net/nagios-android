@@ -115,6 +115,11 @@
     <string name="progress_confirmed_cancel_downtime">Downtime cancelled.</string>
     <string name="progress_date_order">Not sent. Nagwatch needs to know how this Nagios writes dates.</string>
     <string name="progress_mismatch">Nagios scheduled a different window from the one asked for. Asked: %1$s to %2$s. Scheduled: %3$s to %4$s.</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_allow_local_network">Allow local network access</string>
+    <string name="local_network_title">Reach your local network?</string>
+    <string name="local_network_text">This Nagios is on your local network. Android asks before an app may reach devices there, and calls the permission “Nearby devices”. Nagwatch only talks to the address you entered; it does not search for or scan other devices.\n\nIf you say no, Nagwatch still tries, which works when you reach Nagios over a VPN.</string>
+    <string name="local_network_not_now">Not now</string>
     <string name="actions_read_only">This Nagios user is read-only, so actions are unavailable.</string>
     <string name="acknowledge_title">Acknowledge this problem</string>
     <string name="comment_title">Add a comment</string>
@@ -246,6 +251,7 @@
     <string name="error_unreachable_refused">Nothing is accepting connections at that address. Check the URL and port, and that you are on the right network.</string>
     <string name="error_unreachable_timeout">The server did not answer in time.</string>
     <string name="error_unreachable_other">Could not reach the server: %1$s</string>
+    <string name="error_local_network_blocked">The server did not answer. Android may be blocking Nagwatch from your local network: it needs the “Nearby devices” permission to reach an address there. If this Nagios is not on your network at the moment, check that it is running instead.</string>
     <string name="error_not_nagios">Something answered, but it is not Nagios. Check the URL; it should be the address of the Nagios web interface.</string>
     <string name="error_nagios_api">Nagios reported an error: %1$s</string>
     <string name="error_cleartext_refused">This profile uses unencrypted http, which is not enabled for it.</string>

@@ -24,6 +24,13 @@ sealed interface NagiosError {
         enum class Reason { DNS, REFUSED, TIMEOUT, OTHER }
     }
 
+    /**
+     * The request timed out, the address looks like one on the local network, and Android's
+     * local network permission is not held. Android drops such a connection without a word,
+     * so this is an inference, not a report: a powered-off server looks exactly the same.
+     */
+    data object LocalNetworkBlocked : NagiosError
+
     /** Something answered, but it is not the Nagios JSON CGI. Usually a wrong URL. */
     data object NotNagios : NagiosError
 

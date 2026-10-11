@@ -36,6 +36,7 @@ import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.ui.browse.BrowseTags
+import net.pgmac.nagwatch.ui.localnet.LocalNetworkTags
 import net.pgmac.nagwatch.ui.problems.ProblemKind
 import net.pgmac.nagwatch.ui.problems.ProblemsTags
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
@@ -88,6 +89,18 @@ class HomeScreenTest {
 
         override fun openService(hostName: String, description: String) {
             calls += "service:$hostName/$description"
+        }
+
+        override fun localNetworkContinue() {
+            calls += "localNetworkContinue"
+        }
+
+        override fun localNetworkNotNow() {
+            calls += "localNetworkNotNow"
+        }
+
+        override fun allowLocalNetwork() {
+            calls += "allowLocalNetwork"
         }
     }
 
@@ -223,6 +236,102 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag(HomeTags.NO_PROFILES).assertIsDisplayed()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the first time a local address is to be reached, the app explains before Android asks`() {
+        state = withStatus(ProfileStatus()).copy(explainLocalNetwork = true)
+        setContent()
+
+        composeRule.onNodeWithTag(LocalNetworkTags.EXPLANATION).assertIsDisplayed()
+        composeRule.onNodeWithText("Nearby devices", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("it does not search for or scan other devices", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Nagwatch still tries", substring = true).assertIsDisplayed()
+        assertTrue("it is only a question: nothing was chosen", calls.isEmpty())
+    }
+
+    @Test
+    fun `Continue goes on to Android's prompt, and Not now goes on without it`() {
+        state = withStatus(ProfileStatus()).copy(explainLocalNetwork = true)
+        setContent()
+
+        composeRule.onNodeWithTag(LocalNetworkTags.CONTINUE).performClick()
+        composeRule.onNodeWithTag(LocalNetworkTags.NOT_NOW).performClick()
+
+        assertEquals(listOf("localNetworkContinue", "localNetworkNotNow"), calls)
+    }
+
+    @Test
+    fun `no explanation unless it was asked for`() {
+        state = withStatus(ProfileStatus())
+        setContent()
+
+        composeRule.onNodeWithTag(LocalNetworkTags.EXPLANATION).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an error that is probably Android's protection says so, and offers the way to grant it`() {
+        state = withStatus(ProfileStatus(error = StatusError.Nagios(NagiosError.LocalNetworkBlocked)))
+        setContent()
+
+        composeRule.onNodeWithTag(HomeTags.ERROR).assertIsDisplayed()
+        composeRule.onNodeWithText("Android may be blocking Nagwatch", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("did not answer in time").assertDoesNotExist()
+        composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertIsDisplayed().performClick()
+
+        assertEquals(listOf("allowLocalNetwork"), calls)
+    }
+
+    @Test
+    fun `earlier data with a failed refresh that is probably Android still offers the way to grant it, on every tab`() {
+        // The common case: the profile worked before, so its result is on screen and only a banner says it failed.
+        state = withStatus(
+            ProfileStatus(
+                report = ProblemClassifier.classify(snapshot),
+                snapshot = snapshot,
+                lastSuccess = T0,
+                error = StatusError.Nagios(NagiosError.LocalNetworkBlocked),
+            ),
+        )
+        setContent()
+
+        HomeTab.entries.forEach { tab ->
+            composeRule.onNodeWithTag(HomeTags.tab(tab)).performClick()
+            composeRule.onNodeWithTag(HomeTags.BANNER_FAILED).assertIsDisplayed()
+            composeRule.onNodeWithText("Android may be blocking Nagwatch", substring = true).assertIsDisplayed()
+            composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertIsDisplayed().performClick()
+        }
+
+        assertEquals(List(HomeTab.entries.size) { "allowLocalNetwork" }, calls)
+    }
+
+    @Test
+    fun `earlier data with any other failed refresh has no such button`() {
+        state = withStatus(
+            ProfileStatus(
+                report = ProblemClassifier.classify(snapshot),
+                snapshot = snapshot,
+                lastSuccess = T0,
+                error = StatusError.Nagios(NagiosError.BadCredentials),
+            ),
+        )
+        setContent()
+
+        HomeTab.entries.forEach { tab ->
+            composeRule.onNodeWithTag(HomeTags.tab(tab)).performClick()
+            composeRule.onNodeWithTag(HomeTags.BANNER_FAILED).assertIsDisplayed()
+            composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `an ordinary timeout does not blame Android, and has no such button`() {
+        val timeout = NagiosError.Unreachable(NagiosError.Unreachable.Reason.TIMEOUT, "")
+        state = withStatus(ProfileStatus(error = StatusError.Nagios(timeout)))
+        setContent()
+
+        composeRule.onNodeWithText("The server did not answer in time.").assertIsDisplayed()
+        composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertDoesNotExist()
     }
 
     @Test
