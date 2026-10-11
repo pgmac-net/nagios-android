@@ -2,22 +2,27 @@
 
 package net.pgmac.nagwatch.notify
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import net.pgmac.nagwatch.MainActivity
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 
 /**
  * What a tap on a notification opens: a host, a service, or (with no [ref]) the profile's
  * Problems list.
  *
- * It travels in the intent that starts the app. The intent names the app's own activity
- * explicitly, so nothing outside the app can be started by it, and what comes back out is
- * only ever a profile id and two names to look up.
+ * It travels in the intent that starts the app, and an intent is something any app can send.
+ * `MainActivity` is exported, as a launcher activity has to be, so without care another app
+ * could send it a made-up target and have Nagwatch switch profile and look up a host of its
+ * choosing. So the intent is addressed to [DOOR], a second name for the activity that is not
+ * exported, and [from] believes an intent only if it came by that name. Android will not
+ * deliver another app's intent to a component that is not exported, and an intent sent to
+ * `MainActivity` by its own name does not carry this one.
  */
 data class NotificationTarget(val profileId: Long, val ref: ObjectRef? = null) {
-    fun toIntent(context: Context): Intent = Intent(context, MainActivity::class.java)
+    fun toIntent(context: Context): Intent = Intent()
+        .setComponent(ComponentName(context.packageName, DOOR))
         // Reuses the open app instead of stacking a second copy on top of it.
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         // Android treats two pending intents as one unless something it compares differs: this does.
@@ -32,16 +37,23 @@ data class NotificationTarget(val profileId: Long, val ref: ObjectRef? = null) {
         .putExtra(EXTRA_SERVICE, ref?.description)
 
     companion object {
+        /** The activity alias in the manifest, `android:exported="false"`. The two must agree; a test checks. */
+        const val DOOR = "net.pgmac.nagwatch.notify.FromNotification"
+
         private const val SCHEME = "nagwatch"
         private const val EXTRA_PROFILE = "net.pgmac.nagwatch.notify.PROFILE"
         private const val EXTRA_HOST = "net.pgmac.nagwatch.notify.HOST"
         private const val EXTRA_SERVICE = "net.pgmac.nagwatch.notify.SERVICE"
         private const val NO_PROFILE = -1L
 
-        /** Null for an intent that is not one of ours, such as the launcher's. */
+        /**
+         * Null for an intent that did not come through [DOOR]: the launcher's, or one another
+         * app sent to `MainActivity` with extras that look like ours.
+         */
         fun from(intent: Intent?): NotificationTarget? {
-            val profileId = intent?.getLongExtra(EXTRA_PROFILE, NO_PROFILE) ?: NO_PROFILE
-            if (intent == null || profileId == NO_PROFILE) return null
+            if (intent?.component?.className != DOOR) return null
+            val profileId = intent.getLongExtra(EXTRA_PROFILE, NO_PROFILE)
+            if (profileId == NO_PROFILE) return null
             val host = intent.getStringExtra(EXTRA_HOST)?.takeIf { it.isNotEmpty() }
             val service = intent.getStringExtra(EXTRA_SERVICE)?.takeIf { it.isNotEmpty() }
             return NotificationTarget(profileId, host?.let { ObjectRef(it, service) })

@@ -11,7 +11,6 @@ import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.util.concurrent.TimeUnit
-import net.pgmac.nagwatch.MainActivity
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
@@ -337,7 +336,11 @@ class AndroidNotifierTest {
 
         val shown = problem(disk)
         val pending = shadowOf(shown.contentIntent)
-        assertEquals(MainActivity::class.java.name, pending.savedIntent.component?.className)
+        assertEquals(
+            "by the name other apps cannot use",
+            NotificationTarget.DOOR,
+            pending.savedIntent.component?.className,
+        )
         assertEquals(context.packageName, pending.savedIntent.component?.packageName)
         assertTrue(pending.flags and PendingIntent.FLAG_IMMUTABLE != 0)
         assertTrue(shown.flags and Notification.FLAG_AUTO_CANCEL != 0)

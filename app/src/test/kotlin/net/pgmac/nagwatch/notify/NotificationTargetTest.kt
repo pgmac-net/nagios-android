@@ -2,10 +2,12 @@
 
 package net.pgmac.nagwatch.notify
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import net.pgmac.nagwatch.MainActivity
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,6 +47,32 @@ class NotificationTargetTest {
     fun `an intent that is not from a notification opens nothing in particular`() {
         assertNull(NotificationTarget.from(null))
         assertNull(NotificationTarget.from(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)))
+    }
+
+    @Test
+    fun `another app's copy of a notification's intent, sent to the activity it can reach, is not believed`() {
+        val genuine = NotificationTarget(7, ObjectRef("web01", "Disk /")).toIntent(context)
+
+        // Everything the same, addressed to the exported activity: all another app is able to send.
+        val forged = Intent(genuine).setComponent(ComponentName(context, MainActivity::class.java))
+        val unaddressed = Intent(genuine).setComponent(null)
+
+        assertNull(NotificationTarget.from(forged))
+        assertNull(NotificationTarget.from(unaddressed))
+        assertEquals(NotificationTarget(7, ObjectRef("web01", "Disk /")), NotificationTarget.from(genuine))
+    }
+
+    @Test
+    fun `the name a tap comes in by is one no other app can use, and leads to the app's one screen`() {
+        val door = context.packageManager.getActivityInfo(
+            ComponentName(context.packageName, NotificationTarget.DOOR),
+            0,
+        )
+
+        assertFalse("not exported, or the check in `from` protects nothing", door.exported)
+        assertEquals(MainActivity::class.java.name, door.targetActivity)
+        assertEquals(NotificationTarget.DOOR, NotificationTarget(7).toIntent(context).component?.className)
+        assertEquals(context.packageName, NotificationTarget(7).toIntent(context).component?.packageName)
     }
 
     @Test
