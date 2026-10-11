@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.ConnectionSettings
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.profile.SecretInput.Clear
 import net.pgmac.nagwatch.profile.SecretInput.Keep
 import net.pgmac.nagwatch.profile.SecretInput.Replace
@@ -180,6 +181,22 @@ class ProfileRepositoryTest {
             ).copy(baseUrl = "https://b.example.org"),
         )
         assertNull(ready(repository.settingsFor(id)).cgiBase)
+    }
+
+    @Test
+    fun `a remembered date format is kept with the profile, and forgotten when the URL changes`() = runBlocking {
+        val id = repository.save(draft())
+        assertNull("nothing is known of a new profile's server", repository.dateFormat(id))
+
+        repository.rememberDateFormat(id, ServerDateFormat.EURO)
+        repository.save(draft(id = id, password = Keep, accessClientSecret = Keep, headerValue = Keep))
+        assertEquals("unchanged URL keeps it", ServerDateFormat.EURO, repository.dateFormat(id))
+
+        repository.save(
+            draft(id = id, password = Keep, accessClientSecret = Keep, headerValue = Keep)
+                .copy(baseUrl = "https://b.example.org"),
+        )
+        assertNull("another server may write dates another way", repository.dateFormat(id))
     }
 
     @Test

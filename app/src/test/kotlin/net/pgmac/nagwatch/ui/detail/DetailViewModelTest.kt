@@ -5,6 +5,8 @@ package net.pgmac.nagwatch.ui.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.time.Duration
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,6 +27,7 @@ import net.pgmac.nagwatch.nagios.command.CommandClient
 import net.pgmac.nagwatch.nagios.command.CommandOutcome
 import net.pgmac.nagwatch.nagios.command.CommandReport
 import net.pgmac.nagwatch.nagios.command.Refusal
+import net.pgmac.nagwatch.nagios.command.ServerClock
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
@@ -238,6 +241,78 @@ class DetailViewModelTest {
             ),
             sender.sent,
         )
+    }
+
+    @Test
+    fun `a downtime of a length starts at the moment it is sent`() {
+        val id = saveProfile()
+        val viewModel = host(id, "web01")
+        clock.advance(Duration.ofMinutes(7))
+
+        viewModel.scheduleDowntime("patching", DowntimeWindow.FromNow(Duration.ofHours(2)))
+        viewModel.awaitSettled<Command.ScheduleDowntime>()
+
+        val start = T0.plus(Duration.ofMinutes(7))
+        assertEquals(
+            listOf<Command>(Command.ScheduleDowntime(ObjectRef("web01"), "patching", start, start.plusSeconds(7200))),
+            sender.sent,
+        )
+    }
+
+    @Test
+    fun `cancelling a downtime names it by Nagios' own id`() {
+        val id = saveProfile()
+        val viewModel = host(id, "web01")
+
+        viewModel.cancelDowntime(42)
+        viewModel.awaitSettled<Command.CancelDowntime>()
+
+        assertEquals(listOf<Command>(Command.CancelDowntime(ObjectRef("web01"), 42)), sender.sent)
+    }
+
+    @Test
+    fun `answering the date order question remembers the answer and then sends the downtime`() {
+        val id = saveProfile()
+        sender.outcome = { CommandOutcome.DateOrderNeeded("10-10-2026 09:00:00") }
+        val viewModel = host(id, "web01")
+        viewModel.scheduleDowntime("patching", DowntimeWindow.FromNow(Duration.ofHours(1)))
+        viewModel.awaitState { it.action is ActionProgress.DateOrderNeeded }
+        sender.outcome = { CommandOutcome.Accepted }
+
+        viewModel.answerDateOrder(ServerDateFormat.EURO)
+        viewModel.awaitState { it.action is ActionProgress.NotConfirmed }
+
+        assertEquals("once without the answer, then with it", listOf(null, ServerDateFormat.EURO), sender.remembered)
+        assertEquals("the same downtime both times", 1, sender.sent.distinct().size)
+        assertEquals(ServerDateFormat.EURO, runBlocking { profiles.dateFormat(id) })
+    }
+
+    @Test
+    fun `declining the date order question sends nothing and clears it`() {
+        val id = saveProfile()
+        sender.outcome = { CommandOutcome.DateOrderNeeded("10-10-2026 09:00:00") }
+        val viewModel = host(id, "web01")
+        viewModel.scheduleDowntime("patching", DowntimeWindow.FromNow(Duration.ofHours(1)))
+        viewModel.awaitState { it.action is ActionProgress.DateOrderNeeded }
+
+        viewModel.dismissDateOrder()
+
+        assertNull(viewModel.awaitState { it.action == null }.action)
+        assertEquals(1, sender.sent.size)
+        assertNull(runBlocking { profiles.dateFormat(id) })
+    }
+
+    @Test
+    fun `the server's clock reaches the screen once asked for`() {
+        val id = saveProfile()
+        val serverClock = ServerClock(ServerDateFormat.US, ZoneOffset.UTC, "10-09-2026 10:00:00")
+        sender.clock = serverClock
+        val viewModel = host(id, "web01")
+        assertNull(viewModel.awaitState { it.permission != CommandPermission.UNKNOWN }.serverClock)
+
+        viewModel.loadServerClock()
+
+        assertEquals(serverClock, viewModel.awaitState { it.serverClock != null }.serverClock)
     }
 
     @Test

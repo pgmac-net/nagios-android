@@ -274,7 +274,7 @@ How M2 implements the detail screens (graphs are M6, so not here yet; actions ar
 - **A record Nagios cannot serialise** (section 5) shows its state and says details are unavailable; it does not show empty output as if the check had said nothing.
 - **Open in Nagios** hands the object's page in the web interface to the browser. The link is built from the profile's address alone: no credentials are ever put in a URL passed to another app.
 
-How M3 adds the actions (downtime follows in its own change):
+How M3 adds the actions:
 
 - **Actions** sits under the header: Acknowledge (only for a problem that is not acknowledged; Nagios drops an acknowledgement of anything else), Remove acknowledgement (only when acknowledged), Recheck, Comment.
 - **One command at a time.** While one is on its way the buttons are off, so a second tap cannot send a second command.
@@ -311,9 +311,20 @@ Notify starts on and persistent off, as in Nagios' own web interface; nothing ch
 
 Sticky is **off by default** and shows the warning when ticked. Rationale: a sticky acknowledgement hid a failed drive on 2026-10-02 in the maintainer's homelab.
 
-### Downtime dialog
+### Downtime form
 
-Fixed downtime only. Duration presets (30 min, 1 h, 2 h, 4 h, 8 h, 24 h) plus a custom start/end picker, and a required comment.
+Fixed downtime only. Like the acknowledge form it opens in the page. A required comment; a length starting now (30 min, 1 h, 2 h, 4 h, 8 h, 24 h; two hours is selected to begin with, as in Nagios' own form) or **Custom**, which gives a start and an end, each changed with a date picker and then a time picker in the phone's own timezone.
+
+- **The window is shown twice before it is sent:** in the phone's time, and as text exactly as the server will be told it, with the server's offset from UTC. The second line is there so that a surprise about timezones is had before the downtime exists. It is left out when it cannot be written without guessing (see the date-order question).
+- **A length starts when it is sent**, not when the form was opened.
+- **A window that ends before it starts, or is already over, cannot be sent**, and the form says why. Nagios would accept the second and silently drop it.
+- **Every downtime is read back.** After Nagios accepts one, the app reads the object's downtimes and looks for one that was not there before and carries the comment as Nagios keeps it. Its window is then compared with the one asked for, to the second.
+  - Same window: "Downtime scheduled, for the window asked for."
+  - **A different window** (a mismatch): both windows are shown, with a button to cancel the one Nagios made. This is not sent again with a correction: the app would be guessing at why it moved, and a second downtime is worse than one in the wrong place that the person has been told about.
+  - Not found in about 25 seconds: not confirmed.
+- **The date-order question.** On a day whose number equals its month, for a server whose date format has never been seen, the window cannot be written safely (section 5, ADR 0006). Nothing is sent. The app shows the server's own "now" and asks: month first or day first? The answer is kept on the profile and the downtime is then sent. Declining sends nothing.
+- **What a server showed of its date format is kept on the profile** every time a downtime is scheduled, and forgotten if the profile's address changes.
+- **Cancelling:** each listed downtime has "Cancel downtime", which asks first, naming the window and the comment. It is confirmed when the downtime is no longer listed; a list that could not be read is not taken to mean it is gone.
 
 ### Settings
 

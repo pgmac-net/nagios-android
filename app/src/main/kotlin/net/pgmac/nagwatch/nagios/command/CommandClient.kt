@@ -5,12 +5,13 @@ package net.pgmac.nagwatch.nagios.command
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.http.NagiosApi
 import net.pgmac.nagwatch.nagios.http.ResilientListFetcher
+import net.pgmac.nagwatch.nagios.http.wholeNumber
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import okhttp3.HttpUrl
 
 /**
@@ -46,6 +47,13 @@ interface CommandClient {
      *   when today's date cannot show it. Ignored by commands that carry no date.
      */
     suspend fun send(command: Command, rememberedFormat: ServerDateFormat? = null): CommandReport
+
+    /**
+     * How this server writes and reads a time at the moment, for showing someone a window in
+     * the server's own terms before it is sent. Two GETs; it changes nothing. Null when it
+     * could not be read, which is never a reason not to offer the command.
+     */
+    suspend fun serverClock(target: ObjectRef, rememberedFormat: ServerDateFormat? = null): ServerClock? = null
 }
 
 internal class OkHttpCommandClient(
@@ -83,6 +91,13 @@ internal class OkHttpCommandClient(
                 else -> CommandReport(commit(base.value, fields(command)))
             }
         }
+
+    override suspend fun serverClock(target: ObjectRef, rememberedFormat: ServerDateFormat?): ServerClock? {
+        val base = (cgiBase() as? NagiosResult.Success)?.value ?: return null
+        // The form is the same whatever window is asked for; only the object matters.
+        val anyWindow = Command.ScheduleDowntime(target, "", Instant.EPOCH, Instant.EPOCH)
+        return (serverClock(base, anyWindow, rememberedFormat) as? ClockReading.Read)?.clock
+    }
 
     /**
      * A forced check has to be given a time, in the server's format. "Now" is all that is
@@ -239,7 +254,7 @@ internal class OkHttpCommandClient(
 
     /** `result.query_time`: when Nagios answered, in epoch milliseconds. */
     private fun JsonObject.queryTime(): Instant? =
-        ((this["result"] as? JsonObject)?.get("query_time") as? JsonPrimitive)?.longOrNull
+        ((this["result"] as? JsonObject)?.get("query_time") as? JsonPrimitive)?.wholeNumber()
             ?.takeIf { it > 0 }
             ?.let(Instant::ofEpochMilli)
 

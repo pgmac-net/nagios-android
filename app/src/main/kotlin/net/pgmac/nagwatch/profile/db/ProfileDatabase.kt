@@ -11,6 +11,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -31,6 +33,11 @@ data class ProfileEntity(
     /** JSON array of `{"name": ..., "value_enc": ...}`; values are secrets, names are not. */
     @ColumnInfo(name = "custom_headers") val customHeaders: String,
     @ColumnInfo(name = "allow_cleartext") val allowCleartext: Boolean,
+    /**
+     * How this server writes dates, as last seen (a `ServerDateFormat` name), for the day its
+     * own form cannot show it. Null until a downtime has been scheduled. See docs/adr/0006.
+     */
+    @ColumnInfo(name = "date_format") val dateFormat: String? = null,
 )
 
 @Dao
@@ -50,6 +57,9 @@ interface ProfileDao {
     @Query("UPDATE profiles SET cgi_base = :cgiBase WHERE id = :id")
     suspend fun setCgiBase(id: Long, cgiBase: String?)
 
+    @Query("UPDATE profiles SET date_format = :dateFormat WHERE id = :id")
+    suspend fun setDateFormat(id: Long, dateFormat: String?)
+
     @Query("DELETE FROM profiles WHERE id = :id")
     suspend fun delete(id: Long)
 }
@@ -65,6 +75,13 @@ abstract class ProfileDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "profiles.db"
-        const val VERSION = 1
+        const val VERSION = 2
+
+        /** Adds the remembered date format. Existing profiles have none, which is the truth. */
+        val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN date_format TEXT")
+            }
+        }
     }
 }

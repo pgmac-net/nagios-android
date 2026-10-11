@@ -15,6 +15,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import net.pgmac.nagwatch.nagios.ConnectionSettings
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.profile.db.ProfileDao
 import net.pgmac.nagwatch.profile.db.ProfileEntity
 import okhttp3.HttpUrl
@@ -71,6 +72,12 @@ class ProfileRepository @Inject constructor(
 
     suspend fun rememberCgiBase(id: Long, cgiBase: HttpUrl) = dao.setCgiBase(id, cgiBase.toString())
 
+    /** The date format this profile's server was last seen to use, if it has been seen. */
+    suspend fun dateFormat(id: Long): ServerDateFormat? =
+        dao.get(id)?.dateFormat?.let { name -> ServerDateFormat.entries.firstOrNull { it.name == name } }
+
+    suspend fun rememberDateFormat(id: Long, format: ServerDateFormat) = dao.setDateFormat(id, format.name)
+
     suspend fun settingsFor(id: Long): SettingsResult = dao.get(id)?.let(::settings) ?: SettingsResult.NotFound
 
     /**
@@ -110,6 +117,8 @@ class ProfileRepository @Inject constructor(
                 }
             }.toString(),
             allowCleartext = draft.allowCleartext,
+            // Like the CGI directory, what was learned about a server belongs to its address.
+            dateFormat = stored?.dateFormat.takeIf { stored?.baseUrl == baseUrl },
         )
     }
 

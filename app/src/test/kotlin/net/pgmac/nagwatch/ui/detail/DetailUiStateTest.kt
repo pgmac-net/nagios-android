@@ -19,6 +19,7 @@ import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.cache.CachedDetail
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -120,6 +121,29 @@ class DetailUiStateTest {
         assertNull(state.state)
         assertNull(state.host)
         assertEquals(later, state.now)
+    }
+
+    @Test
+    fun `a length from now starts at the moment it is sent, to the second`() {
+        val now = T0.plusMillis(750)
+
+        assertEquals(T0 to T0.plusSeconds(1800), DowntimeWindow.FromNow(Duration.ofMinutes(30)).resolve(now))
+    }
+
+    @Test
+    fun `a chosen window is taken as chosen, whatever the time is now`() {
+        val window = DowntimeWindow.Between(T0.plusSeconds(3600), T0.plusSeconds(7200))
+
+        assertEquals(T0.plusSeconds(3600) to T0.plusSeconds(7200), window.resolve(T0.plusSeconds(99)))
+    }
+
+    @Test
+    fun `a window must end after it starts, and not be over already`() {
+        assertTrue(DowntimeWindow.FromNow(Duration.ofMinutes(30)).isValid(T0))
+        assertTrue(DowntimeWindow.Between(T0.minusSeconds(60), T0.plusSeconds(60)).isValid(T0))
+        assertFalse("ends before it starts", DowntimeWindow.Between(T0.plusSeconds(60), T0.plusSeconds(30)).isValid(T0))
+        assertFalse("no length", DowntimeWindow.Between(T0.plusSeconds(60), T0.plusSeconds(60)).isValid(T0))
+        assertFalse("already over", DowntimeWindow.Between(T0.minusSeconds(120), T0.minusSeconds(60)).isValid(T0))
     }
 
     @Test

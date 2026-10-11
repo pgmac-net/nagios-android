@@ -143,6 +143,9 @@ Everything the app writes to a Nagios goes through `CommandClient` (`nagios/comm
 - `run(profileId, command)` is a flow of `ActionProgress`: `Sending`, then one of `Refused`, `NotSent`, `Unknown`, or `Sent` followed by `Confirmed` or `NotConfirmed`. **Only `Confirmed` may be worded as done.**
 - Confirming is reading the object again and looking for the effect (`effectSeen`). A new command needs a new case there; a command with no case is never confirmed.
 - The send itself runs in `NonCancellable`: leaving the screen must not cut a request off part-way. Nothing after it is protected, so the waiting stops when the screen goes.
+- A downtime is confirmed by `scheduled`, which compares windows and can answer `Mismatch`. **Do not add the window to how the downtime is recognised**: the window is the thing being checked.
+- `DateOrderNeeded` means nothing was sent. The view model asks, stores the answer with `rememberDateOrder`, and runs the same command again.
+- The server's date format is a column on the profile (`date_format`, schema version 2). Profiles have no destructive fallback, so **every schema change needs a migration and a case in `ProfileMigrationTest`**, which builds the old database from the exported schema in `app/schemas`.
 - `permission(profileId)` asks once whether the user is read-only and remembers the answer for the process, keyed by profile, address and user. A failure to find out is `UNKNOWN` and is not remembered. `UNKNOWN` leaves the buttons on.
 - `DetailViewModel` allows one command in flight and ignores taps until it has an answer.
 

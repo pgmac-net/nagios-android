@@ -6,7 +6,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
+import net.pgmac.nagwatch.nagios.command.ServerClock
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.ObjectRef
@@ -37,6 +39,8 @@ data class DetailUiState(
     val permission: CommandPermission = CommandPermission.UNKNOWN,
     /** The command last sent from this screen and where it has got to; null until one is sent. */
     val action: ActionProgress? = null,
+    /** How the server writes times, once asked for; only used to show a window in its terms. */
+    val serverClock: ServerClock? = null,
 ) {
     val ref: ObjectRef get() = detail.ref
 
@@ -76,6 +80,23 @@ data class DetailUiState(
     /** One command at a time, and none at all for a user Nagios takes no commands from. */
     val actionsEnabled: Boolean
         get() = permission != CommandPermission.READ_ONLY && action?.inFlight != true
+}
+
+/** When a downtime is to run, as chosen in the form. */
+sealed interface DowntimeWindow {
+    /** Starting when it is sent. "Now" is read at that moment, not when the form was opened. */
+    data class FromNow(val length: Duration) : DowntimeWindow
+
+    data class Between(val start: Instant, val end: Instant) : DowntimeWindow
+
+    /** The window as two moments, to the second: Nagios keeps nothing finer. */
+    fun resolve(now: Instant): Pair<Instant, Instant> = when (this) {
+        is FromNow -> now.truncatedTo(ChronoUnit.SECONDS).let { it to it + length }
+        is Between -> start.truncatedTo(ChronoUnit.SECONDS) to end.truncatedTo(ChronoUnit.SECONDS)
+    }
+
+    /** False for a window that ends before it starts, or is already over. */
+    fun isValid(now: Instant): Boolean = resolve(now).let { (start, end) -> end > start && end > now }
 }
 
 /**

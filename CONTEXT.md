@@ -68,6 +68,14 @@ _Avoid_: Successful
 Nagios accepted a command and the app did not see its effect in the time it looks for (about 25 seconds). Not a failure: the effect may still arrive, or Nagios may have dropped the command.
 _Avoid_: Failed, timed out
 
+**Read-back**:
+Reading a downtime again from Nagios after scheduling it, and comparing its window with the one asked for. What turns "accepted" into "confirmed" for a downtime, and what catches one that landed on another day or an hour out.
+_Avoid_: Verification, check (a check is what Nagios runs)
+
+**Mismatch**:
+A downtime Nagios accepted and then scheduled for a different window from the one asked for. A real downtime, silencing real notifications; shown with both windows and an offer to cancel it.
+_Avoid_: Error, failure
+
 **Refused**:
 Nagios answered a command and said no, with a reason the app can name.
 _Avoid_: Failed (which also covers "never arrived" and "nobody knows")

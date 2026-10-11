@@ -32,7 +32,7 @@ for combo in "${combos[@]}"; do
     continue
   fi
   status=0
-  NAGWATCH_TEST_NAGIOS="http://127.0.0.1:8089/nagios" NAGWATCH_TEST_DATE_FORMAT="$1" \
+  NAGWATCH_TEST_NAGIOS="http://127.0.0.1:8089/nagios" NAGWATCH_TEST_DATE_FORMAT="$1" NAGWATCH_TEST_TIMEZONE="$2" \
     ./gradlew --console=plain :app:testDebugUnitTest \
     --tests 'net.pgmac.nagwatch.nagios.command.CommandLiveTest' \
     --tests 'net.pgmac.nagwatch.status.CommandRepositoryLiveTest' -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?

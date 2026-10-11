@@ -6,6 +6,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
@@ -15,6 +19,7 @@ import net.pgmac.nagwatch.nagios.NagiosClientFactory
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.Refusal
+import net.pgmac.nagwatch.nagios.model.Downtime
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.ProfileRepository
@@ -135,6 +140,58 @@ class CommandRepositoryLiveTest {
         assertEquals(Refusal.NOT_AUTHORISED, (other as ActionProgress.Refused).reason)
         assertEquals("and is still not thought read-only", CommandPermission.ALLOWED, repository.permission(limited))
         assertEquals(ActionProgress.Confirmed::class, timed("recheck as limited", limited, Command.ForceCheck(http)))
+    }
+
+    @Test
+    fun `a downtime is scheduled for the window asked, read back, and cancelled`() = runBlocking {
+        val operator = profile("operator")
+        val start = Instant.now().plus(Duration.ofMinutes(10)).truncatedTo(ChronoUnit.SECONDS)
+        val ask = Command.ScheduleDowntime(http, "live: downtime ${start.epochSecond}", start, start.plusSeconds(5400))
+
+        val last = repository.run(operator, ask).toList().last()
+        println("live: downtime in ten minutes -> ${last::class.simpleName}")
+        assertEquals("a window this near is on today's side of any clock change", ActionProgress.Confirmed(ask), last)
+        assertTrue("what the server showed of its date format was kept", profiles.dateFormat(operator) != null)
+
+        val made = downtimes(operator, http).single { it.comment == ask.comment }
+        assertEquals(
+            ActionProgress.Confirmed::class,
+            timed("cancel downtime", operator, Command.CancelDowntime(http, made.id)),
+        )
+    }
+
+    @Test
+    fun `a window on the far side of a clock change is caught, shown as it landed, and can be cancelled`() =
+        runBlocking {
+            val zone = ZoneId.of(System.getenv("NAGWATCH_TEST_TIMEZONE") ?: "UTC")
+            val operator = profile("operator")
+            // Noon UTC on 15 January next year: winter time in the north, summer in the south.
+            val start = LocalDate.now(ZoneOffset.UTC).plusYears(1).withMonth(1).withDayOfMonth(15)
+                .atTime(12, 0).toInstant(ZoneOffset.UTC)
+            val comment = "live: far side ${start.epochSecond}"
+            val ask = Command.ScheduleDowntime(load, comment, start, start.plusSeconds(3600))
+            val shift = zone.rules.getOffset(start).totalSeconds - zone.rules.getOffset(Instant.now()).totalSeconds
+
+            val last = repository.run(operator, ask).toList().last()
+
+            println("live: window in January, server in $zone (clock moves ${shift}s by then) -> $last")
+            val made = downtimes(operator, load).single { it.comment == ask.comment }
+            if (shift == 0) {
+                assertEquals(ActionProgress.Confirmed(ask), last)
+            } else {
+                // The app wrote the window with today's offset; the server read it with January's.
+                assertEquals(ActionProgress.Mismatch(ask, made), last)
+                assertEquals(start.minusSeconds(shift.toLong()), made.start)
+            }
+            assertEquals(
+                ActionProgress.Confirmed::class,
+                timed("cancel it", operator, Command.CancelDowntime(load, made.id)),
+            )
+        }
+
+    private suspend fun downtimes(profileId: Long, target: ObjectRef): List<Downtime> {
+        val settings = (profiles.settingsFor(profileId) as SettingsResult.Ready).settings
+        return (factory.create(settings).fetchDowntimes(target) as NagiosResult.Success).value
     }
 
     /** Runs [command] and says how long the answer took, so the waits can be judged against a real server. */
