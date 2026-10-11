@@ -333,12 +333,22 @@ Profile list/editor (section 4), notification toggles per profile, theme, about 
 
 ## 7. Background polling and notifications
 
-- One WorkManager periodic job per enabled profile (15 min minimum, Android's floor).
+- Off until switched on, per profile. A profile with notifications off is not polled in the background.
+- One WorkManager periodic job per enabled profile, every 15 minutes (Android's floor), 30 minutes or an hour.
 - Each poll writes to Room; the widget and the app read the cache. One network cost serves all three consumers.
-- Notify on: a new unhandled problem; a problem that worsens (WARN to CRIT); a recovery of something previously notified. Grouped per profile, with a notification channel per state class so the user can mute classes in system settings.
-- Unhandled-only by default: acknowledged and in-downtime problems do not notify.
-- A failed poll never produces "all OK". Three consecutive failures raise one "instance unreachable" notification, cleared on the next success.
 - Expected alert latency is up to about 15 minutes ([ADR 0002](adr/0002-no-backend-direct-polling.md)). The README says so plainly.
+
+What a poll is worth saying is decided in one place (`Announcer`), and why is in [ADR 0008](adr/0008-what-is-announced-and-where-that-is-remembered.md):
+
+- **Only HARD problems**, whether or not Nagios itself would notify for them.
+- **New, and again when worse** (WARNING to CRITICAL). Better without recovering updates the notification quietly.
+- **The first successful poll is one summary**, and so is any poll that would raise more than five at once.
+- **Unhandled only by default.** A per-profile switch includes acknowledged problems and those in downtime. A problem that becomes handled loses its notification without a word.
+- **A recovery replaces the problem's own notification**, silently, and clears after an hour. Something that was only in a summary recovers silently.
+- **A failed poll never produces "all OK"** and never changes what is known. A failure that may pass by itself raises one notification after three polls in a row, unless the profile's "Tell me when this Nagios can't be reached" is off. One that will not (a rejected password or Access token, unreadable credentials) raises it at once, regardless. The next good poll removes it.
+- One notification per problem, grouped per profile, with a channel per kind so classes can be muted in system settings. No buttons: a tap opens the host, the service or Problems.
+
+Status: the rules and their memory are in place and nothing calls them yet. Polling and the notifications themselves follow.
 
 ## 8. Widget
 
@@ -380,7 +390,7 @@ A poll is written in one transaction, so a killed process never leaves half of o
 
 On opening, the app shows the cached result at once, labelled with its age and marked stale past 30 minutes, then refreshes. Data is never hidden for being old. The chosen profile is remembered across restarts (DataStore).
 
-What notifications need to remember (the last state notified per object, for de-duplication and recovery notices) is decided in M4.
+What has been announced is kept there too (`announced`, `announce_meta`): each problem the person has been told about or that was there at the first poll, and whether an outage has been announced. It cannot be fetched again, but it can be rebuilt: if it is lost the next poll is treated as a first poll and summarised ([ADR 0008](adr/0008-what-is-announced-and-where-that-is-remembered.md)).
 
 Schema versions of both databases are exported to `app/schemas` and committed. `profiles.db` has no destructive-migration fallback: every change to it ships with a migration and a test. `status.db` is the opposite by design.
 

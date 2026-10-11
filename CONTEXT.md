@@ -48,6 +48,22 @@ _Avoid_: Sync, refresh (refresh = user-triggered)
 Cached data whose last successful poll is older than twice the poll interval. Always shown as stale, never as current.
 _Avoid_: Old, outdated
 
+**Announced**:
+Known to the app as a problem the person has been told about, or that was there at the first poll. What stops a problem being notified again at every poll. Not the same as "showing": a notification swiped away is still announced.
+_Avoid_: Notified (that is what Nagios does), seen, shown
+
+**First poll**:
+The first background poll of a profile that succeeds, or the first after what was announced has been lost. Told as one summary, not one notification per problem.
+_Avoid_: Initial sync, baseline
+
+**Summary (notification)**:
+One notification that stands in for many: everything at the first poll, or more than five new or worse problems in one poll. Problems told only by a summary have no notification of their own and recover silently.
+_Avoid_: Digest, group (the group is how Android stacks a profile's notifications)
+
+**Outage**:
+A profile's Nagios cannot be polled. One that may pass by itself (no answer, a captive portal) is told after three failed polls in a row; one that will not (a rejected password) is told at once.
+_Avoid_: Downtime (that is scheduled, in Nagios), offline
+
 **Unreachable (instance)**:
 The last poll failed to get a valid response from the profile's Nagios. Distinct from OK and from stale.
 _Avoid_: Offline, down (down = host state)

@@ -102,12 +102,46 @@ data class PollMetaRow(
 )
 
 /**
+ * A problem the person has been told about, or that was there at the first poll: what stops
+ * the app announcing it again at every poll. A host has an empty `description`.
+ */
+@Entity(tableName = "announced", primaryKeys = ["profile_id", "host_name", "description"])
+data class AnnouncedRow(
+    @ColumnInfo(name = "profile_id") val profileId: Long,
+    @ColumnInfo(name = "host_name") val hostName: String,
+    val description: String,
+    /** A `Severity` name. */
+    val severity: String,
+    /** True if it has a notification of its own; false if it was only ever part of a summary. */
+    val individually: Boolean,
+)
+
+/** How announcing stands for a profile: whether its first poll is done, and any outage in progress. */
+@Entity(tableName = "announce_meta")
+data class AnnounceMetaRow(
+    @PrimaryKey @ColumnInfo(name = "profile_id") val profileId: Long,
+    /** False until one poll has succeeded: the first that does is summarised, not itemised. */
+    val initialised: Boolean,
+    val failures: Int,
+    /** An `OutageCause` name, for the outage the person has been told about; null if none. */
+    val outage: String?,
+)
+
+/**
  * Unlike the profiles database, this one is built with a destructive fallback:
  * a schema change wipes the cache and the next refresh refills it. Nothing here
  * is the only copy of anything.
  */
 @Database(
-    entities = [ServiceStateRow::class, DetailRow::class, CommentRow::class, DowntimeRow::class, PollMetaRow::class],
+    entities = [
+        ServiceStateRow::class,
+        DetailRow::class,
+        CommentRow::class,
+        DowntimeRow::class,
+        PollMetaRow::class,
+        AnnouncedRow::class,
+        AnnounceMetaRow::class,
+    ],
     version = StatusDatabase.VERSION,
     exportSchema = true,
 )
@@ -116,6 +150,6 @@ abstract class StatusDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "status.db"
-        const val VERSION = 1
+        const val VERSION = 2
     }
 }

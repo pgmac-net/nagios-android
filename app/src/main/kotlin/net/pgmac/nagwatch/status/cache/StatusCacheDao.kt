@@ -155,6 +155,8 @@ abstract class StatusCacheDao {
         deleteAllComments(profileId)
         deleteAllDowntimes(profileId)
         deletePollMeta(profileId)
+        deleteAnnounced(profileId)
+        deleteAnnounceMeta(profileId)
     }
 
     /** Removes data for profiles that no longer exist. [validIds] must be non-empty; see [clearAll]. */
@@ -165,6 +167,8 @@ abstract class StatusCacheDao {
         sweepComments(validIds)
         sweepDowntimes(validIds)
         sweepPollMeta(validIds)
+        sweepAnnounced(validIds)
+        sweepAnnounceMeta(validIds)
     }
 
     @Transaction
@@ -174,7 +178,50 @@ abstract class StatusCacheDao {
         deleteEveryComment()
         deleteEveryDowntime()
         deleteEveryPollMeta()
+        deleteEveryAnnounced()
+        deleteEveryAnnounceMeta()
     }
+
+    // --- what was announced -------------------------------------------------------------------
+
+    @Query("SELECT * FROM announced WHERE profile_id = :profileId")
+    abstract suspend fun announced(profileId: Long): List<AnnouncedRow>
+
+    /** Null until the profile's first poll has succeeded, or failed. */
+    @Query("SELECT * FROM announce_meta WHERE profile_id = :profileId")
+    abstract suspend fun announceMeta(profileId: Long): AnnounceMetaRow?
+
+    /** One poll's worth, in one transaction: a killed process never leaves half a memory. */
+    @Transaction
+    open suspend fun replaceAnnounced(profileId: Long, rows: List<AnnouncedRow>, meta: AnnounceMetaRow) {
+        deleteAnnounced(profileId)
+        insertAnnounced(rows)
+        upsertAnnounceMeta(meta)
+    }
+
+    @Insert
+    protected abstract suspend fun insertAnnounced(rows: List<AnnouncedRow>)
+
+    @Upsert
+    protected abstract suspend fun upsertAnnounceMeta(row: AnnounceMetaRow)
+
+    @Query("DELETE FROM announced WHERE profile_id = :profileId")
+    protected abstract suspend fun deleteAnnounced(profileId: Long)
+
+    @Query("DELETE FROM announce_meta WHERE profile_id = :profileId")
+    protected abstract suspend fun deleteAnnounceMeta(profileId: Long)
+
+    @Query("DELETE FROM announced WHERE profile_id NOT IN (:validIds)")
+    protected abstract suspend fun sweepAnnounced(validIds: List<Long>)
+
+    @Query("DELETE FROM announce_meta WHERE profile_id NOT IN (:validIds)")
+    protected abstract suspend fun sweepAnnounceMeta(validIds: List<Long>)
+
+    @Query("DELETE FROM announced")
+    protected abstract suspend fun deleteEveryAnnounced()
+
+    @Query("DELETE FROM announce_meta")
+    protected abstract suspend fun deleteEveryAnnounceMeta()
 
     // --- building blocks -----------------------------------------------------------------------
 
