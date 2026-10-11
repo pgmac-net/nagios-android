@@ -290,8 +290,8 @@ private fun ProfileBody(state: HomeUiState, profile: Profile, tab: HomeTab, acti
 private fun TabBody(tab: HomeTab, state: HomeUiState, status: ProfileStatus, actions: HomeActions) {
     when (tab) {
         HomeTab.PROBLEMS -> ProblemsTab(state, status, actions)
-        HomeTab.HOSTS -> HostsTab(status, state.now, onOpen = actions::openHost)
-        HomeTab.SERVICES -> ServicesTab(status, state.now, onOpen = actions::openService)
+        HomeTab.HOSTS -> HostsTab(status, state.now, actions::openHost, actions::allowLocalNetwork)
+        HomeTab.SERVICES -> ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork)
     }
 }
 

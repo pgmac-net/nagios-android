@@ -26,11 +26,13 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Handling
 import net.pgmac.nagwatch.nagios.model.Marker
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
+import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.problems.formatAge
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.ui.toUiText
@@ -108,12 +110,23 @@ internal fun UpdatedLabel(fetchedAt: Instant, modifier: Modifier = Modifier) {
     )
 }
 
-/** Each one says plainly that what is shown may not be current, or may be incomplete. */
+/**
+ * Each one says plainly that what is shown may not be current, or may be incomplete.
+ *
+ * [onAllowLocalNetwork] is the way out of a failure that is probably Android's local network
+ * protection. It goes with the banner because this is where someone whose profile used to work
+ * meets it: the earlier result is still on screen, so the full-screen error never appears.
+ */
 @Composable
-internal fun StatusBanners(status: ProfileStatus, now: Instant) {
+internal fun StatusBanners(status: ProfileStatus, now: Instant, onAllowLocalNetwork: (() -> Unit)? = null) {
     val error = status.error
     if (error != null) {
         Banner(stringResource(R.string.problems_banner_failed, error.message()), HomeTags.BANNER_FAILED)
+        if (onAllowLocalNetwork != null && error is StatusError.Nagios &&
+            error.error == NagiosError.LocalNetworkBlocked
+        ) {
+            AllowLocalNetworkButton(onClick = onAllowLocalNetwork, modifier = Modifier.padding(16.dp, 8.dp))
+        }
     }
     if (status.isStale(now)) {
         Banner(

@@ -283,6 +283,48 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `earlier data with a failed refresh that is probably Android still offers the way to grant it, on every tab`() {
+        // The common case: the profile worked before, so its result is on screen and only a banner says it failed.
+        state = withStatus(
+            ProfileStatus(
+                report = ProblemClassifier.classify(snapshot),
+                snapshot = snapshot,
+                lastSuccess = T0,
+                error = StatusError.Nagios(NagiosError.LocalNetworkBlocked),
+            ),
+        )
+        setContent()
+
+        HomeTab.entries.forEach { tab ->
+            composeRule.onNodeWithTag(HomeTags.tab(tab)).performClick()
+            composeRule.onNodeWithTag(HomeTags.BANNER_FAILED).assertIsDisplayed()
+            composeRule.onNodeWithText("Android may be blocking Nagwatch", substring = true).assertIsDisplayed()
+            composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertIsDisplayed().performClick()
+        }
+
+        assertEquals(List(HomeTab.entries.size) { "allowLocalNetwork" }, calls)
+    }
+
+    @Test
+    fun `earlier data with any other failed refresh has no such button`() {
+        state = withStatus(
+            ProfileStatus(
+                report = ProblemClassifier.classify(snapshot),
+                snapshot = snapshot,
+                lastSuccess = T0,
+                error = StatusError.Nagios(NagiosError.BadCredentials),
+            ),
+        )
+        setContent()
+
+        HomeTab.entries.forEach { tab ->
+            composeRule.onNodeWithTag(HomeTags.tab(tab)).performClick()
+            composeRule.onNodeWithTag(HomeTags.BANNER_FAILED).assertIsDisplayed()
+            composeRule.onNodeWithTag(LocalNetworkTags.ALLOW).assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun `an ordinary timeout does not blame Android, and has no such button`() {
         val timeout = NagiosError.Unreachable(NagiosError.Unreachable.Reason.TIMEOUT, "")
         state = withStatus(ProfileStatus(error = StatusError.Nagios(timeout)))

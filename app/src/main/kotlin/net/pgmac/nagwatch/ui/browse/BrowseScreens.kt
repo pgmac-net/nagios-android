@@ -145,23 +145,42 @@ internal val ServiceStyle = BrowseStyle(
 )
 
 @Composable
-internal fun HostsTab(status: ProfileStatus, now: Instant, onOpen: (hostName: String) -> Unit) {
+internal fun HostsTab(
+    status: ProfileStatus,
+    now: Instant,
+    onOpen: (hostName: String) -> Unit,
+    onAllowLocalNetwork: () -> Unit,
+) {
     val snapshot = status.snapshot
     val report = status.report
     val rows = remember(snapshot, report) {
         if (snapshot == null || report == null) emptyList() else BrowseRows.hosts(snapshot, report)
     }
-    BrowseList(rows, HostStyle, status, now, onOpen = { onOpen(it.hostName) })
+    BrowseList(rows, HostStyle, status, now, onOpen = {
+        onOpen(it.hostName)
+    }, onAllowLocalNetwork = onAllowLocalNetwork)
 }
 
 @Composable
-internal fun ServicesTab(status: ProfileStatus, now: Instant, onOpen: (hostName: String, description: String) -> Unit) {
+internal fun ServicesTab(
+    status: ProfileStatus,
+    now: Instant,
+    onOpen: (hostName: String, description: String) -> Unit,
+    onAllowLocalNetwork: () -> Unit,
+) {
     val snapshot = status.snapshot
     val report = status.report
     val rows = remember(snapshot, report) {
         if (snapshot == null || report == null) emptyList() else BrowseRows.services(snapshot, report)
     }
-    BrowseList(rows, ServiceStyle, status, now, onOpen = { onOpen(it.hostName, it.service.orEmpty()) })
+    BrowseList(
+        rows,
+        ServiceStyle,
+        status,
+        now,
+        onOpen = { onOpen(it.hostName, it.service.orEmpty()) },
+        onAllowLocalNetwork = onAllowLocalNetwork,
+    )
 }
 
 /**
@@ -175,6 +194,7 @@ internal fun <S : Enum<S>> BrowseList(
     status: ProfileStatus,
     now: Instant,
     onOpen: (BrowseRow<S>) -> Unit,
+    onAllowLocalNetwork: (() -> Unit)? = null,
     initialStates: Set<S> = style.defaultStates,
 ) {
     // Kept here rather than in the view model: what is typed must reach the text field in the
@@ -203,7 +223,7 @@ internal fun <S : Enum<S>> BrowseList(
                     status.lastSuccess?.let { UpdatedLabel(it) }
                 }
             }
-            item { StatusBanners(status, now) }
+            item { StatusBanners(status, now, onAllowLocalNetwork) }
             if (view.rows.isEmpty()) {
                 item { Empty(emptyText(rows.isEmpty(), query.isNotBlank(), states.isNotEmpty(), style)) }
             } else {

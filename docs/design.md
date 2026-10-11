@@ -69,7 +69,7 @@ Secrets (password, Client Secret, header values) are encrypted at rest with a Ke
 | 403 from the origin | `Forbidden` | This user is not allowed to see that |
 | TLS failure | `Certificate` | Certificate problem (with detail; hint about installing a private CA) |
 | DNS failure, connection refused, timeout | `Unreachable` (with reason) | Instance unreachable |
-| Timeout to an address that looks local, without Android's local network permission | `LocalNetworkBlocked` | "Android may be blocking Nagwatch from your local network", with a button (ADR 0007) |
+| Timeout to an address that looks local, without Android's local network permission | `LocalNetworkBlocked` | "Android may be blocking Nagwatch from your local network", with a button, on the full-screen error and on the banner above an earlier result (ADR 0007) |
 | 404, HTML, or JSON without a Nagios `result` block | `NotNagios` | Not a Nagios JSON CGI (wrong base URL?) |
 | 200 with `result.type_code` not 0 | `Api` | Nagios error, its own message shown |
 | `http://` without the opt-in | `CleartextRefused` | Unencrypted HTTP is not enabled for this profile |

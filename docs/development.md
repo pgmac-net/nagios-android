@@ -223,7 +223,16 @@ Android 17 gates the local network behind `ACCESS_LOCAL_NETWORK`; the reasoning 
 - Screens ask through `rememberLocalNetworkRequest`, because both the prompt and the settings page need an Activity. The view models decide which one; they are handed the request, not an Activity.
 - **Every fetch of a profile goes through `HomeViewModel.load`**, so none can get ahead of the question. Do not call `StatusRepository.refresh` from elsewhere in that view model.
 - The system prompt, the settings page and `checkSelfPermission` at Android 17 cannot be exercised by Robolectric here (the unit tests run as Android 15). They are covered by the device check in the work record, on a phone running Android 17.
-- To try it on a phone: `adb shell pm revoke net.pgmac.nagwatch.debug android.permission.ACCESS_LOCAL_NETWORK`, and clear the app's data to forget that it has explained.
+- To try it on a phone running Android 17, put the debug app back to "never asked":
+  ```
+  adb shell am force-stop net.pgmac.nagwatch.debug
+  adb shell pm revoke net.pgmac.nagwatch.debug android.permission.ACCESS_LOCAL_NETWORK
+  adb shell pm clear-permission-flags net.pgmac.nagwatch.debug android.permission.ACCESS_LOCAL_NETWORK user-set user-fixed
+  adb shell run-as net.pgmac.nagwatch.debug rm -f files/datastore/settings.preferences_pb
+  ```
+  The flags are Android's own refusal count. **Not `pm reset-permissions`**: that resets every app on the phone. Deleting the settings file forgets that the app has explained, and which profile was selected.
+- Android's own log says which button was pressed on its prompt: `adb logcat -d | grep GrantPermissionsViewModel` (`clickedButton=1` is Allow, `8` Don't allow, `16` a final Don't allow).
+- A build for a phone must be the real one. A scratch manifest line and `pm grant` hide exactly what this feature is about, and a grant survives a reinstall.
 
 ## Network rules
 

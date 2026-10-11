@@ -53,7 +53,7 @@ internal fun ProblemsTab(state: HomeUiState, status: ProfileStatus, actions: Hom
     var handledOpen by rememberSaveable { mutableStateOf(false) }
     LazyColumn(modifier = Modifier.fillMaxSize().testTag(ProblemsTags.LIST)) {
         item { SummaryHeader(report.counts, report.fetchedAt, state, actions) }
-        item { StatusBanners(status, state.now) }
+        item { StatusBanners(status, state.now, actions::allowLocalNetwork) }
 
         val unhandled = state.visibleUnhandled
         if (unhandled.isEmpty()) {
