@@ -203,12 +203,29 @@ Things to know:
 - **The notification permission** is asked for from the editor's switch and from the offer, never at launch and never from the background. `NotificationAccess` is the seam; screens raise the prompt through `rememberNotificationRequest`, the same `PermissionRequest` local network access uses.
 - **Tests.** `PollScheduleTest` uses a fake scheduler and a real profile database. `WorkManagerPollSchedulerTest` uses WorkManager's test helpers to read back what was enqueued. `PollWorkerTest` is the only test that runs in the real `NagwatchApplication`, to show the worker can find its dependencies.
 - **The profiles database changed (version 3).** `ProfileDatabase.MIGRATIONS` is the one list of migrations; the app and `ProfileMigrationTest` both open the database with it, and a test fails if a version has no migration in it.
+- **A decision is delivered before it is saved.** If the app dies between the two, the next run says the same thing again, which replaces the same notification. The other order would lose it.
 - **On a phone**, Android decides when a job runs. To run one now, find its id and force it (both commands touch only the debug app):
   ```
   adb shell dumpsys jobscheduler | grep -A2 'net.pgmac.nagwatch.debug/androidx.work'
   adb shell cmd jobscheduler run -f net.pgmac.nagwatch.debug <job id>
   ```
   The "Updated" time on the Problems tab moves when the run has finished.
+
+## Notifications
+
+`AndroidNotifier` (`notify/Notifier.kt`) turns a `Decision` into Android notifications. It decides nothing: whether to say something is `Announcer`'s, with its own tests.
+
+- **Identity.** A problem's notification is `(tag, ID_PROBLEM)`, the tag made from the profile id, the host and the service, separated by line breaks (which a Nagios name cannot contain). The outage, the summary and the group's entry use the profile id as tag with their own ids. Posting to the same pair replaces; that is how worse, better and recovered work.
+- **Channels are set once.** `NotifyChannel` lists them. Android ignores a change of importance to a channel that exists, by design, so changing a default means a new channel id and deleting the old one. Adding a channel is safe.
+- **The group's entry.** Android shows a group only if it has a summary notification of its own and does not remove that when the last member goes, so `tidyGroup` posts it while there are members and cancels it after.
+- **Silence.** `setSilent(true)` on a member of a group works, on Android 8 and later, by leaving the sound to the group's entry, which itself leaves it to the members. The tests read that back as `groupAlertBehavior`.
+- **Posting needs the permission; taking down does not.** `deliver` cancels first and posts only if `NotificationPermission.isHeld()`. It uses the platform `NotificationManager`, with that check, so there is one place the rule lives.
+- **Taps.** `NotificationTarget` is what a tap carries: a profile id and, optionally, a host and a service. It builds an explicit intent for `MainActivity` (which is `singleTop`, so an open app gets `onNewIntent` and is not opened twice) with a data URI that makes each target a distinct `PendingIntent`. `MainActivity` selects the profile and hands the target to `NagwatchNavHost`, which navigates through the ordinary routes. Pending intents are immutable.
+- **Wording** is in `strings.xml` (`notify_*`, `channel_*`). An outage has one sentence per `OutageCause`; a test fails if two causes share one.
+- **On a phone**, the app's own notification records can be read as text, without opening the shade:
+  ```
+  adb shell dumpsys notification --noredact | grep -A12 'pkg=net.pgmac.nagwatch.debug'
+  ```
 
 ## Fuzzing
 

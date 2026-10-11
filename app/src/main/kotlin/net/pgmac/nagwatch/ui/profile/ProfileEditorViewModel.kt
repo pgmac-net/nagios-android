@@ -47,7 +47,10 @@ class ProfileEditorViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             stored = editedId?.let { repository.get(it) }
-            mutableState.value = stored?.let(ProfileEditorState::from) ?: ProfileEditorState(loading = false)
+            mutableState.value = stored?.let(ProfileEditorState::from)
+                // Switched on earlier, and Android has since stopped the app showing anything: say so.
+                ?.let { it.copy(notificationsRefused = it.notifications.enabled && !notificationAccess.isHeld()) }
+                ?: ProfileEditorState(loading = false)
         }
     }
 

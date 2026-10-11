@@ -48,7 +48,11 @@ class BackgroundPollerTest {
     private val announced = AnnouncedStore(statusDatabase.cache())
     private val scheduler = FakePollScheduler()
     private val statuses = statuses(profiles)
-    private val poller = BackgroundPoller(profiles, statuses, announced, scheduler)
+
+    /** What was remembered at the moment each thing was said. */
+    private val rememberedWhenSaid = mutableListOf<AnnouncedState>()
+    private val notifier = FakeNotifier { profile -> rememberedWhenSaid += runBlocking { announced.load(profile.id) } }
+    private val poller = BackgroundPoller(profiles, statuses, announced, scheduler, notifier)
 
     @After
     fun close() {
@@ -62,6 +66,7 @@ class BackgroundPollerTest {
 
         assertEquals(0, client.fetches + client.connects)
         assertEquals(listOf("cancel 42"), scheduler.events.toList())
+        assertTrue(notifier.delivered.isEmpty())
     }
 
     @Test
@@ -73,6 +78,31 @@ class BackgroundPollerTest {
         assertEquals("no request the person did not ask for", 0, client.fetches + client.connects)
         assertEquals(listOf("cancel $id"), scheduler.events.toList())
         assertEquals(AnnouncedState(), announced.load(id))
+        assertTrue(notifier.delivered.isEmpty())
+    }
+
+    @Test
+    fun `what a run decides is said, for that profile, before it is remembered as said`() = runBlocking {
+        val id = profiles.save(draftWith())
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        val run = poller.poll(id) as PollRun.Decided
+
+        assertEquals(listOf(id to run.decision), notifier.delivered)
+        // If the app died between the two, saying it twice is harmless and never saying it is not.
+        assertEquals(listOf(AnnouncedState()), rememberedWhenSaid)
+        assertTrue(announced.load(id).initialised)
+    }
+
+    @Test
+    fun `a run with nothing to say still hands over its decision, so anything stale is taken down`() = runBlocking {
+        val id = profiles.save(draftWith())
+        poller.poll(id)
+
+        poller.poll(id)
+
+        assertEquals(2, notifier.delivered.size)
+        assertTrue(notifier.delivered.last().second.post.isEmpty())
     }
 
     @Test
@@ -140,7 +170,7 @@ class BackgroundPollerTest {
         val id = profiles.save(draftWith())
         // The same database after a device restore: the profile is there, the key is not.
         val restored = ProfileRepository(database.profiles(), SecretCipher(softwareKeySource()), Json)
-        val afterRestore = BackgroundPoller(restored, statuses(restored), announced, scheduler)
+        val afterRestore = BackgroundPoller(restored, statuses(restored), announced, scheduler, notifier)
 
         val run = afterRestore.poll(id)
 
@@ -168,6 +198,7 @@ class BackgroundPollerTest {
         app.join()
 
         assertEquals(PollRun.AlreadyRunning, run)
+        assertTrue(notifier.delivered.isEmpty())
         assertEquals("so the next run is still the first", AnnouncedState(), announced.load(id))
         assertNotNull(statuses.statuses.value[id]?.report)
     }

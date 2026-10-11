@@ -354,7 +354,14 @@ How it is switched on:
 - Switching it on asks Android for permission to show notifications, there and then, if the app does not have it. If Android says no, the switch stays off and the section says why, with a button that asks again, or opens the app's notification settings once Android has stopped asking.
 - After a profile has loaded successfully the app offers notifications for it, once. "Not now" is remembered. Profiles from before this existed are offered once too; none is switched on by an update.
 
-Status: background polling runs for profiles that have notifications on, keeps the cache fresh and remembers what it would have said. **It posts nothing yet.** The notifications themselves follow.
+How it is shown (`AndroidNotifier`):
+
+- **One notification per problem**, found again by a tag made from the profile and the object, so worse, better and recovered all replace it. A profile's notifications share a group.
+- **Six channels**: Down and critical (high importance: sound and heads-up), Warning, Unknown, Recovered (low: silent), Can't reach Nagios, Summaries. The person tunes them in Android's settings; the app sets an importance only when it creates a channel.
+- **Text**: the state and the object ("CRITICAL: Disk / on web01"), the first line of the plugin's output, and the profile's name. Nothing that the Problems list does not already show. Lock-screen visibility is left to the system setting.
+- **A recovery** takes the problem's place, silently, and clears itself after an hour. A problem's notification stays until it is dealt with or dismissed.
+- **A tap** opens the host or the service, or the profile's Problems list for a summary or an outage, and selects that profile. No buttons: acknowledging from a notification is left for later.
+- **Without Android's permission** nothing is posted, the background checks continue, and the profile's editor says notifications are blocked.
 
 ## 8. Widget
 

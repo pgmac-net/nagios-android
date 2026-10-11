@@ -355,6 +355,26 @@ class ProfileEditorViewModelTest {
     }
 
     @Test
+    fun `a profile with notifications on says so when Android has since stopped the app showing them`() {
+        val id = saveProfile()
+        runBlocking { repository.notificationsOffered(id, accepted = true) }
+
+        val blocked = editor(id, notifications = TestNotificationAccess(held = false)).state.value
+        assertTrue(blocked.notifications.enabled && blocked.notificationsRefused)
+
+        val fine = editor(id, notifications = TestNotificationAccess(held = true)).state.value
+        assertTrue(fine.notifications.enabled)
+        assertFalse(fine.notificationsRefused)
+    }
+
+    @Test
+    fun `a profile with notifications off says nothing about Android's permission until it is asked for`() {
+        val id = saveProfile()
+
+        assertFalse(editor(id, notifications = TestNotificationAccess(held = false)).state.value.notificationsRefused)
+    }
+
+    @Test
     fun `switching notifications off never asks Android anything`() {
         val id = saveProfile()
         runBlocking { repository.notificationsOffered(id, accepted = true) }

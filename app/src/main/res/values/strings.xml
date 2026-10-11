@@ -137,6 +137,44 @@
     <string name="notify_offer_title">Get told about new problems?</string>
     <string name="notify_offer_text">Nagwatch can check %1$s in the background about every 15 minutes and tell you when something new is wrong.\n\nYou can change this at any time in the profile’s settings.</string>
     <string name="notify_offer_turn_on">Turn on</string>
+    <string name="notify_blocked">Android is not letting Nagwatch show notifications. This Nagios is still checked in the background, but you will not be told what it finds.</string>
+
+    <string name="channel_critical">Down and critical</string>
+    <string name="channel_warning">Warning</string>
+    <string name="channel_unknown">Unknown</string>
+    <string name="channel_recovered">Recovered</string>
+    <string name="channel_outage">Can’t reach Nagios</string>
+    <string name="channel_summary">Summaries</string>
+
+    <string name="notify_service_on_host">%1$s on %2$s</string>
+    <string name="notify_down">DOWN: %1$s</string>
+    <string name="notify_unreachable_host">UNREACHABLE: %1$s</string>
+    <string name="notify_critical">CRITICAL: %1$s</string>
+    <string name="notify_warning">WARNING: %1$s</string>
+    <string name="notify_unknown">UNKNOWN: %1$s</string>
+    <string name="notify_now">Now %1$s</string>
+    <string name="notify_host_recovered">Back up: %1$s</string>
+    <string name="notify_service_recovered">Recovered: %1$s</string>
+    <plurals name="notify_summary_first">
+        <item quantity="one">%1$d problem on %2$s</item>
+        <item quantity="other">%1$d problems on %2$s</item>
+    </plurals>
+    <plurals name="notify_summary_more">
+        <item quantity="one">%1$d new or worse problem on %2$s</item>
+        <item quantity="other">%1$d new or worse problems on %2$s</item>
+    </plurals>
+    <string name="notify_summary_text">Tap to see them.</string>
+    <string name="notify_outage_title">Can’t check %1$s</string>
+    <string name="notify_outage_unreachable">Nagios has not answered the last few checks. You will not hear about new problems until it does.</string>
+    <string name="notify_outage_certificate">Its certificate is not being accepted, so nothing is being checked.</string>
+    <string name="notify_outage_wrong_answer">Something other than Nagios is answering at its address. A sign-in page on this network, perhaps.</string>
+    <string name="notify_outage_server_error">Nagios is answering with an error, so nothing is being checked.</string>
+    <string name="notify_outage_local_network">Android may be blocking Nagwatch from your local network. Open Nagwatch to allow it.</string>
+    <string name="notify_outage_credentials_rejected">Nagios rejected the username or password. Nothing is being checked until that is put right in the profile.</string>
+    <string name="notify_outage_access_rejected">Cloudflare Access rejected the token. Nothing is being checked until that is put right in the profile.</string>
+    <string name="notify_outage_not_allowed">Nagios will not let this user see status. Nothing is being checked.</string>
+    <string name="notify_outage_credentials_unreadable">The saved password can no longer be read on this phone. Enter it again in the profile.</string>
+    <string name="notify_outage_misconfigured">The profile’s address cannot be used as it is. Open the profile to put it right.</string>
     <string name="actions_read_only">This Nagios user is read-only, so actions are unavailable.</string>
     <string name="acknowledge_title">Acknowledge this problem</string>
     <string name="comment_title">Add a comment</string>

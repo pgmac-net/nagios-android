@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.navigation.NavGraphBuilder
@@ -16,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import net.pgmac.nagwatch.nagios.model.ObjectRef
+import net.pgmac.nagwatch.notify.NotificationTarget
 import net.pgmac.nagwatch.ui.detail.DetailNavigation
 import net.pgmac.nagwatch.ui.detail.DetailScreen
 import net.pgmac.nagwatch.ui.home.HomeNavigation
@@ -24,10 +26,19 @@ import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 import net.pgmac.nagwatch.ui.profile.ProfilesScreen
 
+/**
+ * @param target where a tapped notification asked to go; [onTargetOpened] is called once it has been acted on.
+ */
 @Composable
-fun NagwatchNavHost() {
+fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Unit = {}) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    LaunchedEffect(target) {
+        if (target != null) {
+            navController.open(target)
+            onTargetOpened()
+        }
+    }
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(homeNavigation(navController)) }
         composable(Routes.PROFILES) {
@@ -44,6 +55,20 @@ fun NagwatchNavHost() {
         }
         // The view model reads the same arguments itself; the screen needs nothing passed in.
         detailDestinations { _, _ -> DetailScreen(detailNavigation(navController) { openInBrowser(context, it) }) }
+    }
+}
+
+/**
+ * Goes where a notification pointed: a host, a service, or back to the tabs for the Problems
+ * list. Whatever was open is left underneath, so Back returns to it.
+ */
+internal fun NavHostController.open(target: NotificationTarget) {
+    val ref = target.ref
+    val description = ref?.description
+    when {
+        ref == null -> popBackStack(Routes.HOME, inclusive = false)
+        description == null -> navigate(Routes.host(target.profileId, ref.hostName)) { launchSingleTop = true }
+        else -> navigate(Routes.service(target.profileId, ref.hostName, description)) { launchSingleTop = true }
     }
 }
 
