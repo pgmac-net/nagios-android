@@ -48,15 +48,25 @@ data class NotificationTarget(val profileId: Long, val ref: ObjectRef? = null) {
 
         /**
          * Null for an intent that did not come through [DOOR]: the launcher's, or one another
-         * app sent to `MainActivity` with extras that look like ours.
+         * app sent to `MainActivity` with extras that look like ours. The whole component is
+         * compared, this app's package and the door's name, not the name alone.
+         *
+         * Null as well for an intent Android is replaying: reopening the app from the recent
+         * apps list hands back the intent that first started it, and a tap is acted on once,
+         * not every time the app is reopened.
          */
-        fun from(intent: Intent?): NotificationTarget? {
-            if (intent?.component?.className != DOOR) return null
+        fun from(context: Context, intent: Intent?): NotificationTarget? {
+            if (intent == null || !intent.cameByTheDoor(context) || intent.isReplayed()) return null
             val profileId = intent.getLongExtra(EXTRA_PROFILE, NO_PROFILE)
             if (profileId == NO_PROFILE) return null
             val host = intent.getStringExtra(EXTRA_HOST)?.takeIf { it.isNotEmpty() }
             val service = intent.getStringExtra(EXTRA_SERVICE)?.takeIf { it.isNotEmpty() }
             return NotificationTarget(profileId, host?.let { ObjectRef(it, service) })
         }
+
+        private fun Intent.cameByTheDoor(context: Context): Boolean =
+            component == ComponentName(context.packageName, DOOR)
+
+        private fun Intent.isReplayed(): Boolean = flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
     }
 }

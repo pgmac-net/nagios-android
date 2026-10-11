@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun open(intent: Intent?) {
-        val asked = NotificationTarget.from(intent) ?: return
+        val asked = NotificationTarget.from(this, intent) ?: return
         // The notification was about one profile; show that one, whichever was on screen.
         lifecycleScope.launch { selectedProfile.select(asked.profileId) }
         target.value = asked

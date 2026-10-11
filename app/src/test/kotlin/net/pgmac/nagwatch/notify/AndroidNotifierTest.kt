@@ -398,7 +398,7 @@ class AndroidNotifierTest {
         groupAlertBehavior == NotificationCompat.GROUP_ALERT_CHILDREN
 
     private fun Notification.target(): NotificationTarget? =
-        NotificationTarget.from(shadowOf(contentIntent).savedIntent)
+        NotificationTarget.from(context, shadowOf(contentIntent).savedIntent)
 
     private fun profile(id: Long, name: String) = Profile(
         id = id,

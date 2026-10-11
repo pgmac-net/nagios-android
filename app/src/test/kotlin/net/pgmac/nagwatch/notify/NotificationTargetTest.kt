@@ -30,7 +30,7 @@ class NotificationTargetTest {
             NotificationTarget(7, ObjectRef("web01", "Disk /")),
             NotificationTarget(7),
         ).forEach { target ->
-            assertEquals(target, NotificationTarget.from(target.toIntent(context)))
+            assertEquals(target, NotificationTarget.from(context, target.toIntent(context)))
         }
     }
 
@@ -39,14 +39,14 @@ class NotificationTargetTest {
         AWKWARD.forEach { name ->
             val target = NotificationTarget(7, ObjectRef("host $name", name))
 
-            assertEquals(target, NotificationTarget.from(target.toIntent(context)))
+            assertEquals(target, NotificationTarget.from(context, target.toIntent(context)))
         }
     }
 
     @Test
     fun `an intent that is not from a notification opens nothing in particular`() {
-        assertNull(NotificationTarget.from(null))
-        assertNull(NotificationTarget.from(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)))
+        assertNull(NotificationTarget.from(context, null))
+        assertNull(NotificationTarget.from(context, Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)))
     }
 
     @Test
@@ -57,9 +57,28 @@ class NotificationTargetTest {
         val forged = Intent(genuine).setComponent(ComponentName(context, MainActivity::class.java))
         val unaddressed = Intent(genuine).setComponent(null)
 
-        assertNull(NotificationTarget.from(forged))
-        assertNull(NotificationTarget.from(unaddressed))
-        assertEquals(NotificationTarget(7, ObjectRef("web01", "Disk /")), NotificationTarget.from(genuine))
+        assertNull(NotificationTarget.from(context, forged))
+        assertNull(NotificationTarget.from(context, unaddressed))
+        assertEquals(NotificationTarget(7, ObjectRef("web01", "Disk /")), NotificationTarget.from(context, genuine))
+    }
+
+    @Test
+    fun `the right name in another app's package is not this app's door`() {
+        val genuine = NotificationTarget(7, ObjectRef("web01")).toIntent(context)
+
+        val elsewhere = Intent(genuine).setComponent(ComponentName("org.example.other", NotificationTarget.DOOR))
+
+        assertNull(NotificationTarget.from(context, elsewhere))
+    }
+
+    @Test
+    fun `a tap is acted on once - reopening the app from recents does not go there again`() {
+        val genuine = NotificationTarget(7, ObjectRef("web01")).toIntent(context)
+
+        val replayed = Intent(genuine).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+
+        assertNull(NotificationTarget.from(context, replayed))
+        assertEquals(NotificationTarget(7, ObjectRef("web01")), NotificationTarget.from(context, genuine))
     }
 
     @Test
