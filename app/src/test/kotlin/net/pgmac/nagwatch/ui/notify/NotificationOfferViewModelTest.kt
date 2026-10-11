@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.ui.notify
 
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -61,7 +62,9 @@ class NotificationOfferViewModelTest {
     private val statuses =
         StatusRepository(profiles, provider(client), StatusCache(statusDatabase.cache()), MutableClock(T0))
     private val created = mutableListOf<NotificationOfferViewModel>()
-    private val calls = mutableListOf<String>()
+
+    // Written from the view model's coroutine, read from the test's thread.
+    private val calls = CopyOnWriteArrayList<String>()
     private val request = PermissionRequest({ calls += "prompt" }, { calls += "settings" })
 
     private val off = NotificationSettings(enabled = false)
@@ -170,9 +173,10 @@ class NotificationOfferViewModelTest {
         viewModel.awaitOffer { it != null }
 
         viewModel.accept(request)
+        awaitCalls(1)
         val asked = awaitProfile(id) { it.notificationsOffered }
 
-        assertEquals(listOf("prompt"), calls)
+        assertEquals(listOf("prompt"), calls.toList())
         assertFalse("not before Android has answered", asked.notifications.enabled)
 
         viewModel.answered(granted = true, canAskAgain = true)
@@ -186,6 +190,7 @@ class NotificationOfferViewModelTest {
         val viewModel = viewModel(access = access)
         viewModel.awaitOffer { it != null }
         viewModel.accept(request)
+        awaitCalls(1)
         awaitProfile(id) { it.notificationsOffered }
 
         viewModel.answered(granted = false, canAskAgain = false)
@@ -204,10 +209,11 @@ class NotificationOfferViewModelTest {
         viewModel.awaitOffer { it != null }
 
         viewModel.accept(request)
+        awaitCalls(1)
         val after = awaitProfile(id) { it.notificationsOffered }
         pause()
 
-        assertEquals(listOf("settings"), calls)
+        assertEquals(listOf("settings"), calls.toList())
         assertFalse(after.notifications.enabled)
     }
 
@@ -258,6 +264,16 @@ class NotificationOfferViewModelTest {
     }
 
     private fun pause() = runBlocking { delay(NOTHING_HAPPENS_MS) }
+
+    /**
+     * Android is asked after the offer has been written down, from a coroutine. Seeing the write
+     * does not mean the asking has happened yet, so the tests wait for the asking itself.
+     */
+    private fun awaitCalls(count: Int) = runBlocking {
+        withTimeout(TIMEOUT_MS) {
+            while (calls.size < count) delay(POLL_MS)
+        }
+    }
 
     private companion object {
         const val TIMEOUT_MS = 5_000L
