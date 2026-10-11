@@ -126,6 +126,32 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 - The screen is a `LazyColumn` of rows, including one row per comment. A busy object can have a couple of hundred.
 - The view model reads its arguments from `SavedStateHandle` under the names `Routes` uses; `detailDestinations` takes its content as a parameter so the routes can be tested without Hilt.
 
+## Commands
+
+Everything the app writes to a Nagios goes through `CommandClient` (`nagios/command`). The rules it is built around are in `docs/design.md` section 5; the reasoning for the date handling is ADR 0006.
+
+- **`CommandPage` is the only code that reads `cmd.cgi`'s HTML.** If a Nagios release rewords a message, that is the file to change, and a new captured page in `app/src/test/resources/commandpages/` is how to prove it. An unrecognised page must stay "unknown": do not add a fallback that guesses.
+- **`ServerClock` is the only code that turns a moment into text for Nagios.** Do not format a date for `cmd.cgi` anywhere else.
+- **The command client is built on its own HTTP client** (`NagiosClientFactory.createCommands`): no retries and no connection reuse. OkHttp re-sends a request when a pooled connection turns out to be dead, which is right for a read and wrong for an acknowledgement.
+- **Outcomes are four different things**, and the difference is the point: accepted, refused (Nagios said no), not sent (certain), unknown (not certain). Only "not sent" is safe to repeat without looking.
+- `storedCommentText` is what Nagios will keep of a comment. Use it wherever the app has to recognise its own comment or show the user what will be stored.
+
+### The test Nagios
+
+Commands change a server, so they are never tried against a real one. `scripts/test-nagios/start.sh` starts a throwaway Nagios Core in Docker with made-up hosts and three users (`operator` may command anything, `viewer` is read-only, `limited` may only command `web01`), listening on this machine only.
+
+```
+scripts/test-nagios/start.sh --date-format euro --timezone Europe/Berlin
+scripts/test-nagios/live-test.sh        # every date format, several timezones; needs Docker
+scripts/test-nagios/stop.sh
+```
+
+- The passwords in `start.sh` are not secrets: they protect a made-up instance and exist because `cmd.cgi` refuses to work without authentication.
+- `CommandLiveTest` sends real commands. Before it sends anything it checks that the server is on this machine and is the made-up one, and refuses otherwise.
+- `--lan` makes it reachable from a phone on the same network, over plain http. Stop it when the check is done.
+- `NAGWATCH_TEST_IMAGE` selects the image (default `jasonrivers/nagios:latest`).
+- Never run in CI: it needs Docker and takes minutes.
+
 ## The status cache
 
 `status.db` holds the last poll of each profile and the detail of objects the user has opened (`StatusCache`, `DetailCache`). It exists so the app can show something before the network answers.
