@@ -83,7 +83,9 @@ internal fun Actions(state: DetailUiState, actions: DetailActions) {
                 modifier = Modifier.testTag(DetailTags.READ_ONLY),
             )
         }
-        state.action?.let { Progress(it) }
+        // What became of the last command belongs with the buttons, not under a form for the next one.
+        val formOpen = open == ActionForm.ACKNOWLEDGE || open == ActionForm.COMMENT
+        state.action?.takeUnless { formOpen }?.let { Progress(it) }
     }
     if (open == ActionForm.REMOVE_ACKNOWLEDGEMENT) {
         RemoveAcknowledgementDialog(close) {

@@ -566,6 +566,18 @@ class DetailScreenTest {
     }
 
     @Test
+    fun `the last result steps aside while a form is open, and returns with the buttons`() {
+        show(service(hard).copy(action = ActionProgress.Confirmed(Command.ForceCheck(DISK_REF))))
+        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextEquals("Checked again.")
+
+        composeRule.onNodeWithTag(DetailTags.COMMENT).performClick()
+        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(DetailTags.FORM_CANCEL).performClick()
+        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextEquals("Checked again.")
+    }
+
+    @Test
     fun `removing an acknowledgement is asked about first`() {
         show(service(hard.copy(acknowledged = true)))
 
