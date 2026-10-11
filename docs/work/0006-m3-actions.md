@@ -1,6 +1,6 @@
 # M3: actions (acknowledge, comment, recheck, downtime)
 
-Ticket: pgmac-net/nagios-android#5. Delivered as three planned PRs: #34 (the command layer), #36 (actions on the detail screens) and the downtime PR. Found on the way and filed: #35.
+Ticket: pgmac-net/nagios-android#5. Delivered as three planned PRs: #34 (the command layer), #36 (actions on the detail screens) and #37 (downtime). Found on the way and filed: #35.
 
 ## What was built
 
@@ -8,7 +8,7 @@ The app can now change things on a Nagios, and says what became of each change.
 
 1. **The command layer (#34).** One `CommandClient` through which every write goes: acknowledge, remove acknowledgement, add comment, force a check, schedule a fixed downtime, cancel a downtime. Nothing called it yet.
 2. **Actions on the detail screens (#36).** Acknowledge, remove acknowledgement, comment and recheck, with a line under the buttons that tells accepted apart from done. Read-only users are found out in advance.
-3. **Downtime.** Schedule (a length from now, or a chosen start and end), a read-back of every downtime against the window asked for, cancel, and a question about date order for the one case where the app cannot work it out.
+3. **Downtime (#37).** Schedule (a length from now, or a chosen start and end), a read-back of every downtime against the window asked for, cancel, and a question about date order for the one case where the app cannot work it out.
 
 ## The rules it is built around
 
