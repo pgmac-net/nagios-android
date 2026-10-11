@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -30,10 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
+import java.time.ZoneOffset
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.Refusal
+import net.pgmac.nagwatch.nagios.command.ServerClock
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.HostState
@@ -63,68 +67,10 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/**
- * The detail screen in each state it can be in. The screen is tall here so
- * that every section is on it at once; scrolling is the list's business.
- */
+/** The detail screen in each state it can be in: what it shows of a host or service. */
 @RunWith(AndroidJUnit4::class)
 @Config(application = android.app.Application::class, qualifiers = "w360dp-h3000dp")
-class DetailScreenTest {
-    @get:Rule
-    val composeRule = createComposeRule()
-
-    private var state by mutableStateOf(DetailUiState(ObjectDetail(DISK_REF)))
-    private val calls = mutableListOf<String>()
-    private val actions = object : DetailActions {
-        override fun back() {
-            calls += "back"
-        }
-
-        override fun refresh() {
-            calls += "refresh"
-        }
-
-        override fun openHost(hostName: String) {
-            calls += "host:$hostName"
-        }
-
-        override fun openService(hostName: String, description: String) {
-            calls += "service:$hostName/$description"
-        }
-
-        override fun openInNagios(url: String) {
-            calls += "open:$url"
-        }
-
-        override fun acknowledge(comment: String, sticky: Boolean, notify: Boolean, persistent: Boolean) {
-            calls += "acknowledge:$comment|sticky=$sticky|notify=$notify|persistent=$persistent"
-        }
-
-        override fun removeAcknowledgement() {
-            calls += "removeAcknowledgement"
-        }
-
-        override fun addComment(comment: String) {
-            calls += "comment:$comment"
-        }
-
-        override fun forceCheck() {
-            calls += "recheck"
-        }
-    }
-
-    private val hard = CheckStatus(
-        stateType = StateType.HARD,
-        pluginOutput = "DISK CRITICAL - 97% used",
-        longOutput = "/var 97%\n/home 12%",
-        perfData = "/var=97%;80;90",
-        currentAttempt = 3,
-        maxAttempts = 3,
-        lastCheck = T0.minusSeconds(60),
-        nextCheck = T0.plusSeconds(240),
-        lastStateChange = T0.minus(Duration.ofMinutes(124)),
-    )
-
+class DetailScreenTest : DetailScreenFixture() {
     @Test
     fun `the title names the service with its host, and back goes back`() {
         show(service(hard))
@@ -413,294 +359,6 @@ class DetailScreenTest {
         composeRule.onNodeWithTag(DetailTags.OPEN_IN_NAGIOS).assertDoesNotExist()
     }
 
-    @Test
-    fun `an unacknowledged problem can be acknowledged, rechecked and commented on`() {
-        show(service(hard))
-
-        listOf(DetailTags.ACKNOWLEDGE, DetailTags.RECHECK, DetailTags.COMMENT).forEach {
-            composeRule.onNodeWithTag(it).assertIsDisplayed().assertIsEnabled()
-        }
-        composeRule.onNodeWithTag(DetailTags.REMOVE_ACKNOWLEDGEMENT).assertDoesNotExist()
-        composeRule.onNodeWithTag(DetailTags.READ_ONLY).assertDoesNotExist()
-        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertDoesNotExist()
-    }
-
-    @Test
-    fun `an acknowledged problem offers to remove the acknowledgement instead`() {
-        show(service(hard.copy(acknowledged = true)))
-
-        composeRule.onNodeWithTag(DetailTags.REMOVE_ACKNOWLEDGEMENT).assertIsDisplayed()
-        composeRule.onNodeWithTag(DetailTags.ACKNOWLEDGE).assertDoesNotExist()
-    }
-
-    @Test
-    fun `something that is not a problem cannot be acknowledged, and can still be rechecked`() {
-        show(host())
-
-        composeRule.onNodeWithTag(DetailTags.ACKNOWLEDGE).assertDoesNotExist()
-        composeRule.onNodeWithTag(DetailTags.RECHECK).assertIsEnabled()
-        composeRule.onNodeWithTag(DetailTags.COMMENT).assertIsEnabled()
-    }
-
-    @Test
-    fun `nothing is offered for an object nothing is known about`() {
-        show(DetailUiState(ObjectDetail(DISK_REF)))
-
-        composeRule.onNodeWithTag(DetailTags.ACTIONS).assertDoesNotExist()
-    }
-
-    @Test
-    fun `a read-only user sees the buttons disabled, and why`() {
-        show(service(hard).copy(permission = CommandPermission.READ_ONLY))
-
-        listOf(DetailTags.ACKNOWLEDGE, DetailTags.RECHECK, DetailTags.COMMENT).forEach {
-            composeRule.onNodeWithTag(it).assertIsDisplayed().assertIsNotEnabled()
-        }
-        composeRule.onNodeWithTag(DetailTags.READ_ONLY)
-            .assertTextEquals("This Nagios user is read-only, so actions are unavailable.")
-        composeRule.onNodeWithTag(DetailTags.RECHECK).performClick()
-        assertTrue(calls.isEmpty())
-    }
-
-    @Test
-    fun `when it is not known whether the user may, the buttons work`() {
-        show(service(hard).copy(permission = CommandPermission.UNKNOWN))
-
-        composeRule.onNodeWithTag(DetailTags.ACKNOWLEDGE).assertIsEnabled()
-        composeRule.onNodeWithTag(DetailTags.READ_ONLY).assertDoesNotExist()
-    }
-
-    @Test
-    fun `recheck is sent at a tap, with nothing to confirm`() {
-        show(service(hard))
-
-        composeRule.onNodeWithTag(DetailTags.RECHECK).performClick()
-
-        assertEquals(listOf("recheck"), calls)
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).assertDoesNotExist()
-        composeRule.onNodeWithTag(DetailTags.DIALOG_CONFIRM).assertDoesNotExist()
-    }
-
-    @Test
-    fun `acknowledging needs a comment, and starts with sticky off, notify on, persistent off`() {
-        show(service(hard))
-        composeRule.onNodeWithTag(DetailTags.ACKNOWLEDGE).performClick()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).assertIsNotEnabled()
-        composeRule.onNodeWithTag(DetailTags.FORM_STICKY).assertIsOff()
-        composeRule.onNodeWithTag(DetailTags.FORM_NOTIFY).assertIsOn()
-        composeRule.onNodeWithTag(DetailTags.FORM_PERSISTENT).assertIsOff()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).performTextInput("on it")
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).assertIsEnabled().performClick()
-
-        assertEquals(listOf("acknowledge:on it|sticky=false|notify=true|persistent=false"), calls)
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).assertDoesNotExist()
-        composeRule.onNodeWithTag(DetailTags.RECHECK).assertIsDisplayed()
-    }
-
-    @Test
-    fun `each choice in the acknowledge form is passed on as chosen`() {
-        show(service(hard))
-        composeRule.onNodeWithTag(DetailTags.ACKNOWLEDGE).performClick()
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).performTextInput("mine")
-
-        composeRule.onNodeWithTag(DetailTags.FORM_STICKY).performClick()
-        composeRule.onNodeWithTag(DetailTags.FORM_NOTIFY).performClick()
-        composeRule.onNodeWithTag(DetailTags.FORM_PERSISTENT).performClick()
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).performClick()
-
-        assertEquals(listOf("acknowledge:mine|sticky=true|notify=false|persistent=true"), calls)
-    }
-
-    @Test
-    fun `turning sticky on brings a warning about what it hides`() {
-        show(service(hard))
-        composeRule.onNodeWithTag(DetailTags.ACKNOWLEDGE).performClick()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_STICKY_NOTE)
-            .assertTextContains("notifies again", substring = true)
-        composeRule.onNodeWithTag(DetailTags.FORM_STICKY).performClick()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_STICKY_NOTE)
-            .assertTextContains("even if it gets worse", substring = true)
-    }
-
-    @Test
-    fun `a comment of nothing Nagios would keep cannot be sent`() {
-        show(service(hard))
-        composeRule.onNodeWithTag(DetailTags.COMMENT).performClick()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).performTextInput(" <>; ")
-
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).assertIsNotEnabled()
-    }
-
-    @Test
-    fun `when Nagios would alter a comment, the form shows what it will keep`() {
-        show(service(hard))
-        composeRule.onNodeWithTag(DetailTags.COMMENT).performClick()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).performTextInput("plain words")
-        composeRule.onNodeWithTag(DetailTags.FORM_STORED_AS).assertDoesNotExist()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).performTextReplacement("see <b>INC-42</b>")
-        composeRule.onNodeWithTag(DetailTags.FORM_STORED_AS)
-            .assertTextEquals("Nagios will store this as: see bINC-42/b")
-        composeRule.onNodeWithTag(DetailTags.FORM_SEND).performClick()
-
-        assertEquals("the screen passes on what was typed", listOf("comment:see <b>INC-42</b>"), calls)
-    }
-
-    @Test
-    fun `cancelling a form sends nothing and brings the buttons back`() {
-        show(service(hard))
-        composeRule.onNodeWithTag(DetailTags.COMMENT).performClick()
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).performTextInput("never mind")
-
-        composeRule.onNodeWithTag(DetailTags.FORM_CANCEL).performClick()
-
-        assertTrue(calls.isEmpty())
-        composeRule.onNodeWithTag(DetailTags.FORM_COMMENT).assertDoesNotExist()
-        composeRule.onNodeWithTag(DetailTags.COMMENT).assertIsDisplayed()
-    }
-
-    @Test
-    fun `the last result steps aside while a form is open, and returns with the buttons`() {
-        show(service(hard).copy(action = ActionProgress.Confirmed(Command.ForceCheck(DISK_REF))))
-        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextEquals("Checked again.")
-
-        composeRule.onNodeWithTag(DetailTags.COMMENT).performClick()
-        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertDoesNotExist()
-
-        composeRule.onNodeWithTag(DetailTags.FORM_CANCEL).performClick()
-        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextEquals("Checked again.")
-    }
-
-    @Test
-    fun `removing an acknowledgement is asked about first`() {
-        show(service(hard.copy(acknowledged = true)))
-
-        composeRule.onNodeWithTag(DetailTags.REMOVE_ACKNOWLEDGEMENT).performClick()
-        assertTrue("nothing is sent by the first tap", calls.isEmpty())
-        composeRule.onNodeWithText("Remove the acknowledgement?").assertIsDisplayed()
-
-        composeRule.onNodeWithTag(DetailTags.DIALOG_CONFIRM).performClick()
-        assertEquals(listOf("removeAcknowledgement"), calls)
-        composeRule.onNodeWithTag(DetailTags.DIALOG_CONFIRM).assertDoesNotExist()
-    }
-
-    @Test
-    fun `declining to remove an acknowledgement sends nothing`() {
-        show(service(hard.copy(acknowledged = true)))
-        composeRule.onNodeWithTag(DetailTags.REMOVE_ACKNOWLEDGEMENT).performClick()
-
-        composeRule.onNodeWithTag(DetailTags.DIALOG_CANCEL).performClick()
-
-        assertTrue(calls.isEmpty())
-        composeRule.onNodeWithTag(DetailTags.DIALOG_CONFIRM).assertDoesNotExist()
-    }
-
-    @Test
-    fun `while a command is on its way the buttons are off and it says so`() {
-        val command = Command.ForceCheck(DISK_REF)
-        show(service(hard).copy(action = ActionProgress.Sending(command)))
-
-        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextEquals("Sending…")
-        composeRule.onNodeWithTag(DetailTags.RECHECK).assertIsNotEnabled()
-
-        state = service(hard).copy(action = ActionProgress.Sent(command))
-        composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextContains("accepted it", substring = true)
-        composeRule.onNodeWithTag(DetailTags.COMMENT).assertIsNotEnabled()
-    }
-
-    @Test
-    fun `accepted is never called done, and done names what was done`() {
-        val ack = Command.Acknowledge(DISK_REF, "on it")
-        show(service(hard).copy(action = ActionProgress.NotConfirmed(ack)))
-
-        composeRule.onNodeWithTag(DetailTags.PROGRESS)
-            .assertTextContains("has not taken effect yet", substring = true)
-        composeRule.onNodeWithTag(DetailTags.RECHECK).assertIsEnabled()
-
-        val confirmed = mapOf(
-            ack to "Acknowledged.",
-            Command.RemoveAcknowledgement(DISK_REF) to "Acknowledgement removed.",
-            Command.AddComment(DISK_REF, "x") to "Comment added.",
-            Command.ForceCheck(DISK_REF) to "Checked again.",
-        )
-        confirmed.forEach { (command, words) ->
-            state = service(hard).copy(action = ActionProgress.Confirmed(command))
-            composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextEquals(words)
-        }
-    }
-
-    @Test
-    fun `each refusal is told apart, and Nagios' own words are shown where they add something`() {
-        val command = Command.ForceCheck(DISK_REF)
-        show(service(hard))
-        val expected = listOf(
-            ActionProgress.Refused(command, Refusal.READ_ONLY, "") to "read-only",
-            ActionProgress.Refused(command, Refusal.NOT_AUTHORISED, "") to "may not do that here",
-            ActionProgress.Refused(command, Refusal.INVALID, "Comment was not entered") to "Comment was not entered",
-            ActionProgress.Refused(command, Refusal.INVALID, "") to "did not say why",
-            ActionProgress.Refused(command, Refusal.COMMANDS_DISABLED, "") to "external commands are switched off",
-            ActionProgress.Refused(command, Refusal.COULD_NOT_WRITE, "") to "could not record the command",
-            ActionProgress.Refused(command, Refusal.AUTHENTICATION_DISABLED, "") to "authentication is switched off",
-        )
-
-        expected.forEach { (progress, words) ->
-            state = service(hard).copy(action = progress)
-            composeRule.onNodeWithTag(DetailTags.PROGRESS).assertTextContains(words, substring = true)
-        }
-    }
-
-    @Test
-    fun `not sent says nothing changed, and unknown says to look before trying again`() {
-        val command = Command.ForceCheck(DISK_REF)
-        val timeout = NagiosError.Unreachable(NagiosError.Unreachable.Reason.TIMEOUT, "")
-        show(service(hard).copy(action = ActionProgress.NotSent(command, StatusError.Nagios(NagiosError.Http(502)))))
-
-        composeRule.onNodeWithTag(DetailTags.PROGRESS)
-            .assertTextContains("Not sent. Nothing was changed.", substring = true)
-            .assertTextContains("HTTP 502", substring = true)
-
-        state = service(hard).copy(action = ActionProgress.Unknown(command, timeout))
-        composeRule.onNodeWithTag(DetailTags.PROGRESS)
-            .assertTextContains("may or may not have reached Nagios", substring = true)
-            .assertTextContains("did not answer in time", substring = true)
-
-        state = service(hard).copy(action = ActionProgress.Unknown(command, null))
-        composeRule.onNodeWithTag(DetailTags.PROGRESS)
-            .assertTextContains("before trying again", substring = true)
-    }
-
-    // Real text measurement, at phone width: the longest button label and message must wrap, not run off.
-    @Test
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Config(application = android.app.Application::class, qualifiers = "w360dp-h3000dp-xhdpi")
-    fun `the actions and what became of them stay inside a phone's width`() {
-        val unknown = ActionProgress.Unknown(
-            Command.ForceCheck(DISK_REF),
-            NagiosError.Unreachable(NagiosError.Unreachable.Reason.TIMEOUT, ""),
-        )
-        show(service(hard.copy(acknowledged = true)).copy(permission = CommandPermission.READ_ONLY, action = unknown))
-
-        val screen = composeRule.onRoot().getUnclippedBoundsInRoot().width
-        val tags = listOf(
-            DetailTags.REMOVE_ACKNOWLEDGEMENT,
-            DetailTags.RECHECK,
-            DetailTags.COMMENT,
-            DetailTags.READ_ONLY,
-            DetailTags.PROGRESS,
-        )
-        tags.forEach { tag ->
-            val bounds = composeRule.onNodeWithTag(tag).assertIsDisplayed().getUnclippedBoundsInRoot()
-            assertTrue("$tag runs off the screen: ${bounds.right} of $screen", bounds.right <= screen)
-            assertTrue("$tag has collapsed: ${bounds.width}", bounds.width > 40.dp)
-        }
-    }
-
     // Real text measurement, at phone width: a long name must not push the header off the screen.
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -723,48 +381,4 @@ class DetailScreenTest {
 
     private fun inHeader(text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(DetailTags.HEADER)))
-
-    private fun show(initial: DetailUiState) {
-        state = initial
-        composeRule.setContent { NagwatchTheme(dynamicColor = false) { DetailContent(state, actions) } }
-    }
-
-    private fun service(
-        check: CheckStatus,
-        comments: AnnotationSection<Comment> = AnnotationSection(fetchedAt = T0),
-        downtimes: AnnotationSection<net.pgmac.nagwatch.nagios.model.Downtime> = AnnotationSection(fetchedAt = T0),
-    ): DetailUiState {
-        val record = CachedDetail.Service(ServiceStatus("web01", "Disk /", ServiceState.CRITICAL, check), T0)
-        return detailUiState(
-            ObjectDetail(DISK_REF, record = record, comments = comments, downtimes = downtimes),
-            status(),
-            T0,
-        )
-    }
-
-    private fun host(): DetailUiState {
-        val record = CachedDetail.Host(HostStatus("web01", HostState.UP, hard), T0)
-        return detailUiState(ObjectDetail(ObjectRef("web01"), record = record), status(), T0)
-    }
-
-    private fun status(): ProfileStatus {
-        val snapshot = StatusSnapshot(
-            hosts = listOf(HostStatus("web01", HostState.UP, CheckStatus())),
-            serviceProblems = listOf(
-                ServiceStatus("web01", "Disk /", ServiceState.CRITICAL, hard),
-                ServiceStatus("web01", "Load", ServiceState.WARNING, CheckStatus(acknowledged = true)),
-            ),
-            fetchedAt = T0,
-            serviceStates = listOf(
-                ServiceStateEntry("web01", "Ping", ServiceState.OK),
-                ServiceStateEntry("web01", "Disk /", ServiceState.CRITICAL),
-                ServiceStateEntry("web01", "Load", ServiceState.WARNING),
-            ),
-        )
-        return ProfileStatus(report = ProblemClassifier.classify(snapshot), snapshot = snapshot, lastSuccess = T0)
-    }
-
-    private companion object {
-        val DISK_REF = ObjectRef("web01", "Disk /")
-    }
 }

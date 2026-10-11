@@ -18,6 +18,7 @@ import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.CommandClient
 import net.pgmac.nagwatch.nagios.command.CommandOutcome
 import net.pgmac.nagwatch.nagios.command.CommandReport
+import net.pgmac.nagwatch.nagios.command.ServerClock
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
@@ -171,6 +172,13 @@ class FakeCommandClient(
     var probes = 0
     val sent = mutableListOf<Command>()
 
+    /** The date format each send was handed as "remembered". */
+    val remembered = mutableListOf<ServerDateFormat?>()
+
+    /** What a send reports having learned about the server's date format. */
+    var learned: ServerDateFormat? = null
+    var clock: ServerClock? = null
+
     override suspend fun mayCommand(): NagiosResult<Boolean> {
         probes++
         return mayCommandResult
@@ -178,8 +186,11 @@ class FakeCommandClient(
 
     override suspend fun send(command: Command, rememberedFormat: ServerDateFormat?): CommandReport {
         sent += command
-        return CommandReport(outcome(command))
+        remembered += rememberedFormat
+        return CommandReport(outcome(command), learned)
     }
+
+    override suspend fun serverClock(target: ObjectRef, rememberedFormat: ServerDateFormat?): ServerClock? = clock
 }
 
 fun commandProvider(client: FakeCommandClient, onCreate: (ConnectionSettings) -> Unit = {}) =

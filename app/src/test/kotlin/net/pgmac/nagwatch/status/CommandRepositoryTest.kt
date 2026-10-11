@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.status
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -18,8 +19,10 @@ import net.pgmac.nagwatch.nagios.command.CommandClient
 import net.pgmac.nagwatch.nagios.command.CommandOutcome
 import net.pgmac.nagwatch.nagios.command.CommandReport
 import net.pgmac.nagwatch.nagios.command.Refusal
+import net.pgmac.nagwatch.nagios.command.ServerClock
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
+import net.pgmac.nagwatch.nagios.model.Downtime
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
 import net.pgmac.nagwatch.nagios.model.ObjectRef
@@ -220,6 +223,168 @@ class CommandRepositoryTest {
     }
 
     @Test
+    fun `a downtime is confirmed when Nagios holds one that is new, ours, and for the window asked`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule()
+        serveDowntimes { if (looks >= 3) listOf(old, made(ask)) else listOf(old) }
+
+        val seen = repository.run(id, ask).toList()
+
+        assertEquals(
+            listOf(ActionProgress.Sending(ask), ActionProgress.Sent(ask), ActionProgress.Confirmed(ask)),
+            seen,
+        )
+    }
+
+    @Test
+    fun `a downtime that landed an hour out is reported with what Nagios really scheduled`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule()
+        val hourOut = made(ask).copy(start = ask.start.plusSeconds(3600), end = ask.end.plusSeconds(3600))
+        serveDowntimes { if (looks >= 2) listOf(old, hourOut) else listOf(old) }
+
+        assertEquals(ActionProgress.Mismatch(ask, hourOut), repository.run(id, ask).toList().last())
+    }
+
+    @Test
+    fun `a window that only starts at another time is still a different window`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule()
+        val startsLate = made(ask).copy(start = ask.start.plusSeconds(60))
+        serveDowntimes { if (looks >= 2) listOf(startsLate) else emptyList() }
+
+        assertEquals(ActionProgress.Mismatch(ask, startsLate), repository.run(id, ask).toList().last())
+    }
+
+    @Test
+    fun `only one end being out is still a different window`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule()
+        val longer = made(ask).copy(end = ask.end.plusSeconds(1))
+        serveDowntimes { if (looks >= 2) listOf(longer) else emptyList() }
+
+        assertEquals(ActionProgress.Mismatch(ask, longer), repository.run(id, ask).toList().last())
+    }
+
+    @Test
+    fun `a downtime that was already there is not mistaken for the new one`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule()
+        // Same comment, same window, but it existed before anything was sent.
+        val earlier = made(ask).copy(id = 3)
+        serveDowntimes { listOf(earlier) }
+
+        assertEquals(ActionProgress.NotConfirmed(ask), repository.run(id, ask).toList().last())
+    }
+
+    @Test
+    fun `somebody else's new downtime does not confirm this one`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule()
+        serveDowntimes { if (looks >= 2) listOf(made(ask).copy(comment = "theirs")) else emptyList() }
+
+        assertEquals(ActionProgress.NotConfirmed(ask), repository.run(id, ask).toList().last())
+    }
+
+    @Test
+    fun `the comment is recognised as Nagios keeps it`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val ask = schedule(comment = "patching <web01>; back soon")
+        val kept = made(ask).copy(comment = "patching web01  back soon")
+        serveDowntimes { if (looks >= 2) listOf(kept) else emptyList() }
+
+        assertEquals(ActionProgress.Confirmed(ask), repository.run(id, ask).toList().last())
+    }
+
+    @Test
+    fun `what a server showed of its date format is kept, and offered back next time`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serveDowntimes { emptyList() }
+        sender.learned = ServerDateFormat.EURO
+
+        repository.run(id, schedule()).toList()
+        sender.learned = null
+        repository.run(id, schedule()).toList()
+
+        assertEquals(listOf(null, ServerDateFormat.EURO), sender.remembered)
+        assertEquals(ServerDateFormat.EURO, profiles.dateFormat(id))
+    }
+
+    @Test
+    fun `a send that learned nothing does not wipe what was known`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serveDowntimes { emptyList() }
+        profiles.rememberDateFormat(id, ServerDateFormat.US)
+
+        repository.run(id, schedule()).toList()
+
+        assertEquals(ServerDateFormat.US, profiles.dateFormat(id))
+    }
+
+    @Test
+    fun `when the date order is needed nothing is sent on, and the question is passed up`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serveDowntimes { emptyList() }
+        sender.outcome = { CommandOutcome.DateOrderNeeded("10-10-2026 09:00:00") }
+        val ask = schedule()
+
+        val seen = repository.run(id, ask).toList()
+
+        assertEquals(
+            listOf(ActionProgress.Sending(ask), ActionProgress.DateOrderNeeded(ask, "10-10-2026 09:00:00")),
+            seen,
+        )
+        assertEquals("only the look before sending", 1, looks)
+    }
+
+    @Test
+    fun `the answer to the date order question is remembered for the profile`() = runBlocking {
+        val id = profiles.saveTestProfile()
+
+        repository.rememberDateOrder(id, ServerDateFormat.EURO)
+
+        assertEquals(ServerDateFormat.EURO, profiles.dateFormat(id))
+    }
+
+    @Test
+    fun `cancelling a downtime is confirmed when it is no longer listed`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serveDowntimes { if (looks >= 2) listOf(old) else listOf(old, downtime(9)) }
+        val command = Command.CancelDowntime(diskRef, 9)
+
+        assertEquals(ActionProgress.Confirmed(command), repository.run(id, command).toList().last())
+        assertEquals(2, looks)
+    }
+
+    @Test
+    fun `a downtime that is still listed has not been cancelled`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serveDowntimes { listOf(old, downtime(9)) }
+        val command = Command.CancelDowntime(diskRef, 9)
+
+        assertEquals(ActionProgress.NotConfirmed(command), repository.run(id, command).toList().last())
+    }
+
+    @Test
+    fun `not being able to read the list is not the same as the downtime being gone`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        reader.downtimesResult = { failure() }
+        val command = Command.CancelDowntime(diskRef, 9)
+
+        assertEquals(ActionProgress.NotConfirmed(command), repository.run(id, command).toList().last())
+    }
+
+    @Test
+    fun `the server's clock is asked for with what the profile remembers`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val clock = ServerClock(ServerDateFormat.ISO8601, ZoneOffset.ofHours(10), "2026-10-09 20:00:00")
+        sender.clock = clock
+
+        assertEquals(clock, repository.serverClock(id, diskRef))
+        assertEquals(null, repository.serverClock(NO_SUCH_PROFILE, diskRef))
+    }
+
+    @Test
     fun `a refusal is passed on with its reason and nothing is looked for`() = runBlocking {
         val id = profiles.saveTestProfile()
         serveDisk { CheckStatus(acknowledged = true) }
@@ -323,6 +488,22 @@ class CommandRepositoryTest {
         reader.serviceResult = {
             looks++
             NagiosResult.Success(disk(check()))
+        }
+    }
+
+    private val old = downtime(3, comment = "last week")
+
+    private fun schedule(comment: String = "patching") =
+        Command.ScheduleDowntime(diskRef, comment, T0.plusSeconds(600), T0.plusSeconds(4200))
+
+    /** The downtime Nagios would make of [ask] if all went well. */
+    private fun made(ask: Command.ScheduleDowntime) =
+        downtime(8, comment = ask.comment).copy(start = ask.start, end = ask.end)
+
+    private fun serveDowntimes(list: () -> List<Downtime>) {
+        reader.downtimesResult = {
+            looks++
+            NagiosResult.Success(list())
         }
     }
 

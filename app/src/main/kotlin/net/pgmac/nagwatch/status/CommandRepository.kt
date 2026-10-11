@@ -21,9 +21,12 @@ import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.CommandClient
 import net.pgmac.nagwatch.nagios.command.CommandOutcome
 import net.pgmac.nagwatch.nagios.command.Refusal
+import net.pgmac.nagwatch.nagios.command.ServerClock
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.command.storedCommentText
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
+import net.pgmac.nagwatch.nagios.model.Downtime
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SettingsResult
@@ -83,6 +86,23 @@ sealed interface ActionProgress {
     /** It may or may not have reached Nagios. Look before trying again. */
     data class Unknown(override val command: Command, val error: NagiosError?) : ActionProgress
 
+    /**
+     * Nothing was sent: the window cannot be written for this server without knowing whether
+     * it puts the day or the month first, and today its own pages do not show which.
+     * [example] is "now" as the server wrote it.
+     */
+    data class DateOrderNeeded(override val command: Command, val example: String) : ActionProgress
+
+    /**
+     * Nagios accepted a downtime and then scheduled a different window from the one asked
+     * for. [scheduled] is what it really holds. The usual cause is a daylight-saving change
+     * between now and the window, which moves it by an hour; a wrong date order moves it by
+     * weeks. Either way the person has to be shown both, and offered a way to cancel.
+     */
+    data class Mismatch(val asked: Command.ScheduleDowntime, val scheduled: Downtime) : ActionProgress {
+        override val command: Command get() = asked
+    }
+
     /** True while there is nothing for the user to do but wait. */
     val inFlight: Boolean get() = this is Sending || this is Sent
 }
@@ -138,16 +158,22 @@ class CommandRepository internal constructor(
             }
         }
         val reader = readers.create(settings)
-        // What "the check has run again" has to be later than, taken before anything is sent.
-        val lastCheckBefore = if (command is Command.ForceCheck) check(reader, command.target)?.lastCheck else null
+        // What the effect has to differ from, taken before anything is sent.
+        val before = before(reader, command)
+        val remembered = profiles.dateFormat(profileId)
 
         // Once begun, a send is seen through even if the screen that asked has gone: a command
         // cut off part-way is the one case where nobody could say whether it arrived.
-        when (val outcome = withContext(NonCancellable) { senders.create(settings).send(command).outcome }) {
+        val report = withContext(NonCancellable) {
+            senders.create(settings).send(command, remembered).also { sent ->
+                // Kept for the day this server's own pages cannot show its date order.
+                sent.learnedFormat?.let { profiles.rememberDateFormat(profileId, it) }
+            }
+        }
+        when (val outcome = report.outcome) {
             CommandOutcome.Accepted -> {
                 emit(ActionProgress.Sent(command))
-                val seen = confirm { effectSeen(reader, command, lastCheckBefore) }
-                emit(if (seen) ActionProgress.Confirmed(command) else ActionProgress.NotConfirmed(command))
+                emit(confirm { effect(reader, command, before) } ?: ActionProgress.NotConfirmed(command))
             }
 
             is CommandOutcome.Refused -> {
@@ -162,18 +188,72 @@ class CommandRepository internal constructor(
 
             is CommandOutcome.Unknown -> emit(ActionProgress.Unknown(command, outcome.error))
 
-            // Only a command that carries a date can end here, and nothing sends one yet.
-            is CommandOutcome.DateOrderNeeded -> emit(ActionProgress.Unknown(command, null))
+            is CommandOutcome.DateOrderNeeded -> emit(ActionProgress.DateOrderNeeded(command, outcome.example))
         }
     }
 
-    /** Looks for the effect a few times, with a wait before each look. */
-    private suspend fun confirm(seen: suspend () -> Boolean): Boolean {
+    /**
+     * Records which way round this profile's server writes day and month, as the person using
+     * it said when asked. Used only on a day the server's own pages cannot show it, and
+     * replaced as soon as they can.
+     */
+    suspend fun rememberDateOrder(profileId: Long, format: ServerDateFormat) =
+        profiles.rememberDateFormat(profileId, format)
+
+    /** The server's clock, for showing a window in its terms before sending. Null if it could not be read. */
+    suspend fun serverClock(profileId: Long, target: ObjectRef): ServerClock? {
+        val settings = (profiles.settingsFor(profileId) as? SettingsResult.Ready)?.settings ?: return null
+        return senders.create(settings).serverClock(target, profiles.dateFormat(profileId))
+    }
+
+    /** What was true of the object before a command, where confirming needs something to compare with. */
+    private class Before(val lastCheck: Instant? = null, val downtimeIds: Set<Long> = emptySet())
+
+    private suspend fun before(reader: NagiosClient, command: Command): Before = when (command) {
+        is Command.ForceCheck -> Before(lastCheck = check(reader, command.target)?.lastCheck)
+
+        is Command.ScheduleDowntime -> {
+            val held = downtimes(reader, command.target).orEmpty()
+            Before(downtimeIds = held.map { it.id }.toSet())
+        }
+
+        else -> Before()
+    }
+
+    /** Looks for the effect a few times, with a wait before each look. Null if it was never seen. */
+    private suspend fun confirm(look: suspend () -> ActionProgress?): ActionProgress? {
         for (wait in confirmAfter) {
             delay(wait.toMillis())
-            if (seen()) return true
+            look()?.let { return it }
         }
-        return false
+        return null
+    }
+
+    /** What the object now shows of [command]: confirmed, a different window than asked, or nothing yet. */
+    private suspend fun effect(reader: NagiosClient, command: Command, before: Before): ActionProgress? =
+        when (command) {
+            is Command.ScheduleDowntime -> scheduled(reader, command, before)
+            else -> ActionProgress.Confirmed(command).takeIf { effectSeen(reader, command, before.lastCheck) }
+        }
+
+    /**
+     * The downtime Nagios made of [command], compared with what was asked. It is recognised as
+     * one that was not there before and carries the comment as Nagios keeps it; the window is
+     * deliberately not part of recognising it, because the window is what is being checked.
+     */
+    private suspend fun scheduled(
+        reader: NagiosClient,
+        command: Command.ScheduleDowntime,
+        before: Before,
+    ): ActionProgress? {
+        val words = storedCommentText(command.comment)
+        val made = downtimes(reader, command.target).orEmpty()
+            .filter { it.id !in before.downtimeIds && it.comment == words }
+            .maxByOrNull { it.id }
+            ?: return null
+        val asExpected = made.start?.epochSecond == command.start.epochSecond &&
+            made.end?.epochSecond == command.end.epochSecond
+        return if (asExpected) ActionProgress.Confirmed(command) else ActionProgress.Mismatch(command, made)
     }
 
     /**
@@ -197,8 +277,12 @@ class CommandRepository internal constructor(
                 comments(reader, command.target).any { it.text == words }
             }
 
-            // Downtimes are confirmed by comparing windows, which arrives with the downtime screens.
-            is Command.ScheduleDowntime, is Command.CancelDowntime -> false
+            // Gone only if the list was read and does not hold it: a failed read says nothing.
+            is Command.CancelDowntime ->
+                downtimes(reader, command.target)?.none { it.id == command.downtimeId } == true
+
+            // A scheduled downtime is compared window against window: see [scheduled].
+            is Command.ScheduleDowntime -> false
         }
 
     private suspend fun check(reader: NagiosClient, target: ObjectRef): CheckStatus? = when {
@@ -208,6 +292,10 @@ class CommandRepository internal constructor(
 
     private suspend fun comments(reader: NagiosClient, target: ObjectRef): List<Comment> =
         (reader.fetchComments(target) as? NagiosResult.Success)?.value.orEmpty()
+
+    /** Null when the list could not be read, which is not the same as empty. */
+    private suspend fun downtimes(reader: NagiosClient, target: ObjectRef): List<Downtime>? =
+        (reader.fetchDowntimes(target) as? NagiosResult.Success)?.value
 
     private fun SettingsResult.asError(): StatusError = when (this) {
         SettingsResult.CredentialsUnavailable -> StatusError.CredentialsUnavailable

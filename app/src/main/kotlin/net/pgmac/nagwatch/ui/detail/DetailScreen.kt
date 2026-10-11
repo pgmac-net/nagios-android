@@ -45,12 +45,14 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Duration
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.StateType
+import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.AnnotationSection
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
@@ -65,7 +67,7 @@ import net.pgmac.nagwatch.ui.problems.formatAge
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 
 /** What the detail screen can ask for. */
-interface DetailActions {
+interface DetailActions : CommandActions {
     fun back()
 
     fun refresh()
@@ -76,7 +78,10 @@ interface DetailActions {
 
     /** Hands a page of the Nagios web interface to the browser. */
     fun openInNagios(url: String)
+}
 
+/** The commands the detail screen can send, and the questions that go with them. */
+interface CommandActions {
     fun acknowledge(comment: String, sticky: Boolean, notify: Boolean, persistent: Boolean)
 
     fun removeAcknowledgement()
@@ -84,6 +89,17 @@ interface DetailActions {
     fun addComment(comment: String)
 
     fun forceCheck()
+
+    fun scheduleDowntime(comment: String, window: DowntimeWindow)
+
+    fun cancelDowntime(id: Long)
+
+    fun answerDateOrder(format: ServerDateFormat)
+
+    fun dismissDateOrder()
+
+    /** The downtime form has opened and would like to show the window as the server will read it. */
+    fun loadServerClock()
 }
 
 /** Where the detail screen can send the user. */
@@ -121,6 +137,17 @@ fun DetailScreen(navigation: DetailNavigation, viewModel: DetailViewModel = hilt
         override fun addComment(comment: String) = viewModel.addComment(comment)
 
         override fun forceCheck() = viewModel.forceCheck()
+
+        override fun scheduleDowntime(comment: String, window: DowntimeWindow) =
+            viewModel.scheduleDowntime(comment, window)
+
+        override fun cancelDowntime(id: Long) = viewModel.cancelDowntime(id)
+
+        override fun answerDateOrder(format: ServerDateFormat) = viewModel.answerDateOrder(format)
+
+        override fun dismissDateOrder() = viewModel.dismissDateOrder()
+
+        override fun loadServerClock() = viewModel.loadServerClock()
     }
     DetailContent(state, actions)
 }
@@ -129,6 +156,8 @@ fun DetailScreen(navigation: DetailNavigation, viewModel: DetailViewModel = hilt
 @Composable
 fun DetailContent(state: DetailUiState, actions: DetailActions, modifier: Modifier = Modifier) {
     var allComments by rememberSaveable { mutableStateOf(false) }
+    // The id of the downtime being asked about, while "Cancel this downtime?" is up.
+    var cancelling by rememberSaveable { mutableStateOf<Long?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -166,11 +195,19 @@ fun DetailContent(state: DetailUiState, actions: DetailActions, modifier: Modifi
                 state.host?.let { host -> item { HostLink(host, actions) } }
                 hostServices(state, actions)
                 comments(state.detail.comments, allComments) { allComments = !allComments }
-                downtimes(state.detail.downtimes)
+                downtimes(state.detail.downtimes, state.actionsEnabled) { cancelling = it }
                 state.detail.nagiosUrl?.let { url -> item { OpenInNagios(url, actions) } }
             }
         }
     }
+    // Only while it is still listed: if a refresh shows it gone, there is nothing left to ask about.
+    state.detail.downtimes.items.firstOrNull { it.id == cancelling }?.let { downtime ->
+        CancelDowntimeDialog(downtime, onDismiss = { cancelling = null }) {
+            cancelling = null
+            actions.cancelDowntime(downtime.id)
+        }
+    }
+    (state.action as? ActionProgress.DateOrderNeeded)?.let { DateOrderDialog(it, actions) }
 }
 
 /** State, how settled it is, how long for, and when it was and will be checked. */
@@ -443,7 +480,11 @@ private fun LazyListScope.comments(section: AnnotationSection<Comment>, all: Boo
     }
 }
 
-private fun LazyListScope.downtimes(section: AnnotationSection<Downtime>) {
+private fun LazyListScope.downtimes(
+    section: AnnotationSection<Downtime>,
+    canCancel: Boolean,
+    onCancel: (Long) -> Unit,
+) {
     item {
         AnnotationHeader(
             title = R.string.detail_downtimes,
@@ -466,6 +507,13 @@ private fun LazyListScope.downtimes(section: AnnotationSection<Downtime>) {
             heading = listOf(downtime.author, window, kind, now).filter { it.isNotBlank() }.joinToString(" · "),
             text = downtime.comment,
         )
+        TextButton(
+            onClick = { onCancel(downtime.id) },
+            enabled = canCancel,
+            modifier = Modifier.padding(horizontal = 4.dp).testTag(DetailTags.cancelDowntime(downtime.id)),
+        ) {
+            Text(stringResource(R.string.action_cancel_downtime))
+        }
     }
 }
 

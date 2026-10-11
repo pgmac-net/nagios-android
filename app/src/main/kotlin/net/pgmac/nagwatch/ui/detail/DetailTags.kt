@@ -40,7 +40,21 @@ object DetailTags {
     const val FORM_SEND = "detail_form_send"
     const val FORM_CANCEL = "detail_form_cancel"
     const val DIALOG_CONFIRM = "detail_dialog_confirm"
+    const val DOWNTIME = "detail_downtime"
+    const val DOWNTIME_CUSTOM = "detail_downtime_custom"
+    const val DOWNTIME_START = "detail_downtime_start"
+    const val DOWNTIME_END = "detail_downtime_end"
+    const val DOWNTIME_WINDOW = "detail_downtime_window"
+    const val DOWNTIME_WINDOW_SERVER = "detail_downtime_window_server"
+    const val DOWNTIME_INVALID = "detail_downtime_invalid"
+    const val MISMATCH_CANCEL = "detail_mismatch_cancel"
+    const val DATE_ORDER_MONTH_FIRST = "detail_date_order_month_first"
+    const val DATE_ORDER_DAY_FIRST = "detail_date_order_day_first"
     const val DIALOG_CANCEL = "detail_dialog_cancel"
 
     fun service(description: String) = "detail_service_$description"
+
+    fun downtimePreset(minutes: Long) = "detail_downtime_preset_$minutes"
+
+    fun cancelDowntime(id: Long) = "detail_cancel_downtime_$id"
 }

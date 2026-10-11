@@ -74,6 +74,11 @@ internal fun Actions(state: DetailUiState, actions: DetailActions) {
                 actions.addComment(comment)
             }
 
+            ActionForm.DOWNTIME -> DowntimeForm(state, close) { comment, window ->
+                close()
+                actions.scheduleDowntime(comment, window)
+            }
+
             ActionForm.NONE, ActionForm.REMOVE_ACKNOWLEDGEMENT -> Buttons(state, actions) { open = it }
         }
         if (state.permission == CommandPermission.READ_ONLY) {
@@ -84,8 +89,8 @@ internal fun Actions(state: DetailUiState, actions: DetailActions) {
             )
         }
         // What became of the last command belongs with the buttons, not under a form for the next one.
-        val formOpen = open == ActionForm.ACKNOWLEDGE || open == ActionForm.COMMENT
-        state.action?.takeUnless { formOpen }?.let { Progress(it) }
+        val formOpen = open != ActionForm.NONE && open != ActionForm.REMOVE_ACKNOWLEDGEMENT
+        state.action?.takeUnless { formOpen }?.let { Progress(it, actions) }
     }
     if (open == ActionForm.REMOVE_ACKNOWLEDGEMENT) {
         RemoveAcknowledgementDialog(close) {
@@ -113,6 +118,10 @@ private fun Buttons(state: DetailUiState, actions: DetailActions, onOpen: (Actio
         // Asking for a check harms nothing and is easily asked again, so it is not confirmed.
         ActionButton(R.string.action_recheck, DetailTags.RECHECK, enabled, actions::forceCheck)
         ActionButton(R.string.action_comment, DetailTags.COMMENT, enabled) { onOpen(ActionForm.COMMENT) }
+        ActionButton(R.string.action_downtime, DetailTags.DOWNTIME, enabled) {
+            actions.loadServerClock()
+            onOpen(ActionForm.DOWNTIME)
+        }
     }
 }
 
@@ -125,10 +134,12 @@ private fun ActionButton(label: Int, tag: String, enabled: Boolean, onClick: () 
 
 /** Where the last command has got to. Announced as it changes, for anyone not looking. */
 @Composable
-private fun Progress(progress: ActionProgress) {
+private fun Progress(progress: ActionProgress, actions: DetailActions) {
     val failed = progress is ActionProgress.Refused ||
         progress is ActionProgress.NotSent ||
-        progress is ActionProgress.Unknown
+        progress is ActionProgress.Unknown ||
+        progress is ActionProgress.DateOrderNeeded ||
+        progress is ActionProgress.Mismatch
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
@@ -141,6 +152,13 @@ private fun Progress(progress: ActionProgress) {
             color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.testTag(DetailTags.PROGRESS),
         )
+    }
+    // The wrong window is a real downtime, silencing real notifications: the way out goes beside the news.
+    if (progress is ActionProgress.Mismatch) {
+        OutlinedButton(
+            onClick = { actions.cancelDowntime(progress.scheduled.id) },
+            modifier = Modifier.testTag(DetailTags.MISMATCH_CANCEL),
+        ) { Text(stringResource(R.string.action_cancel_downtime)) }
     }
 }
 
@@ -162,6 +180,16 @@ private fun ActionProgress.text(): String = when (this) {
         null -> stringResource(R.string.progress_unknown)
         else -> stringResource(R.string.progress_unknown_because, why.toUiText().resolve())
     }
+
+    is ActionProgress.DateOrderNeeded -> stringResource(R.string.progress_date_order)
+
+    is ActionProgress.Mismatch -> stringResource(
+        R.string.progress_mismatch,
+        formatWhen(asked.start),
+        formatWhen(asked.end),
+        formatWhen(scheduled.start),
+        formatWhen(scheduled.end),
+    )
 }
 
 private fun Command.confirmedText(): Int = when (this) {
@@ -169,7 +197,8 @@ private fun Command.confirmedText(): Int = when (this) {
     is Command.RemoveAcknowledgement -> R.string.progress_confirmed_remove_acknowledgement
     is Command.AddComment -> R.string.progress_confirmed_comment
     is Command.ForceCheck -> R.string.progress_confirmed_recheck
-    is Command.ScheduleDowntime, is Command.CancelDowntime -> R.string.progress_confirmed_other
+    is Command.ScheduleDowntime -> R.string.progress_confirmed_downtime
+    is Command.CancelDowntime -> R.string.progress_confirmed_cancel_downtime
 }
 
 /** Nagios' own words are shown only where they say something the app's do not. */
@@ -202,7 +231,7 @@ private fun AcknowledgeForm(onCancel: () -> Unit, onSend: (String, Boolean, Bool
     var sticky by rememberSaveable { mutableStateOf(false) }
     var notify by rememberSaveable { mutableStateOf(true) }
     var persistent by rememberSaveable { mutableStateOf(false) }
-    Form(
+    ActionFormLayout(
         title = R.string.acknowledge_title,
         send = R.string.action_acknowledge,
         canSend = storedCommentText(comment).isNotEmpty(),
@@ -227,7 +256,7 @@ private fun AcknowledgeForm(onCancel: () -> Unit, onSend: (String, Boolean, Bool
 @Composable
 private fun CommentForm(onCancel: () -> Unit, onSend: (String) -> Unit) {
     var comment by rememberSaveable { mutableStateOf("") }
-    Form(
+    ActionFormLayout(
         title = R.string.comment_title,
         send = R.string.action_send,
         canSend = storedCommentText(comment).isNotEmpty(),
@@ -239,7 +268,7 @@ private fun CommentForm(onCancel: () -> Unit, onSend: (String) -> Unit) {
 }
 
 @Composable
-private fun Form(
+internal fun ActionFormLayout(
     title: Int,
     send: Int,
     canSend: Boolean,
@@ -286,7 +315,7 @@ private fun RemoveAcknowledgementDialog(onDismiss: () -> Unit, onConfirm: () -> 
  * some characters without saying so, and the app would rather say so first.
  */
 @Composable
-private fun CommentField(comment: String, onChange: (String) -> Unit) {
+internal fun CommentField(comment: String, onChange: (String) -> Unit) {
     val stored = storedCommentText(comment)
     // The form was asked for in order to type in it: bring the keyboard up without a second tap.
     val focus = remember { FocusRequester() }
@@ -325,6 +354,6 @@ private fun Option(label: Int, checked: Boolean, tag: String, onChange: (Boolean
     }
 }
 
-private enum class ActionForm { NONE, ACKNOWLEDGE, COMMENT, REMOVE_ACKNOWLEDGEMENT }
+private enum class ActionForm { NONE, ACKNOWLEDGE, COMMENT, DOWNTIME, REMOVE_ACKNOWLEDGEMENT }
 
 private const val COMMENT_LINES = 4
