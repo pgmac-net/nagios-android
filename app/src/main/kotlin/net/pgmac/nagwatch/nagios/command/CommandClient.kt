@@ -5,12 +5,12 @@ package net.pgmac.nagwatch.nagios.command
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.http.NagiosApi
 import net.pgmac.nagwatch.nagios.http.ResilientListFetcher
+import net.pgmac.nagwatch.nagios.http.wholeNumber
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import okhttp3.HttpUrl
 
@@ -254,7 +254,7 @@ internal class OkHttpCommandClient(
 
     /** `result.query_time`: when Nagios answered, in epoch milliseconds. */
     private fun JsonObject.queryTime(): Instant? =
-        ((this["result"] as? JsonObject)?.get("query_time") as? JsonPrimitive)?.longOrNull
+        ((this["result"] as? JsonObject)?.get("query_time") as? JsonPrimitive)?.wholeNumber()
             ?.takeIf { it > 0 }
             ?.let(Instant::ofEpochMilli)
 

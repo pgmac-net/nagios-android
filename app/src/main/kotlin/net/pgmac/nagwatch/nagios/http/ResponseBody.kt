@@ -6,7 +6,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.intOrNull
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 
@@ -21,7 +20,7 @@ import net.pgmac.nagwatch.nagios.NagiosResult
 internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonObject> {
     val body = parseJsonObject(json, text)
     val result = body?.get("result") as? JsonObject
-    val code = (result?.get("type_code") as? JsonPrimitive)?.intOrNull
+    val code = (result?.get("type_code") as? JsonPrimitive)?.smallWholeNumber()
     return when {
         body == null || result == null || code == null -> NagiosResult.Failure(NagiosError.NotNagios)
         code == SUCCESS -> NagiosResult.Success(body)

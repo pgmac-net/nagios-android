@@ -7,8 +7,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.longOrNull
 
 /*
  * Tolerant field access for Nagios JSON. A missing or oddly typed field becomes
@@ -24,13 +22,25 @@ internal fun JsonElement.word(): String = (this as? JsonPrimitive)?.content.orEm
 
 internal fun JsonObject.string(key: String): String = (this[key] as? JsonPrimitive)?.content.orEmpty()
 
-internal fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
+/**
+ * A whole number, or null if the value is not one.
+ *
+ * Not kotlinx's own `longOrNull` and `intOrNull`: handed a string such as `"542` (a quote and
+ * then digits) they throw `StringIndexOutOfBoundsException` instead of answering null. A
+ * fuzzer found it. Nagios writes whole numbers plainly, so nothing is lost by being strict.
+ */
+internal fun JsonPrimitive.wholeNumber(): Long? = content.toLongOrNull()
 
-internal fun JsonObject.long(key: String): Long = (this[key] as? JsonPrimitive)?.longOrNull ?: 0
+/** As [wholeNumber], for a value that must fit an Int. One that does not is not a number here: it never wraps. */
+internal fun JsonPrimitive.smallWholeNumber(): Int? = content.toIntOrNull()
+
+internal fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.smallWholeNumber() ?: 0
+
+internal fun JsonObject.long(key: String): Long = (this[key] as? JsonPrimitive)?.wholeNumber() ?: 0
 
 internal fun JsonObject.boolean(key: String, default: Boolean): Boolean =
     (this[key] as? JsonPrimitive)?.booleanOrNull ?: default
 
 /** Nagios sends epoch milliseconds, and 0 for "never". */
 internal fun JsonObject.instant(key: String): Instant? =
-    (this[key] as? JsonPrimitive)?.longOrNull?.takeIf { it > 0 }?.let(Instant::ofEpochMilli)
+    (this[key] as? JsonPrimitive)?.wholeNumber()?.takeIf { it > 0 }?.let(Instant::ofEpochMilli)
