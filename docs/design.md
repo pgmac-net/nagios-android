@@ -136,7 +136,7 @@ The body is therefore repaired before it is parsed (`repairInvalidEscapes`, appl
 
 - **There is no fallback to the isolation search above.** A body that is still not JSON after the repair is "not Nagios", as before. Probing for a bad record in a response that is not Nagios' (a captive portal's page, say) would only cost requests.
 - **The characters are left in the text** once parsed, like every other control character. Showing them tidily is a separate question.
-- **The repair has an allowance of its own.** The size limit applies to what the server sent, before the repair, and a repair makes a body four characters longer per escape. More than 65,536 repairs is refused as too large, so growth is at most 256 KiB whatever the body. A real check prints a bell now and then, not tens of thousands. The fuzz target asserts the bound.
+- **The repair has an allowance of its own.** The size limit applies to what the server sent, before the repair, and a repair makes a body four characters longer per escape. The first 65,536 are exact; past that a bell or vertical tab is written as the nearest valid two-character escape (`\\b`, `\\f`), which does not grow the text. So growth is at most 256 KiB whatever the body, and **the poll is never refused for it**: failing the whole poll for one check's output is the bug this section is about. A real check prints a bell now and then, not tens of thousands. The fuzz target asserts the bound.
 
 How much is fetched is the server's decision, so it is bounded rather than trusted: a single response is capped at 8 MiB, and a list is cut off at 50,000 records (a server that never sends a short page would otherwise be followed forever). Both report `ResponseTooLarge`.
 

@@ -18,8 +18,7 @@ import net.pgmac.nagwatch.nagios.NagiosResult
  * Whatever the text is, the answer is a result, never an exception.
  */
 internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonObject> {
-    val repaired = repairInvalidEscapes(text) ?: return NagiosResult.Failure(NagiosError.ResponseTooLarge)
-    val body = parseJsonObject(json, repaired)
+    val body = parseJsonObject(json, repairInvalidEscapes(text))
     val result = body?.get("result") as? JsonObject
     val code = (result?.get("type_code") as? JsonPrimitive)?.smallWholeNumber()
     return when {
@@ -43,15 +42,17 @@ internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonO
  * an `a`, and is left alone; `\\\a` is a backslash and then a bell, and is repaired.
  * Looking for "a backslash before an a" would get both wrong.
  *
- * The result is longer by four characters per repair, and the body's size limit was applied to
- * what the server sent, before this. So the repair has an allowance of its own: more than
- * [maxRepairs] and it gives up and returns null, which the caller reports as too large. A real
- * check prints a bell now and then, and never tens of thousands of them. Growth is therefore at
- * most four times [maxRepairs] characters, whatever the body.
+ * A repair makes the text four characters longer, and the body's size limit was applied to what
+ * the server sent, before this. So the repair has an allowance of its own: the first
+ * [maxRepairs] are exact, and past that a bell or a vertical tab is written as the nearest valid
+ * two-character escape (`\b`, `\f`), which is the same length. Growth is therefore at most four
+ * times [maxRepairs] characters, whatever the body. A real check prints a bell now and then, not
+ * tens of thousands, so nothing real is ever approximated. It never refuses: failing the poll
+ * for one check's output is the very thing this exists to prevent.
  *
  * A text with nothing to repair is returned as the same string, without copying.
  */
-internal fun repairInvalidEscapes(text: String, maxRepairs: Int = MAX_REPAIRS): String? {
+internal fun repairInvalidEscapes(text: String, maxRepairs: Int = MAX_REPAIRS): String {
     var repaired: StringBuilder? = null
     var repairs = 0
     var i = 0
@@ -65,20 +66,28 @@ internal fun repairInvalidEscapes(text: String, maxRepairs: Int = MAX_REPAIRS): 
         val escape = text[i + 1]
         val replacement = REPAIRS[escape]
         if (replacement != null) {
-            if (++repairs > maxRepairs) return null
+            repairs++
             if (repaired == null) repaired = StringBuilder(text.length + REPAIR_HEADROOM).append(text, 0, i)
         }
-        repaired?.append(replacement ?: "\\$escape")
+        val written = when {
+            replacement == null -> "\\$escape"
+            repairs <= maxRepairs -> replacement
+            else -> NEAREST_VALID.getValue(escape)
+        }
+        repaired?.append(written)
         i += 2
     }
     return repaired?.toString() ?: text
 }
 
-/** How many invalid escapes one body may have repaired: 65,536 is at most 256 KiB of growth. */
+/** How many invalid escapes one body may have repaired exactly: 65,536 is at most 256 KiB of growth. */
 internal const val MAX_REPAIRS = 65_536
 
 /** Room for a few repairs without growing the buffer. A guess, and only a guess: it is not a limit. */
 private const val REPAIR_HEADROOM = 16
+
+/** What each invalid escape becomes past the allowance: the neighbouring control character, in the same length. */
+private val NEAREST_VALID = mapOf('a' to "\\b", 'v' to "\\f")
 
 /** What each invalid escape becomes: the same character, written as JSON has it. */
 private val REPAIRS = mapOf('a' to "\\u0007", 'v' to "\\u000b")

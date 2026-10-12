@@ -49,7 +49,7 @@ object FuzzEntryPoints {
         interpretResponseBody(json, text)
         // The repair is applied to anything a server sends, so it has to be idempotent: a second
         // pass finds nothing, because nothing it writes is an escape it rewrites.
-        val repaired = repairInvalidEscapes(text) ?: return
+        val repaired = repairInvalidEscapes(text)
         check(repairInvalidEscapes(repaired) == repaired) { "repairing twice is not repairing once" }
         check(repaired.length <= text.length + REPAIR_GROWTH_LIMIT) { "a repair grew a body more than allowed" }
     }

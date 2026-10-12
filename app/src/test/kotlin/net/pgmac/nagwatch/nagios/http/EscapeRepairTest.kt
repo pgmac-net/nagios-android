@@ -5,7 +5,6 @@ package net.pgmac.nagwatch.nagios.http
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -88,31 +87,54 @@ class EscapeRepairTest {
     }
 
     @Test
-    fun `up to the allowance is repaired, and one more is refused`() {
+    fun `past the allowance a repair is the nearest valid escape, in the same length`() {
+        val body = (backslash + "a") + (backslash + "v") + (backslash + "a") + (backslash + "v")
+
+        val repaired = repairInvalidEscapes(body, maxRepairs = 2)
+
+        // The first two are exact. The rest are \b and \f: no longer than what was sent.
+        assertEquals("\\u0007" + "\\u000b" + backslash + "b" + backslash + "f", repaired)
+        assertEquals(body.length + 4 * 2, repaired.length)
+    }
+
+    @Test
+    fun `at the allowance every repair is exact, and the first one over is not`() {
         val atTheLimit = (backslash + "a").repeat(MAX_REPAIRS)
-        val oneOver = atTheLimit + backslash + "v"
 
-        assertEquals(6 * MAX_REPAIRS, repairInvalidEscapes(atTheLimit)?.length)
-        assertEquals(null, repairInvalidEscapes(oneOver))
+        assertEquals(6 * MAX_REPAIRS, repair(atTheLimit).length)
+        assertEquals(6 * MAX_REPAIRS + 2, repair(atTheLimit + backslash + "v").length)
     }
 
     @Test
-    fun `the allowance counts repairs, not escapes, so a long body of valid ones is not refused`() {
-        val body = (backslash + backslash).repeat(MAX_REPAIRS + 10)
+    fun `growth is capped whatever the body, and the result is still valid JSON`() {
+        val body = "{\"a\":\"" + (backslash + "a").repeat(3 * MAX_REPAIRS) + "\"}"
 
-        assertSame(body, repairInvalidEscapes(body))
+        val repaired = repair(body)
+
+        assertEquals(body.length + 4 * MAX_REPAIRS, repaired.length)
+        assertEquals("still one key, and it parses", 1, (json.parseToJsonElement(repaired) as JsonObject).size)
     }
 
     @Test
-    fun `a body over the allowance is reported as too large, not as not Nagios`() {
-        val body = """{"result":{"type_code":0},"data":{"a":"x"}}""".replace(
-            "x",
-            (backslash + "a").repeat(MAX_REPAIRS + 1),
+    fun `the allowance counts repairs, not escapes, so valid ones before a bell do not use it up`() {
+        val valid = (backslash + backslash).repeat(MAX_REPAIRS + 10)
+
+        assertSame("nothing to repair is the same string", valid, repair(valid))
+        assertEquals(
+            "and the first bell after them is still exact",
+            valid + backslash + "u0007",
+            repair(valid + backslash + "a"),
         )
+    }
 
-        val result = interpretResponseBody(json, body) as NagiosResult.Failure
+    @Test
+    fun `a body over the allowance is still read, not refused`() {
+        val body = "{\"result\":{\"type_code\":0},\"data\":{\"a\":\"x\"}}"
+            .replace("x", (backslash + "a").repeat(MAX_REPAIRS + 1))
 
-        assertEquals(NagiosError.ResponseTooLarge, result.error)
+        val result = interpretResponseBody(json, body)
+
+        assertTrue(result is NagiosResult.Success)
     }
 
     @Test
