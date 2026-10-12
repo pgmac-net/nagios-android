@@ -10,6 +10,7 @@ import net.pgmac.nagwatch.notify.AnnouncedState
 import net.pgmac.nagwatch.notify.Known
 import net.pgmac.nagwatch.notify.OutageCause
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
+import net.pgmac.nagwatch.status.snapshot
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -90,6 +91,31 @@ class AnnouncedStoreTest {
 
         assertEquals(state, store.load(HOME))
         assertEquals(office, store.load(OFFICE))
+    }
+
+    @Test
+    fun `forgetting a profile makes its next poll a first poll, and touches nothing else`() = runBlocking {
+        val cache = StatusCache(dao)
+        cache.savePoll(HOME, snapshot())
+        cache.savePoll(OFFICE, snapshot())
+        store.save(HOME, state)
+        store.save(OFFICE, state)
+
+        store.forget(HOME)
+
+        assertEquals(AnnouncedState(), store.load(HOME))
+        assertTrue("what was announced is in two tables, and both go", dao.announced(HOME).isEmpty())
+        assertEquals(null, dao.announceMeta(HOME))
+        assertEquals("the profile's cached status stays", snapshot().hosts, cache.loadPoll(HOME)?.hosts)
+        assertEquals(state, store.load(OFFICE))
+        assertEquals(snapshot().hosts, cache.loadPoll(OFFICE)?.hosts)
+    }
+
+    @Test
+    fun `forgetting a profile that was never polled is harmless`() = runBlocking {
+        store.forget(HOME)
+
+        assertEquals(AnnouncedState(), store.load(HOME))
     }
 
     @Test

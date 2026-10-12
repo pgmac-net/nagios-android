@@ -199,6 +199,13 @@ abstract class StatusCacheDao {
         upsertAnnounceMeta(meta)
     }
 
+    /** Forgets what was announced for one profile and leaves the rest of its cache alone. */
+    @Transaction
+    open suspend fun forgetAnnounced(profileId: Long) {
+        deleteAnnounced(profileId)
+        deleteAnnounceMeta(profileId)
+    }
+
     @Insert
     protected abstract suspend fun insertAnnounced(rows: List<AnnouncedRow>)
 

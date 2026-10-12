@@ -15,6 +15,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.notify.NotificationTarget
+import net.pgmac.nagwatch.notify.TapTargets
 import net.pgmac.nagwatch.profile.SelectedProfile
 import net.pgmac.nagwatch.ui.NagwatchNavHost
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
@@ -23,6 +24,9 @@ import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 class MainActivity : ComponentActivity() {
     @Inject
     lateinit var selectedProfile: SelectedProfile
+
+    @Inject
+    lateinit var tapTargets: TapTargets
 
     /** Where a tapped notification asked to go, until the screens have gone there. */
     private val target = MutableStateFlow<NotificationTarget?>(null)
@@ -48,8 +52,12 @@ class MainActivity : ComponentActivity() {
 
     private fun open(intent: Intent?) {
         val asked = NotificationTarget.from(this, intent) ?: return
-        // The notification was about one profile; show that one, whichever was on screen.
-        lifecycleScope.launch { selectedProfile.select(asked.profileId) }
-        target.value = asked
+        lifecycleScope.launch {
+            // A notification for a profile that is gone opens the app and goes nowhere.
+            val existing = tapTargets.existing(asked) ?: return@launch
+            // The notification was about one profile; show that one, whichever was on screen.
+            selectedProfile.select(existing.profileId)
+            target.value = existing
+        }
     }
 }

@@ -312,6 +312,115 @@ class AndroidNotifierTest {
         assertEquals(1, problems().size)
     }
 
+    // ---------------------------------------------------------------- clearing and sweeping
+
+    @Test
+    fun `clearing a profile takes down its problems, summary, outage and group, and nobody else's`() {
+        raise(disk, ServiceState.CRITICAL, profile = home)
+        deliver(home, post = listOf(Notice.Summary(3, first = true)))
+        deliver(home, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+        raise(disk, ServiceState.CRITICAL, profile = office)
+
+        notifier.clear(home.id)
+
+        val left = active()
+        assertTrue(left.isNotEmpty())
+        assertEquals(
+            "only Office's problem and its group's entry",
+            setOf(AndroidNotifier.group(office.id)),
+            left.map { it.notification.group }.toSet(),
+        )
+        assertEquals(2, left.size)
+    }
+
+    @Test
+    fun `clearing a profile that has nothing showing is harmless`() {
+        raise(disk, ServiceState.CRITICAL, profile = office)
+
+        notifier.clear(home.id)
+
+        assertEquals(2, active().size)
+    }
+
+    @Test
+    fun `even a list that has not caught up cannot leave the summary, the outage or the group's entry`() {
+        raise(disk, ServiceState.CRITICAL)
+        deliver(home, post = listOf(Notice.Summary(3, first = true)))
+        deliver(home, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+        val onAPhone = AndroidNotifier(context, { allowed }, { emptyList() })
+
+        onAPhone.clear(home.id)
+
+        assertEquals(
+            "what is known by identity goes whatever Android lists",
+            0,
+            active().count {
+                it.id == AndroidNotifier.ID_SUMMARY || it.id == AndroidNotifier.ID_OUTAGE ||
+                    it.id == AndroidNotifier.ID_GROUP
+            },
+        )
+    }
+
+    @Test
+    fun `clearing takes the problems down even when Android lists them late`() {
+        raise(disk, ServiceState.CRITICAL)
+        raise(load, ServiceState.WARNING)
+        val listed = active()
+        val onAPhone = AndroidNotifier(context, { allowed }, { listed })
+
+        onAPhone.clear(home.id)
+
+        assertTrue(active().isEmpty())
+    }
+
+    @Test
+    fun `sweeping keeps what is being watched and takes down the rest, including profiles that no longer exist`() {
+        val gone = profile(99, "Gone")
+        raise(disk, ServiceState.CRITICAL, profile = home)
+        raise(disk, ServiceState.CRITICAL, profile = office)
+        raise(disk, ServiceState.CRITICAL, profile = gone)
+        deliver(gone, post = listOf(Notice.Summary(2, first = true)))
+
+        notifier.sweep(setOf(home.id))
+
+        assertEquals(setOf(AndroidNotifier.group(home.id)), active().map { it.notification.group }.toSet())
+        assertEquals(2, active().size)
+    }
+
+    @Test
+    fun `sweeping with nothing watched takes down everything of Nagwatch's`() {
+        raise(disk, ServiceState.CRITICAL, profile = home)
+        raise(disk, ServiceState.CRITICAL, profile = office)
+
+        notifier.sweep(emptySet())
+
+        assertTrue(active().isEmpty())
+    }
+
+    @Test
+    fun `sweeping leaves alone what it cannot attribute to a profile`() {
+        raise(disk, ServiceState.CRITICAL, profile = office)
+        manager.notify(
+            77,
+            NotificationCompat.Builder(context, "x").setSmallIcon(net.pgmac.nagwatch.R.drawable.ic_check).build(),
+        )
+
+        notifier.sweep(emptySet())
+
+        assertEquals(listOf(77), active().map { it.id })
+    }
+
+    @Test
+    fun `a group key says which profile it is for, and nothing else does`() {
+        assertEquals(7L, AndroidNotifier.profileOf(AndroidNotifier.group(7)))
+        assertNull(AndroidNotifier.profileOf(null))
+        assertNull(AndroidNotifier.profileOf("other"))
+        assertNull(AndroidNotifier.profileOf("profile-x"))
+        assertNull(AndroidNotifier.profileOf("profile-"))
+        assertNull("a bare number is not ours", AndroidNotifier.profileOf("7"))
+        assertNull(AndroidNotifier.profileOf("other-profile-7"))
+    }
+
     // ---------------------------------------------------------------- permission
 
     @Test

@@ -362,6 +362,8 @@ How it is shown (`AndroidNotifier`):
 - **A recovery** takes the problem's place, silently, and clears itself after an hour. A problem's notification stays until it is dealt with or dismissed.
 - **A tap** opens the host or the service, or the profile's Problems list for a summary or an outage, and selects that profile. No buttons: acknowledging from a notification is left for later.
 - **Without Android's permission** nothing is posted, the background checks continue, and the profile's editor says notifications are blocked.
+- **When a profile stops being watched** (notifications switched off, or the profile deleted) everything it has showing is taken down and what was announced for it is forgotten, so switching back on is a first poll: one summary, then changes. On the first look after the app starts, anything showing for a profile that does not have notifications on is swept up as well, which also removes what an earlier version stranded.
+- **A tap for a profile that no longer exists** opens the app as the launcher would and goes nowhere.
 
 ## 8. Widget
 
