@@ -53,6 +53,34 @@
             notifications, can use it. The app acts on a "go to this host" request only when it
             arrived by this name, so another app cannot steer it.
         -->
+        <!--
+            The home-screen widget. Android requires a widget's receiver to be exported; the
+            broadcasts it acts on are ones only the system may send.
+        -->
+        <receiver
+            android:name=".widget.StatusWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/status_widget_info" />
+        </receiver>
+
+        <!--
+            Chooses a widget's profile. Exported because the launcher starts it. It accepts a
+            widget's number from the intent and nothing else, and only one of this app's widgets.
+        -->
+        <activity
+            android:name=".ui.widget.WidgetConfigActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <activity-alias
             android:name=".notify.FromNotification"
             android:exported="false"

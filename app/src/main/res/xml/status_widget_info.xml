@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+    The status widget. It can be anything from one cell to most of a screen; which of its four
+    layouts is drawn follows the size (WidgetTier). It is placed as a 2x1 row of counts.
+
+    updatePeriodMillis is Android's own redraw, about every half hour and no more often. Polling
+    is what keeps a widget current; this is what makes it turn "out of date" when no poll can run.
+
+    Home screen only: not offered for the lock screen.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:configure="net.pgmac.nagwatch.ui.widget.WidgetConfigActivity"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="40dp"
+    android:minResizeHeight="40dp"
+    android:minResizeWidth="40dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="1"
+    android:targetCellWidth="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable"
+    tools:targetApi="s" />

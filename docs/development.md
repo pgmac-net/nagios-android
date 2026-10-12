@@ -218,13 +218,24 @@ Things to know:
 
 ## The widget
 
-No widget exists yet; this is what one will be drawn from.
+A Glance widget (`widget/`), one profile per widget, four layouts by size. Why it polls is ADR 0009.
 
-- `WidgetModel.of(profile, snapshot, attempt, now)` (`widget/`) decides everything a widget shows: one of five states (current, stale, unreachable, no data, profile gone), the four counts, the rows in the Problems tab's order, the "as of" time and the reason for a failure. It has no Android and no clock in it.
-- **Old green is never shown as current.** Stale and unreachable keep the last numbers and are marked `isDemoted`; the layouts must draw that, not decide it.
-- `counts` is null when nothing is known. That is not zero, and a layout must not print it as zero.
-- Rows are bounded (`WidgetModel.MAX_ROWS`), with `more` saying how many were left out: what is handed to the launcher is the app's to limit.
-- One line of plugin output comes from `CheckStatus.firstOutputLine()`, shared with notifications.
+- **What it shows** is `WidgetModel.of(profile, snapshot, attempt, now)`: one of five states (current, stale, unreachable, no data, profile gone), the four counts, the rows in the Problems tab's order, the "as of" time and the reason for a failure. It has no Android and no clock in it.
+- **Old green is never shown as current.** Stale and unreachable keep the last numbers and are marked `isDemoted`; the layouts must draw that, not decide it. `counts` is null when nothing is known, which is not zero, and nothing may print it as zero.
+- **Which layout** is `WidgetTier.of(width, height)`, in dp. `StatusWidget.sizeMode` lists the smallest size of each layout, a wide one of each but the badge (wide is where the four counts fit in one row) and a tall one for the short list; Glance composes each and Android shows whichever fits.
+- **A layout is told its declared size, not its real one.** Under `SizeMode.Responsive`, `LocalSize` is the entry of `sizeMode` that was chosen, whatever room the launcher gave. A short list two rows of cells high drew two problems and half a widget of nothing until a taller short list was declared. Anything that should change with size needs a declared size where it changes.
+- **Anything a layout does not set, it inherits from whatever was drawn there before.** Android redraws a widget by applying the new layout to the views it already has. A widget is a badge for a moment while it is being placed, and a badge's background is the state colour: counts and lists that set no background of their own came out solid red. Every layout sets its own background on its outermost view (`surface()`), and the same goes for any property one layout sets and another does not.
+- **Padding is inside a view's background.** A gap between two coloured things is a `Spacer`, not padding.
+- **A row that does not fit is cut off, silently.** Four counts across need about 250dp; a widget two or three cells wide showed two or three of them and nothing to say the rest were missing. Below `StatusWidget.WIDE` the counts go two by two (`Chips`), in every layout. Check anything laid out in a row at the narrowest width it can be given.
+- **Drawing** is `StatusWidgetContent`. It reads `WidgetView` and decides nothing. Rows and the widget itself open the app through `NotificationTarget`, the same non-exported entry notifications use.
+- **Which widget shows which profile** is `WidgetBindings`, kept in the app's settings store under `widget_<id>`. `watched` is the set of profiles with at least one widget; `PollSchedule` polls those as well as the ones with notifications on.
+- **Redrawing.** `WidgetRefresher` is a `PollObserver`: `StatusRepository` tells it when any poll finishes. It bumps a counter that a widget already on screen is collecting, and asks Glance to update, which starts one that is not. Both, every time: from there it cannot tell which case it is. Android also redraws about every half hour (`updatePeriodMillis`), which is what turns a widget "out of date" when no poll can run.
+- **Glance only runs `provideGlance` once per session.** Data read there goes stale if it is not also read inside `provideContent`; that is what the counter and `produceState` are for. Reading the cache only at the top would look right in a test and be wrong on a phone.
+- **The configuration activity is exported**, because the launcher starts it. It takes a widget's number from the intent and nothing else, and only if `AppWidgetManager` says that number is one of this app's widgets. Do not let it accept a profile, a host or a URL from an intent.
+- **Removing a widget** reaches `StatusWidgetReceiver.onDeleted`, which forgets the binding. In case Android could not tell the app, `WidgetRefresher.start` forgets every widget Android no longer lists, before the schedule is looked at.
+- **Tests.** `WidgetModelTest`, `WidgetTierTest` are plain. `StatusWidgetContentTest` draws each layout in each state with Glance's unit-test library (`runGlanceAppWidgetUnitTest`): it sees text, tags and click actions, not pixels. `WidgetInAppTest` runs in the real application, like `PollWorkerTest`, for the parts Android constructs itself.
+- **What no unit test sees**: colours, clipping, how a launcher sizes the widget, and whether a redraw actually arrives. Those are for a phone, and the four rules above were all found on one. A redraw can also arrive a few seconds after the poll that caused it; look twice before calling a widget wrong. A widget's content cannot be read back over adb; `adb shell dumpsys appwidget` lists the widgets and their sizes, and a screenshot of the home screen is the only way to see one.
+- **Lint and `check` together.** After a source change, run `check` and the `assemble` tasks separately: together, lint can read a generated file while the release build is rewriting it and report "unexpected failure during lint analysis", which is not a finding.
 
 ## Notifications
 

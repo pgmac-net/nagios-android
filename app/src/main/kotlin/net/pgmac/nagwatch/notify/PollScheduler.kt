@@ -15,14 +15,15 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.di.ApplicationScope
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.status.cache.AnnouncedStore
+import net.pgmac.nagwatch.widget.WidgetBindings
 
 /** Puts a profile's background poll on Android's schedule, and takes it off. */
 interface PollScheduler {
@@ -66,71 +67,74 @@ class WorkManagerPollScheduler @Inject constructor(@ApplicationContext private v
 }
 
 /**
- * Keeps the schedule in step with the profiles: a profile is polled in the background exactly
- * while its notifications are on.
+ * Keeps the schedule in step with the profiles, and acts on a profile leaving it.
  *
- * It follows the stored profiles, not the screens that change them, so there is one place
- * where a job is scheduled or cancelled however the change was made. A job that outlives its
- * profile anyway (the app died between the two) cancels itself when it next runs.
+ * Two things are true of a profile, and they are no longer the same thing:
  *
- * It is also the one place that acts on a profile *leaving* background polling, by being
- * switched off or deleted: everything that profile has showing is taken down, and what was
- * announced for it is forgotten, so that switching back on is a first poll. On the first look
- * after the app starts it also sweeps up whatever an earlier run left behind (docs/adr/0008).
+ * - it is **polled** in the background while it has notifications on *or* a widget on the home
+ *   screen (docs/adr/0009);
+ * - it **announces** only while its notifications are on. A widget never turns them on.
+ *
+ * It follows the stored profiles and widgets, not the screens that change them, so there is one
+ * place where a job is scheduled or cancelled however the change was made. A job that outlives
+ * its reason anyway (the app died between the two) cancels itself when it next runs.
+ *
+ * When a profile stops announcing, by its notifications being switched off or by being deleted,
+ * everything it has showing is taken down and what was announced for it is forgotten, so that
+ * switching back on is a first poll. On the first look after the app starts, whatever an earlier
+ * run left behind is swept up (docs/adr/0008).
  */
 @Singleton
 class PollSchedule @Inject constructor(
     private val profiles: ProfileRepository,
+    private val bindings: WidgetBindings,
     private val scheduler: PollScheduler,
     private val notifier: Notifier,
     private val announced: AnnouncedStore,
     @param:ApplicationScope private val scope: CoroutineScope,
 ) {
-    /**
-     * What was last asked of the scheduler, by profile; null for a profile is "not polled".
-     * Null overall is "not looked yet", which is what makes the first look a sweep.
-     */
-    private var applied: Map<Long, PollInterval?>? = null
+    /** What is wanted of one profile: how often it is polled (null for not at all), and whether it announces. */
+    private data class Watch(val interval: PollInterval?, val announces: Boolean)
+
+    /** What was last acted on, by profile. Null is "not looked yet", which is what makes the first look a sweep. */
+    private var applied: Map<Long, Watch>? = null
 
     fun start() {
         scope.launch {
-            profiles.observeProfiles().map(::wanted).distinctUntilChanged().collect(::apply)
+            profiles.observeProfiles().combine(bindings.watched, ::wanted).distinctUntilChanged().collect(::apply)
         }
     }
 
-    private fun wanted(all: List<Profile>): Map<Long, PollInterval?> =
-        all.associate { it.id to it.notifications.interval.takeIf { _ -> it.notifications.enabled } }
+    private fun wanted(all: List<Profile>, withWidgets: Set<Long>): Map<Long, Watch> = all.associate { profile ->
+        val announces = profile.notifications.enabled
+        val polled = announces || profile.id in withWidgets
+        profile.id to Watch(profile.notifications.interval.takeIf { polled }, announces)
+    }
 
-    private suspend fun apply(wanted: Map<Long, PollInterval?>) {
+    private suspend fun apply(wanted: Map<Long, Watch>) {
         val before = applied
         if (before == null) {
             // The first look since the app started: what is showing may have been left by a
             // version that did not clear, or by a run that was killed half way.
-            notifier.sweep(wanted.filterValues { it != null }.keys)
-            wanted.filterValues { it == null }.keys.forEach { forget(it) }
+            notifier.sweep(wanted.filterValues { it.announces }.keys)
+            wanted.filterValues { !it.announces }.keys.forEach { forget(it) }
         } else {
             (before.keys - wanted.keys).forEach { id ->
                 scheduler.cancel(id)
-                stopWatching(id)
+                stopAnnouncing(id)
             }
         }
-        wanted.forEach { (id, interval) ->
+        wanted.forEach { (id, now) ->
             val was = before?.get(id)
-            when {
-                before != null && id in before && was == interval -> Unit
-
-                interval != null -> scheduler.schedule(id, interval)
-
-                else -> {
-                    scheduler.cancel(id)
-                    if (was != null) stopWatching(id)
-                }
+            if (was == null || was.interval != now.interval) {
+                if (now.interval != null) scheduler.schedule(id, now.interval) else scheduler.cancel(id)
             }
+            if (was != null && was.announces && !now.announces) stopAnnouncing(id)
         }
         applied = wanted
     }
 
-    private suspend fun stopWatching(profileId: Long) {
+    private suspend fun stopAnnouncing(profileId: Long) {
         notifier.clear(profileId)
         forget(profileId)
     }

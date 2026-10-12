@@ -25,6 +25,7 @@ lifecycle = "2.11.0"
 hiltCompose = "1.4.0"
 datastore = "1.2.1"
 work = "2.12.0"
+glance = "1.2.0"
 jazzer = "0.30.0"
 
 # Security floors. None of these is a dependency of the app, and none is in the APK.
@@ -66,6 +67,8 @@ room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
+glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+glance-appwidget-testing = { module = "androidx.glance:glance-appwidget-testing", version.ref = "glance" }
 work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
 navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
 lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }

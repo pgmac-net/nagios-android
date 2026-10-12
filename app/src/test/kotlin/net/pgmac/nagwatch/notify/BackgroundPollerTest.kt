@@ -29,6 +29,7 @@ import net.pgmac.nagwatch.status.failure
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
 import net.pgmac.nagwatch.status.provider
 import net.pgmac.nagwatch.status.snapshot
+import net.pgmac.nagwatch.widget.FakeWidgetBindings
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -52,7 +53,8 @@ class BackgroundPollerTest {
     /** What was remembered at the moment each thing was said. */
     private val rememberedWhenSaid = mutableListOf<AnnouncedState>()
     private val notifier = FakeNotifier { profile -> rememberedWhenSaid += runBlocking { announced.load(profile.id) } }
-    private val poller = BackgroundPoller(profiles, statuses, announced, scheduler, notifier)
+    private val widgets = FakeWidgetBindings()
+    private val poller = BackgroundPoller(profiles, statuses, announced, scheduler, notifier, widgets)
 
     @After
     fun close() {
@@ -103,6 +105,59 @@ class BackgroundPollerTest {
 
         assertEquals(2, notifier.delivered.size)
         assertTrue(notifier.delivered.last().second.post.isEmpty())
+    }
+
+    @Test
+    fun `a profile with a widget and notifications off is polled, and nothing is said or remembered`() = runBlocking {
+        val id = profiles.save(draftWith(NotificationSettings(enabled = false)))
+        widgets.bind(41, id)
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        val run = poller.poll(id)
+
+        assertEquals(PollRun.PolledQuietly, run)
+        assertEquals("fetched, so the widget has something recent to show", 1, client.fetches)
+        assertEquals(1, statuses.statuses.value[id]?.report?.counts?.critical)
+        assertTrue("a widget does not turn notifications on", notifier.delivered.isEmpty())
+        assertEquals("so there is no first poll to have been", AnnouncedState(), announced.load(id))
+        assertTrue("and its job stays", scheduler.events.isEmpty())
+    }
+
+    @Test
+    fun `a failed poll for a widget is quiet too`() = runBlocking {
+        val id = profiles.save(draftWith(NotificationSettings(enabled = false)))
+        widgets.bind(41, id)
+        client.statusResult = { failure() }
+
+        val runs = List(Announcer.FAILURES_BEFORE_TELLING + 1) { poller.poll(id) }
+
+        assertTrue(runs.all { it == PollRun.PolledQuietly })
+        assertTrue(notifier.delivered.isEmpty())
+        assertEquals(AnnouncedState(), announced.load(id))
+    }
+
+    @Test
+    fun `a profile with notifications on is announced as before, widget or no widget`() = runBlocking {
+        val id = profiles.save(draftWith())
+        widgets.bind(41, id)
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        val run = poller.poll(id)
+
+        assertEquals(listOf<Notice>(Notice.Summary(count = 1, first = true)), run.posted())
+    }
+
+    @Test
+    fun `once its last widget is gone, a profile with notifications off is not polled again`() = runBlocking {
+        val id = profiles.save(draftWith(NotificationSettings(enabled = false)))
+        widgets.bind(41, id)
+        poller.poll(id)
+        widgets.unbind(listOf(41))
+
+        assertEquals(PollRun.NotWanted, poller.poll(id))
+
+        assertEquals(1, client.fetches)
+        assertEquals(listOf("cancel $id"), scheduler.events.toList())
     }
 
     @Test
@@ -170,7 +225,7 @@ class BackgroundPollerTest {
         val id = profiles.save(draftWith())
         // The same database after a device restore: the profile is there, the key is not.
         val restored = ProfileRepository(database.profiles(), SecretCipher(softwareKeySource()), Json)
-        val afterRestore = BackgroundPoller(restored, statuses(restored), announced, scheduler, notifier)
+        val afterRestore = BackgroundPoller(restored, statuses(restored), announced, scheduler, notifier, widgets)
 
         val run = afterRestore.poll(id)
 
