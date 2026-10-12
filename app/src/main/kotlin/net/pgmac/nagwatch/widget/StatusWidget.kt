@@ -47,6 +47,7 @@ class StatusWidget : GlanceAppWidget() {
             // problems and half a widget of nothing.
             DpSize(WidgetTier.COUNTS_FROM_WIDTH.dp, TALL_SHORT_LIST.dp),
             DpSize(WIDE.dp, TALL_SHORT_LIST.dp),
+            DpSize(WidgetTier.FULL_FROM_WIDTH.dp, WidgetTier.FULL_FROM_HEIGHT.dp),
             DpSize(WIDE.dp, WidgetTier.FULL_FROM_HEIGHT.dp),
         ),
     )
@@ -75,8 +76,11 @@ class StatusWidget : GlanceAppWidget() {
     }
 
     companion object {
-        /** From three cells wide or so: room for the time beside the counts. */
-        const val WIDE = 200
+        /**
+         * Four cells wide or so: room for the four counts in one row. Narrower, they go two by
+         * two; measured on a phone, four across need about 250dp and three cells are about 220.
+         */
+        const val WIDE = 270
 
         /** Two rows of cells or so: room for four problems in a short list. */
         const val TALL_SHORT_LIST = 160

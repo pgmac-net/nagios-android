@@ -114,6 +114,29 @@ class StatusWidgetContentTest {
     }
 
     @Test
+    fun `the counts go two by two where four across do not fit, and all four are still there`() {
+        listOf(COUNTS to 2, COUNTS_WIDE to 1, SHORT to 2, SHORT_TALL to 1, FULL_NARROW to 2, FULL to 1)
+            .forEach { (size, lines) ->
+                draw(current, size) {
+                    onAllNodes(hasTestTag(WidgetTags.CHIP_ROW)).assertCountEquals(lines)
+                    onNode(hasTestTag(WidgetTags.count("down"))).assert(hasTextEqualTo("DOWN 1"))
+                    onNode(hasTestTag(WidgetTags.count("critical"))).assert(hasTextEqualTo("CRIT 2"))
+                    onNode(hasTestTag(WidgetTags.count("warning"))).assert(hasTextEqualTo("WARN 3"))
+                    onNode(hasTestTag(WidgetTags.count("unknown"))).assert(hasTextEqualTo("UNKN 0"))
+                }
+            }
+    }
+
+    @Test
+    fun `a second row of counts costs a tall narrow short list one problem`() {
+        val four = current.copy(rows = listOf(db01, disk, load, load.copy(ref = ObjectRef("web01", "Swap"))))
+        draw(four, DpSize(203.dp, 160.dp)) {
+            onNode(hasTestTag(WidgetTags.row(2))).assertExists()
+            onNode(hasTestTag(WidgetTags.row(3))).assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun `a narrow row of counts has no room for the time, a wide one shows it`() {
         draw(current, COUNTS) { onNode(hasTestTag(WidgetTags.STATUS)).assertDoesNotExist() }
         draw(current, COUNTS_WIDE) { onNode(hasTestTag(WidgetTags.STATUS)).assert(hasText("Updated")) }
@@ -160,9 +183,17 @@ class StatusWidgetContentTest {
         // A layout is told its declared size, not its real one: without a declared size this tall,
         // no short list on any phone would draw more than the fewest rows.
         val shortLists = sizes.filter { WidgetTier.of(it.width.value, it.height.value) == WidgetTier.SHORT_LIST }
-        val rowsByWidth = shortLists.groupBy({ it.width.value }, { rowsThatFit(it.height.value) })
-        assertEquals(2, rowsByWidth.size)
-        rowsByWidth.values.forEach { assertEquals(setOf(2, 4), it.toSet()) }
+        val rowsByWidth = shortLists.groupBy(
+            { it.width.value },
+            { rowsThatFit(it.height.value, chipRows = if (it.width.value >= StatusWidget.WIDE) 1 else 2) },
+        )
+        assertEquals(
+            mapOf(WidgetTier.COUNTS_FROM_WIDTH.toFloat() to setOf(2, 3), StatusWidget.WIDE.toFloat() to setOf(2, 4)),
+            rowsByWidth.mapValues { it.value.toSet() },
+        )
+        // And a full list both ways, or a widget three cells wide could never be one.
+        val fullLists = sizes.filter { WidgetTier.of(it.width.value, it.height.value) == WidgetTier.FULL_LIST }
+        assertEquals(setOf(false, true), fullLists.map { it.width.value >= StatusWidget.WIDE }.toSet())
     }
 
     @Test
@@ -307,7 +338,8 @@ class StatusWidgetContentTest {
         val COUNTS = DpSize(130.dp, 102.dp)
         val COUNTS_WIDE = DpSize(276.dp, 102.dp)
         val SHORT = DpSize(203.dp, 112.dp)
-        val SHORT_TALL = DpSize(203.dp, 160.dp)
+        val SHORT_TALL = DpSize(276.dp, 160.dp)
         val FULL = DpSize(276.dp, 338.dp)
+        val FULL_NARROW = DpSize(203.dp, 338.dp)
     }
 }

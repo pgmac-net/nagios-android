@@ -32,6 +32,7 @@ import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
@@ -64,6 +65,7 @@ fun StatusWidgetContent(view: WidgetView, appWidgetId: Int) {
     val profileId = view.profileId
     // With no profile there is nothing to open but the screen that chooses one.
     val open = if (profileId == null) configure(context, appWidgetId) else open(context, NotificationTarget(profileId))
+    val wide = size.width.value >= StatusWidget.WIDE
     Box(
         modifier = GlanceModifier.fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
@@ -76,9 +78,9 @@ fun StatusWidgetContent(view: WidgetView, appWidgetId: Int) {
 
             else -> when (WidgetTier.of(size.width.value, size.height.value)) {
                 WidgetTier.BADGE -> Badge(content)
-                WidgetTier.COUNTS -> Counts(content, wide = size.width.value >= StatusWidget.WIDE)
-                WidgetTier.SHORT_LIST -> ShortList(view, rows = rowsThatFit(size.height.value))
-                WidgetTier.FULL_LIST -> FullList(view)
+                WidgetTier.COUNTS -> Counts(content, wide)
+                WidgetTier.SHORT_LIST -> ShortList(view, wide)
+                WidgetTier.FULL_LIST -> FullList(view, wide)
             }
         }
     }
@@ -133,20 +135,21 @@ private fun Counts(content: WidgetContent, wide: Boolean) {
             .semantics { testTag = WidgetTags.COUNTS },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Chips(content)
+        Chips(content, wide)
         // The time is a nicety when all is current. When it is not, it is the point.
         if (wide || content.isDemoted) StatusLine(content)
     }
 }
 
 @Composable
-private fun ShortList(view: WidgetView, rows: Int) {
+private fun ShortList(view: WidgetView, wide: Boolean) {
     val content = view.content
+    val rows = rowsThatFit(LocalSize.current.height.value, chipRows = if (wide) 1 else 2)
     Column(
         modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
             .semantics { testTag = WidgetTags.SHORT_LIST },
     ) {
-        Chips(content)
+        Chips(content, wide)
         AllClear(content)
         content.rows.take(rows).forEachIndexed { index, row -> ProblemRow(view, row, index, withOutput = false) }
         Spacer(GlanceModifier.defaultWeight())
@@ -155,7 +158,7 @@ private fun ShortList(view: WidgetView, rows: Int) {
 }
 
 @Composable
-private fun FullList(view: WidgetView) {
+private fun FullList(view: WidgetView, wide: Boolean) {
     val content = view.content
     val profileId = view.profileId
     Column(
@@ -185,7 +188,7 @@ private fun FullList(view: WidgetView) {
                 )
             }
         }
-        Chips(content)
+        Chips(content, wide)
         AllClear(content)
         LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
             items(content.rows.size) { index -> ProblemRow(view, content.rows[index], index, withOutput = true) }
@@ -222,27 +225,46 @@ private fun AllClear(content: WidgetContent) {
     )
 }
 
+/**
+ * The four counts: in one row where there is the width for it, two by two where there is not.
+ * Never a row that runs off the edge. On a phone, four across in a widget two cells wide showed
+ * two kinds and hid the other two, which reads as "no warnings" when nobody said so.
+ */
 @Composable
-private fun Chips(content: WidgetContent) {
+private fun Chips(content: WidgetContent, across: Boolean) {
     val counts = content.counts ?: return
-    // A gap is a spacer: padding is inside a view's background, so it would only make the chip wider.
-    Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Chip("down", R.string.severity_down, counts.hostsDown, Severity.HOST_DOWN, content.isDemoted)
-        Spacer(GlanceModifier.width(GAP.dp))
-        Chip("critical", R.string.severity_critical, counts.critical, Severity.CRITICAL, content.isDemoted)
-        Spacer(GlanceModifier.width(GAP.dp))
-        Chip("warning", R.string.severity_warning, counts.warning, Severity.WARNING, content.isDemoted)
-        Spacer(GlanceModifier.width(GAP.dp))
-        Chip("unknown", R.string.severity_unknown, counts.unknown, Severity.UNKNOWN, content.isDemoted)
+    val chips = listOf(
+        ChipSpec("down", R.string.severity_down, counts.hostsDown, Severity.HOST_DOWN),
+        ChipSpec("critical", R.string.severity_critical, counts.critical, Severity.CRITICAL),
+        ChipSpec("warning", R.string.severity_warning, counts.warning, Severity.WARNING),
+        ChipSpec("unknown", R.string.severity_unknown, counts.unknown, Severity.UNKNOWN),
+    )
+    Column(modifier = GlanceModifier.fillMaxWidth()) {
+        chips.chunked(if (across) chips.size else NARROW_CHIPS_PER_ROW).forEachIndexed { line, row ->
+            if (line > 0) Spacer(GlanceModifier.height(GAP.dp))
+            // A gap is a spacer: padding is inside a view's background, so it would only make the chip wider.
+            Row(
+                modifier = GlanceModifier.fillMaxWidth().semantics { testTag = WidgetTags.CHIP_ROW },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                row.forEachIndexed { index, chip ->
+                    if (index > 0) Spacer(GlanceModifier.width(GAP.dp))
+                    Chip(chip, content.isDemoted)
+                }
+            }
+        }
     }
 }
 
+private class ChipSpec(val kind: String, val label: Int, val count: Int, val severity: Severity)
+
 @Composable
-private fun Chip(kind: String, label: Int, count: Int, severity: Severity, demoted: Boolean) {
+private fun Chip(chip: ChipSpec, demoted: Boolean) {
+    val count = chip.count
     // A kind with nothing in it is drawn plain, so that the eye goes to the ones that have something.
     val active = count > 0 && !demoted
     Text(
-        text = "${LocalContext.current.getString(label)} $count",
+        text = "${LocalContext.current.getString(chip.label)} $count",
         style = TextStyle(
             color = if (active) ON_STATE else GlanceTheme.colors.onSurfaceVariant,
             fontSize = SMALL.sp,
@@ -252,7 +274,7 @@ private fun Chip(kind: String, label: Int, count: Int, severity: Severity, demot
         modifier = GlanceModifier
             .background(
                 if (active) {
-                    severity.color()
+                    chip.severity.color()
                 } else if (count > 0) {
                     DEMOTED_CHIP
                 } else {
@@ -261,7 +283,7 @@ private fun Chip(kind: String, label: Int, count: Int, severity: Severity, demot
             )
             .cornerRadius(CHIP_CORNER.dp)
             .padding(horizontal = GAP.dp, vertical = 1.dp)
-            .semantics { testTag = WidgetTags.count(kind) },
+            .semantics { testTag = WidgetTags.count(chip.kind) },
     )
 }
 
@@ -334,9 +356,14 @@ fun statusText(context: Context, content: WidgetContent, zone: ZoneId = ZoneId.s
     }
 }
 
-/** How many problems a short list has room for, at this height. Between two and four. */
-fun rowsThatFit(heightDp: Float): Int =
-    ((heightDp - SHORT_LIST_CHROME) / SHORT_LIST_ROW).toInt().coerceIn(MIN_SHORT_ROWS, MAX_SHORT_ROWS)
+/**
+ * How many problems a short list has room for, at this height. Between two and four; a second row
+ * of counts takes about a problem's worth.
+ */
+fun rowsThatFit(heightDp: Float, chipRows: Int = 1): Int =
+    ((heightDp - SHORT_LIST_CHROME - (chipRows - 1) * CHIP_ROW) / SHORT_LIST_ROW)
+        .toInt()
+        .coerceIn(MIN_SHORT_ROWS, MAX_SHORT_ROWS)
 
 private fun clockTime(instant: Instant, zone: ZoneId): String = TIME.format(instant.atZone(zone))
 
@@ -423,5 +450,7 @@ private const val BODY = 13
 private const val SMALL = 11
 private const val SHORT_LIST_CHROME = 56f
 private const val SHORT_LIST_ROW = 22f
+private const val CHIP_ROW = 20f
+private const val NARROW_CHIPS_PER_ROW = 2
 private const val MIN_SHORT_ROWS = 2
 private const val MAX_SHORT_ROWS = 4
