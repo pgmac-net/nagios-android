@@ -42,9 +42,21 @@ class FakePollScheduler : PollScheduler {
 class FakeNotifier(private val onDeliver: (Profile) -> Unit = {}) : Notifier {
     val delivered = mutableListOf<Pair<Long, Decision>>()
 
+    /** Written from the schedule's coroutine and read from the test's thread. */
+    val cleared = CopyOnWriteArrayList<Long>()
+    val swept = CopyOnWriteArrayList<Set<Long>>()
+
     override fun deliver(profile: Profile, decision: Decision) {
         onDeliver(profile)
         delivered += profile.id to decision
+    }
+
+    override fun clear(profileId: Long) {
+        cleared += profileId
+    }
+
+    override fun sweep(keep: Set<Long>) {
+        swept += keep
     }
 }
 

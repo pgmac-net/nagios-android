@@ -21,8 +21,22 @@ import net.pgmac.nagwatch.nagios.model.Severity
 import net.pgmac.nagwatch.profile.Profile
 
 /** Puts a poll's [Decision] in front of the person. What to say was decided already; this is only how. */
-fun interface Notifier {
+interface Notifier {
     fun deliver(profile: Profile, decision: Decision)
+
+    /**
+     * Takes down everything this profile has showing: its problems, its summary, its outage and
+     * its group's entry. For a profile that is no longer watched in the background, so that
+     * nothing is left that nothing will ever update or remove.
+     */
+    fun clear(profileId: Long)
+
+    /**
+     * Takes down everything Nagwatch has showing for a profile that is not in [keep]. For app
+     * start, to catch what was left behind (an app killed between saving a profile and clearing,
+     * or notifications stranded by a version before this existed).
+     */
+    fun sweep(keep: Set<Long>)
 }
 
 /**
@@ -87,6 +101,24 @@ class AndroidNotifier internal constructor(
             decision.post.forEach { post(profile, it) }
         }
         tidyGroup(profile, takenDown, posting)
+    }
+
+    override fun clear(profileId: Long) {
+        // By identity first: these three are known without looking, so a list that has not
+        // caught up with an earlier cancel or post cannot leave them behind.
+        manager.cancel(profileTag(profileId), ID_SUMMARY)
+        manager.cancel(profileTag(profileId), ID_OUTAGE)
+        manager.cancel(profileTag(profileId), ID_GROUP)
+        val key = group(profileId)
+        showing(manager).filter { it.notification.group == key }.forEach { manager.cancel(it.tag, it.id) }
+    }
+
+    override fun sweep(keep: Set<Long>) {
+        showing(manager).forEach { shown ->
+            val owner = profileOf(shown.notification.group)
+            // One that cannot be attributed to a profile is left alone: it is not ours to judge.
+            if (owner != null && owner !in keep) manager.cancel(shown.tag, shown.id)
+        }
     }
 
     private fun post(profile: Profile, notice: Notice) {
@@ -248,6 +280,12 @@ class AndroidNotifier internal constructor(
 
         fun profileTag(profileId: Long): String = profileId.toString()
 
-        fun group(profileId: Long): String = "profile-$profileId"
+        private const val GROUP_PREFIX = "profile-"
+
+        fun group(profileId: Long): String = "$GROUP_PREFIX$profileId"
+
+        /** The profile a group key belongs to, or null for a key that is not made by [group]. */
+        fun profileOf(group: String?): Long? =
+            group?.takeIf { it.startsWith(GROUP_PREFIX) }?.removePrefix(GROUP_PREFIX)?.toLongOrNull()
     }
 }

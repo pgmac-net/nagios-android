@@ -41,4 +41,5 @@ What was announced is recorded per profile: each known problem with its severity
 - **A summary after an update is expected, not a bug.** Raising `StatusDatabase.VERSION` causes one for every profile with notifications on.
 - **A name written by another version of the app is dropped, not a crash.** Severities and outage causes are stored by name. An unknown one is skipped on load; at worst that one problem is announced again.
 - **Deleting a profile forgets what was announced for it**, with the rest of its cache, and the startup sweep covers the same tables.
+- **So does switching its notifications off** (pgmac-net/nagios-android#46). Switching back on is then a first poll: one summary of what is wrong now. Keeping the memory would announce, one by one, whatever happened while it was off, and "recover" things the person was told about days ago and has no notification left for.
 - **The rules can be tested without a phone.** Everything that makes a notification right or wrong is in `Announcer`. How a notice looks, which channel it uses and what a tap does are decided elsewhere and can change without touching it.

@@ -3,6 +3,7 @@
 package net.pgmac.nagwatch.notify
 
 import android.content.Context
+import android.database.sqlite.SQLiteException
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -21,6 +22,7 @@ import net.pgmac.nagwatch.di.ApplicationScope
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
+import net.pgmac.nagwatch.status.cache.AnnouncedStore
 
 /** Puts a profile's background poll on Android's schedule, and takes it off. */
 interface PollScheduler {
@@ -70,15 +72,25 @@ class WorkManagerPollScheduler @Inject constructor(@ApplicationContext private v
  * It follows the stored profiles, not the screens that change them, so there is one place
  * where a job is scheduled or cancelled however the change was made. A job that outlives its
  * profile anyway (the app died between the two) cancels itself when it next runs.
+ *
+ * It is also the one place that acts on a profile *leaving* background polling, by being
+ * switched off or deleted: everything that profile has showing is taken down, and what was
+ * announced for it is forgotten, so that switching back on is a first poll. On the first look
+ * after the app starts it also sweeps up whatever an earlier run left behind (docs/adr/0008).
  */
 @Singleton
 class PollSchedule @Inject constructor(
     private val profiles: ProfileRepository,
     private val scheduler: PollScheduler,
+    private val notifier: Notifier,
+    private val announced: AnnouncedStore,
     @param:ApplicationScope private val scope: CoroutineScope,
 ) {
-    /** What was last asked of the scheduler, by profile; null is "not polled". */
-    private var applied: Map<Long, PollInterval?> = emptyMap()
+    /**
+     * What was last asked of the scheduler, by profile; null for a profile is "not polled".
+     * Null overall is "not looked yet", which is what makes the first look a sweep.
+     */
+    private var applied: Map<Long, PollInterval?>? = null
 
     fun start() {
         scope.launch {
@@ -89,15 +101,46 @@ class PollSchedule @Inject constructor(
     private fun wanted(all: List<Profile>): Map<Long, PollInterval?> =
         all.associate { it.id to it.notifications.interval.takeIf { _ -> it.notifications.enabled } }
 
-    private fun apply(wanted: Map<Long, PollInterval?>) {
-        (applied.keys - wanted.keys).forEach(scheduler::cancel)
+    private suspend fun apply(wanted: Map<Long, PollInterval?>) {
+        val before = applied
+        if (before == null) {
+            // The first look since the app started: what is showing may have been left by a
+            // version that did not clear, or by a run that was killed half way.
+            notifier.sweep(wanted.filterValues { it != null }.keys)
+            wanted.filterValues { it == null }.keys.forEach { forget(it) }
+        } else {
+            (before.keys - wanted.keys).forEach { id ->
+                scheduler.cancel(id)
+                stopWatching(id)
+            }
+        }
         wanted.forEach { (id, interval) ->
+            val was = before?.get(id)
             when {
-                id in applied && applied[id] == interval -> Unit
+                before != null && id in before && was == interval -> Unit
+
                 interval != null -> scheduler.schedule(id, interval)
-                else -> scheduler.cancel(id)
+
+                else -> {
+                    scheduler.cancel(id)
+                    if (was != null) stopWatching(id)
+                }
             }
         }
         applied = wanted
+    }
+
+    private suspend fun stopWatching(profileId: Long) {
+        notifier.clear(profileId)
+        forget(profileId)
+    }
+
+    /** What was announced is a convenience: a database that cannot be written costs a summary later, not the app. */
+    private suspend fun forget(profileId: Long) {
+        try {
+            announced.forget(profileId)
+        } catch (_: SQLiteException) {
+            // The next switch-on is then not a first poll. Nothing depends on it.
+        }
     }
 }

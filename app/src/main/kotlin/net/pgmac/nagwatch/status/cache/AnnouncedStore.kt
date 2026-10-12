@@ -36,6 +36,13 @@ class AnnouncedStore @Inject constructor(private val dao: StatusCacheDao) {
         )
     }
 
+    /**
+     * Forgets everything announced for a profile, so that its next poll is a first poll.
+     * For a profile whose notifications are switched off: switching them back on starts afresh
+     * (docs/adr/0008).
+     */
+    suspend fun forget(profileId: Long) = dao.forgetAnnounced(profileId)
+
     suspend fun save(profileId: Long, state: AnnouncedState) = dao.replaceAnnounced(
         profileId = profileId,
         rows = state.known.map { (ref, known) ->
