@@ -9,7 +9,7 @@
 #                                [--timezone Area/City] [--lan] [--port N]
 #   scripts/test-nagios/stop.sh
 #
-# Everything in it is made up: two hosts, four services with fixed states, and three users.
+# Everything in it is made up: two hosts, five services with fixed states, and three users.
 # The passwords below are NOT secrets. They protect nothing; they exist because cmd.cgi
 # refuses to work without authentication.
 #
@@ -57,11 +57,14 @@ docker volume create "$VOLUME" >/dev/null
 # Prepared inside the image, so nothing but Docker is needed on the host: the image's own
 # example config, our objects on top, who may do what, and the three users.
 docker run --rm --entrypoint sh \
-  -v "$VOLUME:/work" -v "$HERE/objects.cfg:/objects.cfg:ro" \
+  -v "$VOLUME:/work" -v "$HERE/objects.cfg:/objects.cfg:ro" -v "$HERE/control-chars.sh:/control-chars.sh:ro" \
   -e "DATE_FORMAT=$DATE_FORMAT" -e "TIMEZONE=$TIMEZONE" \
   "$IMAGE" -ec '
     cp -Rp /orig/etc/. /work/
     cp /objects.cfg /work/conf.d/nagwatch-test.cfg
+    # The check that prints control characters; objects.cfg runs it from the config directory.
+    cp /control-chars.sh /work/control-chars.sh
+    chmod 755 /work/control-chars.sh
 
     # Only our objects: the example localhost would add checks that really run.
     sed -i -E "s@^(cfg_file=.*/objects/(localhost|printer|switch|windows)\.cfg)@#\1@" /work/nagios.cfg

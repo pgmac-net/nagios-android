@@ -162,6 +162,8 @@ scripts/test-nagios/stop.sh
 ```
 
 - The passwords in `start.sh` are not secrets: they protect a made-up instance and exist because `cmd.cgi` refuses to work without authentication.
+- **One of its five services prints control characters** (`web01` / `Control chars`, from `control-chars.sh`): a bell, a vertical tab and real backslashes beside an `a` and a bell. It is how pgmac-net/nagios-android#23 was seen for the first time, and `ControlCharactersLiveTest` runs the app's client against it. Nagios takes one level of backslash off a plugin's output itself, so the script prints two to get one into the JSON; if you change what it prints, look at what Nagios writes (`curl` the `query=service` response) before trusting a test.
+- The two real responses it produces are in `app/src/test/resources/invalid_escapes`, apart from `fixtures/` because the leak check parses everything there strictly and these are not valid JSON. Their README says how they were captured.
 - `CommandLiveTest` sends real commands. Before it sends anything it checks that the server is on this machine and is the made-up one, and refuses otherwise.
 - `--lan` makes it reachable from a phone on the same network, over plain http. Stop it when the check is done.
 - `NAGWATCH_TEST_IMAGE` selects the image (default `jasonrivers/nagios:latest`).
@@ -242,7 +244,7 @@ What a Nagios server sends back is the app's main untrusted input, so it is fuzz
 | `StatusParser` | hosts, services, server info, and `ProblemClassifier` after them |
 | `AnnotationParser` | comments and downtimes |
 
-The contract under test is "a result or a `NagiosError`, nothing else". An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
+The contract under test is "a result or a `NagiosError`, nothing else". The `ResponseBody` target also asserts about `repairInvalidEscapes`, which runs on everything a server sends: repairing twice is repairing once, and a repair never grows a body by more than its allowance (65,536 exact repairs, 256 KiB; past that it writes a same-length escape instead). An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
 
 **The targets are Kotlin.** Each is a few lines in `FuzzTargets.kt` that hand the bytes to a function in `FuzzEntryPoints`. They were Java at first, to earn credit from OpenSSF Scorecard's Fuzzing check, which looks for Jazzer in `*.java` files. It does not earn it here: Scorecard only examines languages at least a quarter the size of the repository's average one, this repository is almost entirely Kotlin, and Scorecard has no Kotlin pattern. That alert is dismissed as "won't fix" with this reason (#29). Do not add Java or ClusterFuzzLite for the score alone.
 
