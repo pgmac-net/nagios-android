@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -105,6 +106,24 @@ class NotificationUiTest {
         composeRule.onNodeWithTag(NotificationTags.ALLOW).performClick()
 
         assertEquals("the button is the switch again", listOf("set true"), calls)
+    }
+
+    @Test
+    fun `on but blocked, it says the checks go on and the news does not`() {
+        settings = NotificationSettings(enabled = true)
+        refused = true
+        showFields()
+
+        composeRule.onNodeWithTag(NotificationTags.REFUSED).assertTextContains("still checked", substring = true)
+        composeRule.onNodeWithTag(NotificationTags.ALLOW).assertIsDisplayed()
+    }
+
+    @Test
+    fun `off and refused, it says that is why it is off`() {
+        refused = true
+        showFields()
+
+        composeRule.onNodeWithTag(NotificationTags.REFUSED).assertTextContains("stays off", substring = true)
     }
 
     @Test

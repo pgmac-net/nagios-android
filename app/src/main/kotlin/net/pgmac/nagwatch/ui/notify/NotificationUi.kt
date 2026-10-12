@@ -73,7 +73,8 @@ fun NotificationFields(settings: NotificationSettings, refused: Boolean, actions
     Text(stringResource(R.string.notify_hint), style = MaterialTheme.typography.bodySmall)
     if (refused) {
         Text(
-            text = stringResource(R.string.notify_refused),
+            // On and refused together is "allowed once, blocked since": the checks go on, the news does not.
+            text = stringResource(if (settings.enabled) R.string.notify_blocked else R.string.notify_refused),
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.testTag(NotificationTags.REFUSED),

@@ -35,14 +35,28 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Nagwatch">
+        <!-- singleTop: a notification tapped while the app is open is handed to it, not opened as a second copy. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            How a notification's tap comes in. MainActivity has to be exported, because the
+            launcher starts it, so any app can send it an intent. This second name for it is
+            not exported: only Nagwatch itself, and Android acting on one of Nagwatch's own
+            notifications, can use it. The app acts on a "go to this host" request only when it
+            arrived by this name, so another app cannot steer it.
+        -->
+        <activity-alias
+            android:name=".notify.FromNotification"
+            android:exported="false"
+            android:targetActivity=".MainActivity" />
     </application>
 
 </manifest>

@@ -27,7 +27,7 @@ sealed interface PollRun {
 }
 
 /**
- * One background poll of one profile: fetch, decide what it is worth saying, remember.
+ * One background poll of one profile: fetch, decide what it is worth saying, say it, remember.
  *
  * The fetch is the same one the screens use ([StatusRepository.refresh]), so the cache is
  * written and an open app sees the result: one request serves the app, the notifications and,
@@ -39,6 +39,7 @@ class BackgroundPoller @Inject constructor(
     private val statuses: StatusRepository,
     private val announced: AnnouncedStore,
     private val scheduler: PollScheduler,
+    private val notifier: Notifier,
 ) {
     suspend fun poll(profileId: Long): PollRun {
         val profile = profiles.get(profileId)?.takeIf { it.notifications.enabled } ?: return notWanted(profileId)
@@ -64,6 +65,9 @@ class BackgroundPoller @Inject constructor(
         )
         return try {
             val decision = Announcer.decide(announced.load(profile.id), outcome, settings)
+            // Said before it is remembered as said. If the app dies between the two, the next run
+            // says it again, which replaces the same notification; the other order would lose it.
+            notifier.deliver(profile, decision)
             announced.save(profile.id, decision.state)
             PollRun.Decided(decision)
         } catch (_: SQLiteException) {

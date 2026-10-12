@@ -354,7 +354,14 @@ How it is switched on:
 - Switching it on asks Android for permission to show notifications, there and then, if the app does not have it. If Android says no, the switch stays off and the section says why, with a button that asks again, or opens the app's notification settings once Android has stopped asking.
 - After a profile has loaded successfully the app offers notifications for it, once. "Not now" is remembered. Profiles from before this existed are offered once too; none is switched on by an update.
 
-Status: background polling runs for profiles that have notifications on, keeps the cache fresh and remembers what it would have said. **It posts nothing yet.** The notifications themselves follow.
+How it is shown (`AndroidNotifier`):
+
+- **One notification per problem**, found again by a tag made from the profile and the object, so worse, better and recovered all replace it. A profile's notifications share a group.
+- **Six channels**: Down and critical (high importance: sound and heads-up), Warning, Unknown, Recovered (low: silent), Can't reach Nagios, Summaries. The person tunes them in Android's settings; the app sets an importance only when it creates a channel.
+- **Text**: the state and the object ("CRITICAL: Disk / on web01"), the first line of the plugin's output, and the profile's name. Nothing that the Problems list does not already show. Lock-screen visibility is left to the system setting.
+- **A recovery** takes the problem's place, silently, and clears itself after an hour. A problem's notification stays until it is dealt with or dismissed.
+- **A tap** opens the host or the service, or the profile's Problems list for a summary or an outage, and selects that profile. No buttons: acknowledging from a notification is left for later.
+- **Without Android's permission** nothing is posted, the background checks continue, and the profile's editor says notifications are blocked.
 
 ## 8. Widget
 
@@ -410,6 +417,7 @@ Schema versions of both databases are exported to `app/schemas` and committed. `
 - Backups exclude secrets. User-installed CAs are trusted (section 4); the trade-off is that a CA the user or a device-management profile installed can also inspect this app's traffic, as with any browser on the device.
 - Cloudflare Access service tokens are long-lived static secrets. The README recommends a dedicated token with a short expiry and a dedicated Nagios user with only the command permissions the user wants the phone to have.
 - **Android 17 local network access** (ADR 0007). The app declares `ACCESS_LOCAL_NETWORK` and asks for it once, with an explanation of its own first, the first time a profile that looks local is tested or loaded. A refusal never stops a request, because a Nagios reached over a VPN needs no permission and the app cannot tell the paths apart. A timeout to a local-looking address without the permission is reported as `LocalNetworkBlocked`, worded as an inference. Polling (M4) and the widget (M5) have no screen to ask from and must show that error in a way that sends the person to the app.
+- **A notification's tap cannot be forged by another app.** The main activity is exported, as a launcher activity must be. The intent a notification carries is addressed to a second, non-exported name for it, and the app acts on a "go to this host" request only when it arrived by that name. Pending intents are immutable.
 - Release signing key is held by the maintainer outside the repo, backed up, and supplied to CI as a GitHub Actions secret. Losing it means installs cannot be upgraded.
 
 ## 12. Roadmap (milestone issues)

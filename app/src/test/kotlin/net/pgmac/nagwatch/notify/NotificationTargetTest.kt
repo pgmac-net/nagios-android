@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package net.pgmac.nagwatch.notify
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import net.pgmac.nagwatch.MainActivity
+import net.pgmac.nagwatch.nagios.model.ObjectRef
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+
+/** What a tap carries into the app, and back out of the intent. */
+@RunWith(AndroidJUnit4::class)
+@Config(application = android.app.Application::class)
+class NotificationTargetTest {
+    private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Test
+    fun `a host, a service and a profile's problems each come back out as they went in`() {
+        listOf(
+            NotificationTarget(7, ObjectRef("web01")),
+            NotificationTarget(7, ObjectRef("web01", "Disk /")),
+            NotificationTarget(7),
+        ).forEach { target ->
+            assertEquals(target, NotificationTarget.from(context, target.toIntent(context)))
+        }
+    }
+
+    @Test
+    fun `names are whatever someone typed into a Nagios config, and arrive unchanged`() {
+        AWKWARD.forEach { name ->
+            val target = NotificationTarget(7, ObjectRef("host $name", name))
+
+            assertEquals(target, NotificationTarget.from(context, target.toIntent(context)))
+        }
+    }
+
+    @Test
+    fun `an intent that is not from a notification opens nothing in particular`() {
+        assertNull(NotificationTarget.from(context, null))
+        assertNull(NotificationTarget.from(context, Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)))
+    }
+
+    @Test
+    fun `another app's copy of a notification's intent, sent to the activity it can reach, is not believed`() {
+        val genuine = NotificationTarget(7, ObjectRef("web01", "Disk /")).toIntent(context)
+
+        // Everything the same, addressed to the exported activity: all another app is able to send.
+        val forged = Intent(genuine).setComponent(ComponentName(context, MainActivity::class.java))
+        val unaddressed = Intent(genuine).setComponent(null)
+
+        assertNull(NotificationTarget.from(context, forged))
+        assertNull(NotificationTarget.from(context, unaddressed))
+        assertEquals(NotificationTarget(7, ObjectRef("web01", "Disk /")), NotificationTarget.from(context, genuine))
+    }
+
+    @Test
+    fun `the right name in another app's package is not this app's door`() {
+        val genuine = NotificationTarget(7, ObjectRef("web01")).toIntent(context)
+
+        val elsewhere = Intent(genuine).setComponent(ComponentName("org.example.other", NotificationTarget.DOOR))
+
+        assertNull(NotificationTarget.from(context, elsewhere))
+    }
+
+    @Test
+    fun `a tap is acted on once - reopening the app from recents does not go there again`() {
+        val genuine = NotificationTarget(7, ObjectRef("web01")).toIntent(context)
+
+        val replayed = Intent(genuine).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+
+        assertNull(NotificationTarget.from(context, replayed))
+        assertEquals(NotificationTarget(7, ObjectRef("web01")), NotificationTarget.from(context, genuine))
+    }
+
+    @Test
+    fun `the name a tap comes in by is one no other app can use, and leads to the app's one screen`() {
+        val door = context.packageManager.getActivityInfo(
+            ComponentName(context.packageName, NotificationTarget.DOOR),
+            0,
+        )
+
+        assertFalse("not exported, or the check in `from` protects nothing", door.exported)
+        assertEquals(MainActivity::class.java.name, door.targetActivity)
+        assertEquals(NotificationTarget.DOOR, NotificationTarget(7).toIntent(context).component?.className)
+        assertEquals(context.packageName, NotificationTarget(7).toIntent(context).component?.packageName)
+    }
+
+    @Test
+    fun `different targets are different intents to Android, so one notification's tap is never another's`() {
+        val disk = NotificationTarget(7, ObjectRef("web01", "Disk /")).toIntent(context)
+
+        listOf(
+            NotificationTarget(7, ObjectRef("web01", "Load")),
+            NotificationTarget(7, ObjectRef("web02", "Disk /")),
+            NotificationTarget(7, ObjectRef("web01")),
+            NotificationTarget(8, ObjectRef("web01", "Disk /")),
+            NotificationTarget(7),
+        ).forEach { other ->
+            assertFalse("$other", disk.filterEquals(other.toIntent(context)))
+        }
+        assertTrue(disk.filterEquals(NotificationTarget(7, ObjectRef("web01", "Disk /")).toIntent(context)))
+    }
+
+    @Test
+    fun `the intent reuses the open app`() {
+        val flags = NotificationTarget(7).toIntent(context).flags
+
+        assertTrue(flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
+        assertTrue(flags and Intent.FLAG_ACTIVITY_CLEAR_TOP != 0)
+        assertTrue(flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+    }
+
+    private companion object {
+        val AWKWARD = listOf("Disk /var/lib (50%)", "a&b=c?d#e", "quo\"te's", "caf\u00e9 \u2603", "  spaces  ", "a+b c")
+    }
+}

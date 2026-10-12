@@ -5,6 +5,7 @@ package net.pgmac.nagwatch.notify
 import java.util.concurrent.CopyOnWriteArrayList
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
+import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.SecretInput
 
@@ -34,6 +35,16 @@ class FakePollScheduler : PollScheduler {
 
     override fun cancel(profileId: Long) {
         events += "cancel $profileId"
+    }
+}
+
+/** Records what was delivered, and can look at the world at the moment of delivery. */
+class FakeNotifier(private val onDeliver: (Profile) -> Unit = {}) : Notifier {
+    val delivered = mutableListOf<Pair<Long, Decision>>()
+
+    override fun deliver(profile: Profile, decision: Decision) {
+        onDeliver(profile)
+        delivered += profile.id to decision
     }
 }
 
