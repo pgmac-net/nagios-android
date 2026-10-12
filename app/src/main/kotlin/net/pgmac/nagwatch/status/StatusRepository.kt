@@ -20,8 +20,10 @@ import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.model.ProblemReport
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.notify.OutageCause
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SettingsResult
+import net.pgmac.nagwatch.status.cache.PollAttempt
 import net.pgmac.nagwatch.status.cache.StatusCache
 
 /** Makes a client for some settings. A seam so the repository can be tested without a network. */
@@ -61,14 +63,11 @@ data class ProfileStatus(
     val error: StatusError? = null,
     val refreshing: Boolean = false,
     val lastSuccess: Instant? = null,
+    /** How old [report] may be before it is called stale: twice this profile's interval. See [Staleness]. */
+    val staleAfter: Duration = Staleness.DEFAULT,
 ) {
     /** Never shown as current: old data is labelled, not passed off as fresh. */
-    fun isStale(now: Instant): Boolean = lastSuccess != null && Duration.between(lastSuccess, now) > STALE_AFTER
-
-    companion object {
-        /** Twice the 15 minute poll interval the design allows (docs/design.md, section 8). */
-        val STALE_AFTER: Duration = Duration.ofMinutes(30)
-    }
+    fun isStale(now: Instant): Boolean = Staleness.isStale(lastSuccess, now, staleAfter)
 }
 
 /** What one refresh came to, for a caller that has to act on it and cannot watch [StatusRepository.statuses]. */
@@ -111,6 +110,7 @@ class StatusRepository @Inject constructor(
     suspend fun showCached(profileId: Long) {
         if (mutableStatuses.value[profileId]?.report != null) return
         val cached = cache.loadPoll(profileId) ?: return
+        val staleAfter = staleAfter(profileId)
         mutableStatuses.update { current ->
             val held = current[profileId] ?: ProfileStatus()
             // A refresh may have finished while the cache was being read; it wins.
@@ -120,7 +120,12 @@ class StatusRepository @Inject constructor(
                 current +
                     (
                         profileId to
-                            held.copy(report = classify(cached), snapshot = cached, lastSuccess = cached.fetchedAt)
+                            held.copy(
+                                report = classify(cached),
+                                snapshot = cached,
+                                lastSuccess = cached.fetchedAt,
+                                staleAfter = staleAfter,
+                            )
                         )
             }
         }
@@ -140,6 +145,7 @@ class StatusRepository @Inject constructor(
         }
         if (!accepted) return null
         try {
+            val staleAfter = staleAfter(profileId)
             return when (val outcome = fetch(profileId)) {
                 is Outcome.Fresh -> {
                     val report = classify(outcome.snapshot)
@@ -151,14 +157,18 @@ class StatusRepository @Inject constructor(
                             snapshot = outcome.snapshot,
                             lastSuccess = outcome.snapshot.fetchedAt,
                             refreshing = true,
+                            staleAfter = staleAfter,
                         )
                     }
                     store(profileId, outcome.snapshot)
+                    remember(profileId, PollAttempt(outcome.snapshot.fetchedAt, failure = null))
                     Refreshed.Fresh(report)
                 }
 
                 is Outcome.Failed -> {
-                    update(profileId) { it.copy(error = outcome.error) }
+                    update(profileId) { it.copy(error = outcome.error, staleAfter = staleAfter) }
+                    // A profile that is gone has nobody to tell and nothing to keep.
+                    OutageCause.of(outcome.error)?.let { remember(profileId, PollAttempt(clock.instant(), it)) }
                     Refreshed.Failed(outcome.error)
                 }
             }
@@ -182,6 +192,21 @@ class StatusRepository @Inject constructor(
             // Nothing to do: the result is already shown, and nothing depends on the write.
         }
     }
+
+    /**
+     * What the latest attempt came to, kept on disk: a widget is drawn in a process that may never
+     * have seen the poll, and has to tell "could not be reached" from "nothing is wrong".
+     */
+    private suspend fun remember(profileId: Long, attempt: PollAttempt) {
+        try {
+            cache.saveAttempt(profileId, attempt)
+        } catch (_: SQLiteException) {
+            // Like the poll itself: a convenience. The screens already have the result.
+        }
+    }
+
+    private suspend fun staleAfter(profileId: Long): Duration =
+        profiles.get(profileId)?.notifications?.interval?.let(Staleness::after) ?: Staleness.DEFAULT
 
     private suspend fun fetch(profileId: Long): Outcome = when (val settings = profiles.settingsFor(profileId)) {
         SettingsResult.NotFound -> Outcome.Failed(StatusError.ProfileMissing)

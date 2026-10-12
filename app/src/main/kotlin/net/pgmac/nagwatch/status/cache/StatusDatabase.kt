@@ -102,6 +102,18 @@ data class PollMetaRow(
 )
 
 /**
+ * What the most recent poll of a profile came to, whether or not it worked. [PollMetaRow] only
+ * knows about the last one that did.
+ */
+@Entity(tableName = "poll_attempt")
+data class PollAttemptRow(
+    @PrimaryKey @ColumnInfo(name = "profile_id") val profileId: Long,
+    @ColumnInfo(name = "attempted_at") val attemptedAt: Long,
+    /** An `OutageCause` name if it failed; null if it worked. */
+    val failure: String?,
+)
+
+/**
  * A problem the person has been told about, or that was there at the first poll: what stops
  * the app announcing it again at every poll. A host has an empty `description`.
  */
@@ -139,6 +151,7 @@ data class AnnounceMetaRow(
         CommentRow::class,
         DowntimeRow::class,
         PollMetaRow::class,
+        PollAttemptRow::class,
         AnnouncedRow::class,
         AnnounceMetaRow::class,
     ],
@@ -150,6 +163,6 @@ abstract class StatusDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "status.db"
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }

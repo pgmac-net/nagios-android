@@ -7,7 +7,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.notify.OutageCause
 import net.pgmac.nagwatch.profile.ProfileCleanup
+
+/** The most recent poll of a profile: when, and why it failed if it did. */
+data class PollAttempt(val at: Instant, val failure: OutageCause?)
 
 /**
  * The last poll of each profile, on disk, so the app has something to show
@@ -45,6 +49,20 @@ class StatusCache @Inject constructor(private val dao: StatusCacheDao) : Profile
             fetchedAt = fetchedAt,
         )
     }
+
+    /** What the most recent poll came to, or null if this profile has never been polled at all. */
+    suspend fun loadAttempt(profileId: Long): PollAttempt? = dao.pollAttempt(profileId)?.let { row ->
+        PollAttempt(
+            at = Instant.ofEpochMilli(row.attemptedAt),
+            // A name written by another version of the app is still a failure; which kind is the detail lost.
+            failure = row.failure?.let { name ->
+                OutageCause.entries.firstOrNull { it.name == name } ?: OutageCause.UNREACHABLE
+            },
+        )
+    }
+
+    suspend fun saveAttempt(profileId: Long, attempt: PollAttempt) =
+        dao.savePollAttempt(PollAttemptRow(profileId, attempt.at.toEpochMilli(), attempt.failure?.name))
 
     /** Called when a profile is deleted: its cache goes with it. */
     override suspend fun onProfileDeleted(profileId: Long) = dao.clear(profileId)

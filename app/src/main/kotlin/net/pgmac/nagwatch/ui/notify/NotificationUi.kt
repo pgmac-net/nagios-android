@@ -58,6 +58,31 @@ interface NotificationFieldActions {
 }
 
 /**
+ * The "Background checks" section of the profile editor: how often this profile is polled while
+ * the app is closed.
+ *
+ * It is not part of "Notifications" and is always shown, because notifications are not the only
+ * reason a profile is polled: a widget is another. An interval hidden behind a switch that is
+ * off would be one nobody could see or change.
+ */
+@Composable
+fun BackgroundCheckFields(interval: PollInterval, onChange: (PollInterval) -> Unit) {
+    Text(stringResource(R.string.background_title), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.notify_interval), style = MaterialTheme.typography.bodyMedium)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PollInterval.entries.forEach { choice ->
+            FilterChip(
+                selected = interval == choice,
+                onClick = { onChange(choice) },
+                label = { Text(stringResource(choice.label())) },
+                modifier = Modifier.testTag(NotificationTags.interval(choice)),
+            )
+        }
+    }
+    Text(stringResource(R.string.background_hint), style = MaterialTheme.typography.bodySmall)
+}
+
+/**
  * The "Notifications" section of the profile editor. The choices below the switch are shown
  * only while it is on: with it off they decide nothing.
  */
@@ -85,17 +110,6 @@ fun NotificationFields(settings: NotificationSettings, refused: Boolean, actions
     }
     if (!settings.enabled) return
 
-    Text(stringResource(R.string.notify_interval), style = MaterialTheme.typography.bodyMedium)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PollInterval.entries.forEach { interval ->
-            FilterChip(
-                selected = settings.interval == interval,
-                onClick = { actions.editNotifications { it.copy(interval = interval) } },
-                label = { Text(stringResource(interval.label())) },
-                modifier = Modifier.testTag(NotificationTags.interval(interval)),
-            )
-        }
-    }
     LabelledSwitch(
         label = R.string.notify_unhandled_only,
         checked = settings.unhandledOnly,

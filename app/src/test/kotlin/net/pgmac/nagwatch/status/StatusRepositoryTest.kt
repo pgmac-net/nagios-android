@@ -13,7 +13,10 @@ import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.notify.OutageCause
 import net.pgmac.nagwatch.profile.HeaderDraft
+import net.pgmac.nagwatch.profile.NotificationSettings
+import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SecretCipher
@@ -22,6 +25,7 @@ import net.pgmac.nagwatch.profile.SecretInput.Replace
 import net.pgmac.nagwatch.profile.SettingsResult
 import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
+import net.pgmac.nagwatch.status.cache.PollAttempt
 import net.pgmac.nagwatch.status.cache.StatusCache
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -223,6 +227,75 @@ class StatusRepositoryTest {
         assertTrue(status.isStale(T0 + Duration.ofMinutes(31)))
         assertFalse("never fetched is not stale, it is empty", ProfileStatus().isStale(T0 + Duration.ofDays(2)))
     }
+
+    @Test
+    fun `the stale limit follows the profile's own interval, from a refresh and from the cache`() = runBlocking {
+        val id = saveProfile()
+        profiles.save(draftFor(id, PollInterval.ONE_HOUR))
+
+        repository.refresh(id)
+        val refreshed = checkNotNull(repository.statuses.value[id])
+        assertEquals(Duration.ofHours(2), refreshed.staleAfter)
+        assertFalse("ninety minutes is not stale for an hourly profile", refreshed.isStale(T0 + Duration.ofMinutes(90)))
+        assertTrue(refreshed.isStale(T0 + Duration.ofMinutes(121)))
+
+        val afterRestart = StatusRepository(profiles, provider(client), cache, clock)
+        afterRestart.showCached(id)
+        assertEquals(Duration.ofHours(2), afterRestart.statuses.value[id]?.staleAfter)
+    }
+
+    @Test
+    fun `a failed refresh keeps the profile's stale limit`() = runBlocking {
+        val id = saveProfile()
+        profiles.save(draftFor(id, PollInterval.THIRTY_MINUTES))
+        client.statusResult = { failure() }
+
+        repository.refresh(id)
+
+        assertEquals(Duration.ofHours(1), repository.statuses.value[id]?.staleAfter)
+    }
+
+    @Test
+    fun `what each refresh came to is written down, so that a widget in another process can tell`() = runBlocking {
+        val id = saveProfile()
+
+        repository.refresh(id)
+        assertEquals(PollAttempt(T0, failure = null), cache.loadAttempt(id))
+
+        clock.advance(Duration.ofMinutes(15))
+        client.statusResult = { failure(NagiosError.BadCredentials) }
+        repository.refresh(id)
+        assertEquals(
+            PollAttempt(T0 + Duration.ofMinutes(15), OutageCause.CREDENTIALS_REJECTED),
+            cache.loadAttempt(id),
+        )
+        assertEquals("the last good poll is untouched", T0, cache.loadPoll(id)?.fetchedAt)
+
+        clock.advance(Duration.ofMinutes(15))
+        client.statusResult = { NagiosResult.Success(snapshot(at = clock.instant())) }
+        repository.refresh(id)
+        assertEquals(PollAttempt(T0 + Duration.ofMinutes(30), failure = null), cache.loadAttempt(id))
+    }
+
+    @Test
+    fun `a refresh of a profile that is gone writes nothing down`() = runBlocking {
+        repository.refresh(404)
+
+        assertEquals(null, cache.loadAttempt(404))
+    }
+
+    private fun draftFor(id: Long, interval: PollInterval) = ProfileDraft(
+        id = id,
+        name = "Home",
+        baseUrl = "https://nagios.example.org/nagios",
+        username = "nagwatch",
+        password = Keep,
+        accessClientId = "",
+        accessClientSecret = Keep,
+        customHeaders = emptyList(),
+        allowCleartext = false,
+        notifications = NotificationSettings(interval = interval),
+    )
 
     private suspend fun saveProfile(baseUrl: String = "https://nagios.example.org/nagios"): Long = profiles.save(
         ProfileDraft(

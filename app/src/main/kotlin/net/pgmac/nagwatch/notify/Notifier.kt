@@ -16,8 +16,8 @@ import javax.inject.Singleton
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.model.HostProblem
 import net.pgmac.nagwatch.nagios.model.ObjectRef
-import net.pgmac.nagwatch.nagios.model.Problem
 import net.pgmac.nagwatch.nagios.model.Severity
+import net.pgmac.nagwatch.nagios.model.firstOutputLine
 import net.pgmac.nagwatch.profile.Profile
 
 /** Puts a poll's [Decision] in front of the person. What to say was decided already; this is only how. */
@@ -141,7 +141,7 @@ class AndroidNotifier internal constructor(
         return builder(profile, NotifyChannel.of(notice.problem.severity), NotificationTarget(profile.id, notice.ref))
             .setSmallIcon(R.drawable.ic_tab_problems)
             .setContentTitle(title)
-            .text(notice.problem.firstLine())
+            .text(notice.problem.check.firstOutputLine())
             // An update says nothing new enough to interrupt for.
             .setSilent(notice.change == Notice.Change.UPDATED)
             .build()
@@ -240,10 +240,6 @@ class AndroidNotifier internal constructor(
     private fun ObjectRef.describe(): String =
         description?.let { context.getString(R.string.notify_service_on_host, it, hostName) } ?: hostName
 
-    /** Plugin output is whatever a script printed. One line of it, and not an unbounded one. */
-    private fun Problem.firstLine(): String =
-        check.pluginOutput.lineSequence().firstOrNull().orEmpty().trim().take(MAX_TEXT)
-
     private fun Severity.word(): Int = when (this) {
         Severity.HOST_DOWN -> R.string.notify_down
         Severity.HOST_UNREACHABLE -> R.string.notify_unreachable_host
@@ -272,7 +268,6 @@ class AndroidNotifier internal constructor(
         const val ID_GROUP = 4
 
         val RECOVERY_SHOWN_FOR_MS: Long = TimeUnit.HOURS.toMillis(1)
-        private const val MAX_TEXT = 300
 
         /** A line break cannot be part of a Nagios name, so two different objects never share a tag. */
         fun problemTag(profileId: Long, ref: ObjectRef): String =

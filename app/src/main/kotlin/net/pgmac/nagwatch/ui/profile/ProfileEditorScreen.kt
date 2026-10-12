@@ -49,6 +49,7 @@ import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
 import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
+import net.pgmac.nagwatch.ui.notify.BackgroundCheckFields
 import net.pgmac.nagwatch.ui.notify.NotificationFieldActions
 import net.pgmac.nagwatch.ui.notify.NotificationFields
 import net.pgmac.nagwatch.ui.notify.rememberNotificationRequest
@@ -154,6 +155,10 @@ fun ProfileEditorContent(state: ProfileEditorState, actions: ProfileEditorAction
                 AccessFields(state, actions)
                 HorizontalDivider()
                 HeaderFields(state, actions)
+                HorizontalDivider()
+                BackgroundCheckFields(state.notifications.interval) { interval ->
+                    actions.editNotifications { it.copy(interval = interval) }
+                }
                 HorizontalDivider()
                 NotificationFields(state.notifications, state.notificationsRefused, actions)
                 HorizontalDivider()

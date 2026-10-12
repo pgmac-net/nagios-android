@@ -223,7 +223,7 @@ Pull to refresh. Rows sorted worst state first, then newest. Acknowledged and in
 How M1 implements this screen, where it differs from the wireframe:
 
 - **Refresh is foreground only.** The app fetches when the screen opens or is returned to (if what it holds is over a minute old) and on pull-to-refresh. Background polling and notifications are M4.
-- **Stale means older than 30 minutes**, twice the 15-minute poll interval the design allows, and is labelled with its age. A failed refresh keeps the last good list and says it may be out of date, so a network error never blanks a screen that was showing real problems.
+- **Stale means older than twice the profile's interval** (30 minutes at the default; two hours for a profile checked hourly), and is labelled with its age. Once is not enough: Android runs a poll about every interval, never exactly, so data one interval old is what a healthy poll looks like just before the next; twice means one was missed. A fixed half hour would call an hourly profile stale half the time. The screens and the widget take the rule from one place (`Staleness`). A failed refresh keeps the last good list and says it may be out of date, so a network error never blanks a screen that was showing real problems.
 - **Chips** read "Critical (3)", "Warning (1)", "Unknown (0)" and "2 hosts down", and tapping one filters the list to it; several can be on at once.
 - **Services on a down host** appear under that host and are not counted separately.
 - **Handled problems** (acknowledged, in downtime) are listed below under a "Show handled (N)" toggle, collapsed by default, each saying why it is handled. "Everything is OK" is only shown when nothing is handled either: an acknowledged critical is still a critical.
@@ -360,7 +360,8 @@ What a poll is worth saying is decided in one place (`Announcer`), and why is in
 
 How it is switched on:
 
-- The profile editor has a "Notifications" section: the switch, the interval, "Only unhandled problems" and "Tell me when this Nagios can't be reached". The last three show only while the switch is on.
+- The profile editor has a "Background checks" part, always shown, with the interval (15 minutes, 30 minutes, 1 hour). It is not inside Notifications because notifications are not the only reason a profile is polled: a widget is another (M5), and an interval hidden behind a switch that is off would be one nobody could see or change.
+- Below it, the "Notifications" section: the switch, "Only unhandled problems" and "Tell me when this Nagios can't be reached". The last two show only while the switch is on.
 - Switching it on asks Android for permission to show notifications, there and then, if the app does not have it. If Android says no, the switch stays off and the section says why, with a button that asks again, or opens the app's notification settings once Android has stopped asking.
 - After a profile has loaded successfully the app offers notifications for it, once. "Not now" is remembered. Profiles from before this existed are offered once too; none is switched on by an update.
 
@@ -389,7 +390,8 @@ Built with Glance `SizeMode.Responsive`; the system supplies size ranges in dp, 
 Behaviour for all tiers:
 
 - Tap a count or badge: open the Problems view. Tap a list row: open that service's detail.
-- **Stale** (last good poll older than 2x the interval) and **unreachable** are shown distinctly. Old green is never shown as current.
+- **Stale** (last good poll older than 2x the interval) and **unreachable** (the most recent poll failed) are shown distinctly. Old green is never shown as current. Both **keep the last known numbers**, drawn greyed, with "as of" and the reason: a host that was down twenty minutes ago probably still is. A profile never polled says "no data yet", which is not the same as nothing wrong.
+- What a widget shows is decided in one plain function (`WidgetModel`), from what is on disk: the last good poll, what the most recent attempt came to, and the profile's interval. The four layouts each draw some of it and decide nothing.
 - One widget instance = one profile, chosen in a configuration screen. Multiple widgets allowed.
 - Follows system light/dark and Material You colour. State colours (red/amber/green) are fixed so they keep their meaning.
 
@@ -412,10 +414,11 @@ Status is cached in a second database, `status.db`, which is disposable where `p
 - `object_detail`: a detail record per host or service. A row is there because the latest poll included it (every host, and services in a problem state), or because the user opened it, or both; a row that is neither is deleted.
 - `comment`, `downtime`: for opened records only, and removed with them.
 - `poll_meta`: when each profile was last polled successfully.
+- `poll_attempt`: what the most recent poll of each profile came to, whether or not it worked: when, and why it failed if it did. A widget is drawn in whatever process Android has, often one that never saw the poll, and has to tell "could not be reached" from "nothing is wrong".
 
 A poll is written in one transaction, so a killed process never leaves half of one. Everything is bounded per profile, because how much Nagios sends is Nagios' decision: lists cannot accumulate, opened records are limited to the 200 most recent, and comments and downtimes to 20 per object.
 
-On opening, the app shows the cached result at once, labelled with its age and marked stale past 30 minutes, then refreshes. Data is never hidden for being old. The chosen profile is remembered across restarts (DataStore).
+On opening, the app shows the cached result at once, labelled with its age and marked stale past twice the profile's interval, then refreshes. Data is never hidden for being old. The chosen profile is remembered across restarts (DataStore).
 
 What has been announced is kept there too (`announced`, `announce_meta`): each problem the person has been told about or that was there at the first poll, and whether an outage has been announced. It cannot be fetched again, but it can be rebuilt: if it is lost the next poll is treated as a first poll and summarised ([ADR 0008](adr/0008-what-is-announced-and-where-that-is-remembered.md)).
 

@@ -18,6 +18,7 @@ import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.CommandPermission
 import net.pgmac.nagwatch.status.ObjectDetail
 import net.pgmac.nagwatch.status.ProfileStatus
+import net.pgmac.nagwatch.status.Staleness
 import net.pgmac.nagwatch.status.cache.CachedDetail
 import net.pgmac.nagwatch.ui.browse.BrowseRow
 import net.pgmac.nagwatch.ui.browse.BrowseRows
@@ -35,6 +36,8 @@ data class DetailUiState(
     /** For a service: the host it is on, if the last poll knew it. */
     val host: BrowseRow<HostState>? = null,
     val now: Instant = Instant.EPOCH,
+    /** How old a record may be before it is called stale: twice the profile's interval. */
+    val staleAfter: Duration = Staleness.DEFAULT,
     /** Whether this profile's Nagios user can send commands at all. */
     val permission: CommandPermission = CommandPermission.UNKNOWN,
     /** The command last sent from this screen and where it has got to; null until one is sent. */
@@ -114,8 +117,10 @@ fun detailUiState(detail: ObjectDetail, status: ProfileStatus?, now: Instant): D
     } else {
         detail
     }
-    if (snapshot == null || report == null) return DetailUiState(withStandIn, now = now)
+    val staleAfter = status?.staleAfter ?: Staleness.DEFAULT
+    if (snapshot == null || report == null) return DetailUiState(withStandIn, now = now, staleAfter = staleAfter)
     return DetailUiState(
+        staleAfter = staleAfter,
         detail = withStandIn,
         polledState = snapshot.stateOf(ref),
         services = if (ref.isHost) {

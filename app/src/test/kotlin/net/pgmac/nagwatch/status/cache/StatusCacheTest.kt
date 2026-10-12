@@ -17,6 +17,7 @@ import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StateType
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.notify.OutageCause
 import net.pgmac.nagwatch.status.MutableClock
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
@@ -425,8 +426,51 @@ class StatusCacheTest {
         openedAt = null,
     )
 
+    @Test
+    fun `a profile that has never been polled has no attempt on record`() = runBlocking {
+        assertEquals(null, cache.loadAttempt(HOME_ATTEMPT))
+    }
+
+    @Test
+    fun `what the latest poll came to is kept, worked or failed, and replaces the one before`() = runBlocking {
+        cache.saveAttempt(HOME_ATTEMPT, PollAttempt(T0, OutageCause.CREDENTIALS_REJECTED))
+        assertEquals(PollAttempt(T0, OutageCause.CREDENTIALS_REJECTED), cache.loadAttempt(HOME_ATTEMPT))
+
+        cache.saveAttempt(HOME_ATTEMPT, PollAttempt(T0.plusSeconds(60), failure = null))
+        assertEquals(PollAttempt(T0.plusSeconds(60), null), cache.loadAttempt(HOME_ATTEMPT))
+    }
+
+    @Test
+    fun `attempts are kept per profile, go with a deleted profile, and are swept with orphans`() = runBlocking {
+        val failed = PollAttempt(T0, OutageCause.UNREACHABLE)
+        cache.saveAttempt(HOME_ATTEMPT, failed)
+        cache.saveAttempt(OFFICE_ATTEMPT, PollAttempt(T0, null))
+
+        cache.onProfileDeleted(OFFICE_ATTEMPT)
+        assertEquals(null, cache.loadAttempt(OFFICE_ATTEMPT))
+        assertEquals(failed, cache.loadAttempt(HOME_ATTEMPT))
+
+        cache.saveAttempt(OFFICE_ATTEMPT, PollAttempt(T0, null))
+        cache.sweepOrphans(listOf(OFFICE_ATTEMPT))
+        assertEquals(null, cache.loadAttempt(HOME_ATTEMPT))
+        assertEquals(PollAttempt(T0, null), cache.loadAttempt(OFFICE_ATTEMPT))
+
+        cache.sweepOrphans(emptyList())
+        assertEquals(null, cache.loadAttempt(OFFICE_ATTEMPT))
+    }
+
+    @Test
+    fun `a failure named by another version of the app is still a failure`() = runBlocking {
+        cache.saveAttempt(HOME_ATTEMPT, PollAttempt(T0, OutageCause.CERTIFICATE))
+        database.openHelper.writableDatabase.execSQL("UPDATE poll_attempt SET failure = 'SOLAR_FLARE'")
+
+        assertEquals(PollAttempt(T0, OutageCause.UNREACHABLE), cache.loadAttempt(HOME_ATTEMPT))
+    }
+
     private companion object {
         const val PROFILE = 1L
         const val OTHER = 2L
+        const val HOME_ATTEMPT = 71L
+        const val OFFICE_ATTEMPT = 72L
     }
 }

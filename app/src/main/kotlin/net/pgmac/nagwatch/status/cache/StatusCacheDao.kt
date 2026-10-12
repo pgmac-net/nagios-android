@@ -31,6 +31,12 @@ abstract class StatusCacheDao {
     @Query("SELECT * FROM poll_meta WHERE profile_id = :profileId")
     abstract suspend fun pollMeta(profileId: Long): PollMetaRow?
 
+    @Query("SELECT * FROM poll_attempt WHERE profile_id = :profileId")
+    abstract suspend fun pollAttempt(profileId: Long): PollAttemptRow?
+
+    @Upsert
+    abstract suspend fun savePollAttempt(row: PollAttemptRow)
+
     @Query("SELECT * FROM service_state WHERE profile_id = :profileId ORDER BY host_name, description")
     abstract suspend fun serviceStates(profileId: Long): List<ServiceStateRow>
 
@@ -155,6 +161,7 @@ abstract class StatusCacheDao {
         deleteAllComments(profileId)
         deleteAllDowntimes(profileId)
         deletePollMeta(profileId)
+        deletePollAttempt(profileId)
         deleteAnnounced(profileId)
         deleteAnnounceMeta(profileId)
     }
@@ -167,6 +174,7 @@ abstract class StatusCacheDao {
         sweepComments(validIds)
         sweepDowntimes(validIds)
         sweepPollMeta(validIds)
+        sweepPollAttempts(validIds)
         sweepAnnounced(validIds)
         sweepAnnounceMeta(validIds)
     }
@@ -178,6 +186,7 @@ abstract class StatusCacheDao {
         deleteEveryComment()
         deleteEveryDowntime()
         deleteEveryPollMeta()
+        deleteEveryPollAttempt()
         deleteEveryAnnounced()
         deleteEveryAnnounceMeta()
     }
@@ -361,4 +370,13 @@ abstract class StatusCacheDao {
 
     @Query("DELETE FROM poll_meta")
     protected abstract suspend fun deleteEveryPollMeta()
+
+    @Query("DELETE FROM poll_attempt WHERE profile_id = :profileId")
+    protected abstract suspend fun deletePollAttempt(profileId: Long)
+
+    @Query("DELETE FROM poll_attempt WHERE profile_id NOT IN (:validIds)")
+    protected abstract suspend fun sweepPollAttempts(validIds: List<Long>)
+
+    @Query("DELETE FROM poll_attempt")
+    protected abstract suspend fun deleteEveryPollAttempt()
 }
