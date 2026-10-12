@@ -33,7 +33,8 @@ import net.pgmac.nagwatch.notify.PollNow
  */
 class StatusWidget : GlanceAppWidget() {
     // One layout is composed for each of these and Android shows whichever fits. They are the
-    // smallest size of each layout, and a wide version of the two that gain from the width.
+    // smallest size of each layout, a wide version of the ones that gain from the width, and a
+    // tall version of the one that gains from the height.
     override val sizeMode = SizeMode.Responsive(
         setOf(
             DpSize(48.dp, 48.dp),
@@ -41,6 +42,11 @@ class StatusWidget : GlanceAppWidget() {
             DpSize(WIDE.dp, 48.dp),
             DpSize(WidgetTier.COUNTS_FROM_WIDTH.dp, WidgetTier.LIST_FROM_HEIGHT.dp),
             DpSize(WIDE.dp, WidgetTier.LIST_FROM_HEIGHT.dp),
+            // A layout is told the size it was declared for, not the room it really has. Without
+            // a taller short list, two rows of cells were drawn for the shortest one: two
+            // problems and half a widget of nothing.
+            DpSize(WidgetTier.COUNTS_FROM_WIDTH.dp, TALL_SHORT_LIST.dp),
+            DpSize(WIDE.dp, TALL_SHORT_LIST.dp),
             DpSize(WIDE.dp, WidgetTier.FULL_FROM_HEIGHT.dp),
         ),
     )
@@ -71,6 +77,9 @@ class StatusWidget : GlanceAppWidget() {
     companion object {
         /** From three cells wide or so: room for the time beside the counts. */
         const val WIDE = 200
+
+        /** Two rows of cells or so: room for four problems in a short list. */
+        const val TALL_SHORT_LIST = 160
 
         fun dependencies(context: Context): Dependencies =
             EntryPointAccessors.fromApplication(context.applicationContext, Dependencies::class.java)

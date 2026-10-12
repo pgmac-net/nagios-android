@@ -88,7 +88,8 @@ fun StatusWidgetContent(view: WidgetView, appWidgetId: Int) {
 @Composable
 private fun Message(content: WidgetContent) {
     Column(
-        modifier = GlanceModifier.fillMaxSize().padding(PAD.dp).semantics { testTag = WidgetTags.MESSAGE },
+        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+            .semantics { testTag = WidgetTags.MESSAGE },
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -128,7 +129,8 @@ private fun Badge(content: WidgetContent) {
 @Composable
 private fun Counts(content: WidgetContent, wide: Boolean) {
     Column(
-        modifier = GlanceModifier.fillMaxSize().padding(PAD.dp).semantics { testTag = WidgetTags.COUNTS },
+        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+            .semantics { testTag = WidgetTags.COUNTS },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Chips(content)
@@ -140,8 +142,12 @@ private fun Counts(content: WidgetContent, wide: Boolean) {
 @Composable
 private fun ShortList(view: WidgetView, rows: Int) {
     val content = view.content
-    Column(modifier = GlanceModifier.fillMaxSize().padding(PAD.dp).semantics { testTag = WidgetTags.SHORT_LIST }) {
+    Column(
+        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+            .semantics { testTag = WidgetTags.SHORT_LIST },
+    ) {
         Chips(content)
+        AllClear(content)
         content.rows.take(rows).forEachIndexed { index, row -> ProblemRow(view, row, index, withOutput = false) }
         Spacer(GlanceModifier.defaultWeight())
         StatusLine(content)
@@ -152,7 +158,10 @@ private fun ShortList(view: WidgetView, rows: Int) {
 private fun FullList(view: WidgetView) {
     val content = view.content
     val profileId = view.profileId
-    Column(modifier = GlanceModifier.fillMaxSize().padding(PAD.dp).semantics { testTag = WidgetTags.FULL_LIST }) {
+    Column(
+        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+            .semantics { testTag = WidgetTags.FULL_LIST },
+    ) {
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 content.profileName.orEmpty(),
@@ -177,6 +186,7 @@ private fun FullList(view: WidgetView) {
             }
         }
         Chips(content)
+        AllClear(content)
         LazyColumn(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
             items(content.rows.size) { index -> ProblemRow(view, content.rows[index], index, withOutput = true) }
             if (content.more > 0) {
@@ -196,42 +206,43 @@ private fun FullList(view: WidgetView) {
     }
 }
 
+/**
+ * An empty list that is known to be empty says so: four zeros over a blank space look like a
+ * widget that has not loaded. Only when the data is current. Old or unconfirmed, the status line
+ * already says what is known, and "nothing" would be a claim nobody can make.
+ */
+@Composable
+private fun AllClear(content: WidgetContent) {
+    if (content.state != WidgetState.CURRENT || content.rows.isNotEmpty()) return
+    Text(
+        text = LocalContext.current.getString(R.string.widget_all_clear),
+        style = text(BODY),
+        maxLines = 1,
+        modifier = GlanceModifier.padding(vertical = 2.dp).semantics { testTag = WidgetTags.ALL_CLEAR },
+    )
+}
+
 @Composable
 private fun Chips(content: WidgetContent) {
     val counts = content.counts ?: return
-    val context = LocalContext.current
+    // A gap is a spacer: padding is inside a view's background, so it would only make the chip wider.
     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Chip("down", context.getString(R.string.severity_down), counts.hostsDown, Severity.HOST_DOWN, content.isDemoted)
-        Chip(
-            "critical",
-            context.getString(R.string.severity_critical),
-            counts.critical,
-            Severity.CRITICAL,
-            content.isDemoted,
-        )
-        Chip(
-            "warning",
-            context.getString(R.string.severity_warning),
-            counts.warning,
-            Severity.WARNING,
-            content.isDemoted,
-        )
-        Chip(
-            "unknown",
-            context.getString(R.string.severity_unknown),
-            counts.unknown,
-            Severity.UNKNOWN,
-            content.isDemoted,
-        )
+        Chip("down", R.string.severity_down, counts.hostsDown, Severity.HOST_DOWN, content.isDemoted)
+        Spacer(GlanceModifier.width(GAP.dp))
+        Chip("critical", R.string.severity_critical, counts.critical, Severity.CRITICAL, content.isDemoted)
+        Spacer(GlanceModifier.width(GAP.dp))
+        Chip("warning", R.string.severity_warning, counts.warning, Severity.WARNING, content.isDemoted)
+        Spacer(GlanceModifier.width(GAP.dp))
+        Chip("unknown", R.string.severity_unknown, counts.unknown, Severity.UNKNOWN, content.isDemoted)
     }
 }
 
 @Composable
-private fun Chip(kind: String, label: String, count: Int, severity: Severity, demoted: Boolean) {
+private fun Chip(kind: String, label: Int, count: Int, severity: Severity, demoted: Boolean) {
     // A kind with nothing in it is drawn plain, so that the eye goes to the ones that have something.
     val active = count > 0 && !demoted
     Text(
-        text = "$label $count",
+        text = "${LocalContext.current.getString(label)} $count",
         style = TextStyle(
             color = if (active) ON_STATE else GlanceTheme.colors.onSurfaceVariant,
             fontSize = SMALL.sp,
@@ -239,7 +250,6 @@ private fun Chip(kind: String, label: String, count: Int, severity: Severity, de
         ),
         maxLines = 1,
         modifier = GlanceModifier
-            .padding(end = GAP.dp)
             .background(
                 if (active) {
                     severity.color()
@@ -338,6 +348,20 @@ private fun configure(context: Context, appWidgetId: Int): Action = actionStartA
         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
 )
+
+/**
+ * The widget's own background, set by every layout on its outermost view, never left to be
+ * inherited.
+ *
+ * Android redraws a widget by applying the new layout to the views it already has, and a
+ * property the new layout does not mention keeps the value it had. A widget is drawn as a badge
+ * for a moment while it is being placed, and a badge's whole background is the state colour. A
+ * layout that set no background of its own stayed that colour: a row of counts that was solid
+ * red (found on a phone; nothing in a unit test can see it). The rule that follows: **anything a
+ * layout does not set, it inherits from whatever was drawn there before.**
+ */
+@Composable
+private fun surface(): ColorProvider = GlanceTheme.colors.widgetBackground
 
 @Composable
 private fun text(size: Int, bold: Boolean = false) = TextStyle(

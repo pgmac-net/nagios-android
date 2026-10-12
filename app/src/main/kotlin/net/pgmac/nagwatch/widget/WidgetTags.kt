@@ -13,6 +13,7 @@ object WidgetTags {
     const val NUMBER = "widget_number"
     const val REFRESH = "widget_refresh"
     const val MESSAGE = "widget_message"
+    const val ALL_CLEAR = "widget_all_clear"
 
     fun count(kind: String) = "widget_count_$kind"
 

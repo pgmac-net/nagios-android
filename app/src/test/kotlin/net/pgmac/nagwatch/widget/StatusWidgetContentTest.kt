@@ -144,6 +144,45 @@ class StatusWidgetContentTest {
     }
 
     @Test
+    fun `a short list with two rows of cells to itself shows four problems`() {
+        val four = current.copy(rows = listOf(db01, disk, load, load.copy(ref = ObjectRef("web01", "Swap"))))
+        draw(four, SHORT_TALL) {
+            onNode(hasTestTag(WidgetTags.SHORT_LIST)).assertExists()
+            onNode(hasTestTag(WidgetTags.row(3))).assertExists()
+        }
+    }
+
+    @Test
+    fun `every size the widget declares is a size a real layout is drawn for, and four rows is one of them`() {
+        val sizes = StatusWidget().sizeMode.sizes
+        val tiers = sizes.map { WidgetTier.of(it.width.value, it.height.value) }
+        assertEquals(WidgetTier.entries.toSet(), tiers.toSet())
+        // A layout is told its declared size, not its real one: without a declared size this tall,
+        // no short list on any phone would draw more than the fewest rows.
+        val shortLists = sizes.filter { WidgetTier.of(it.width.value, it.height.value) == WidgetTier.SHORT_LIST }
+        val rowsByWidth = shortLists.groupBy({ it.width.value }, { rowsThatFit(it.height.value) })
+        assertEquals(2, rowsByWidth.size)
+        rowsByWidth.values.forEach { assertEquals(setOf(2, 4), it.toSet()) }
+    }
+
+    @Test
+    fun `a list with nothing in it says so, and only while that is known`() {
+        listOf(SHORT, FULL).forEach { size ->
+            draw(allWell, size) {
+                onNode(hasTestTag(WidgetTags.ALL_CLEAR)).assert(hasTextEqualTo("Nothing needs attention"))
+            }
+            draw(current, size) { onNode(hasTestTag(WidgetTags.ALL_CLEAR)).assertDoesNotExist() }
+            draw(allWell.copy(state = WidgetState.STALE), size) {
+                onNode(hasTestTag(WidgetTags.ALL_CLEAR)).assertDoesNotExist()
+            }
+            draw(allWell.copy(state = WidgetState.UNREACHABLE), size) {
+                onNode(hasTestTag(WidgetTags.ALL_CLEAR)).assertDoesNotExist()
+            }
+        }
+        draw(allWell, COUNTS_WIDE) { onNode(hasTestTag(WidgetTags.ALL_CLEAR)).assertDoesNotExist() }
+    }
+
+    @Test
     fun `a full list has the profile's name, every problem with a line of output, and how long each has lasted`() =
         draw(current, FULL) {
             onNode(hasTextEqualTo("Home")).assertExists()
@@ -268,6 +307,7 @@ class StatusWidgetContentTest {
         val COUNTS = DpSize(130.dp, 102.dp)
         val COUNTS_WIDE = DpSize(276.dp, 102.dp)
         val SHORT = DpSize(203.dp, 112.dp)
+        val SHORT_TALL = DpSize(203.dp, 160.dp)
         val FULL = DpSize(276.dp, 338.dp)
     }
 }
