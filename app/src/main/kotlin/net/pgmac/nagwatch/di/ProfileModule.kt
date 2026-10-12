@@ -73,7 +73,7 @@ abstract class ProfileModule {
         @Singleton
         fun database(@ApplicationContext context: Context): ProfileDatabase =
             Room.databaseBuilder(context, ProfileDatabase::class.java, ProfileDatabase.FILE_NAME)
-                .addMigrations(ProfileDatabase.MIGRATION_1_2)
+                .apply { ProfileDatabase.MIGRATIONS.forEach { addMigrations(it) } }
                 .build()
 
         @Provides

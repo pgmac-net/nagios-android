@@ -14,10 +14,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.localnet.LocalNetwork
 import net.pgmac.nagwatch.nagios.NagiosResult
+import net.pgmac.nagwatch.notify.NotificationAccess
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.ProfileValidator
 import net.pgmac.nagwatch.profile.SettingsResult
+import net.pgmac.nagwatch.ui.PermissionRequest
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkRequest
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -28,6 +30,7 @@ class ProfileEditorViewModel @Inject constructor(
     private val repository: ProfileRepository,
     private val tester: ConnectionTester,
     private val network: LocalNetwork,
+    private val notificationAccess: NotificationAccess,
 ) : ViewModel() {
     /** "Test connection" is held back until the question about local network access is answered. */
     private var awaitingTest = false
@@ -101,6 +104,44 @@ class ProfileEditorViewModel @Inject constructor(
     private suspend fun proceed() {
         awaitingTest = false
         runTest()
+    }
+
+    /**
+     * The notifications switch, and the button shown after a refusal, which is the switch again.
+     * Off is a plain edit. On is one too if Android already allows notifications; otherwise
+     * Android is asked first, and the switch follows its answer.
+     */
+    fun setNotifications(enabled: Boolean, request: PermissionRequest) {
+        if (enabled && !notificationAccess.isHeld()) {
+            allowNotifications(request)
+        } else {
+            mutableState.update {
+                it.copy(notifications = it.notifications.copy(enabled = enabled), notificationsRefused = false)
+            }
+        }
+    }
+
+    /** Android's prompt, or its settings page once it will not show the prompt. */
+    private fun allowNotifications(request: PermissionRequest) {
+        viewModelScope.launch {
+            if (notificationAccess.exhausted()) {
+                // Nothing comes back from the settings page. The switch is tried again on return.
+                mutableState.update { it.copy(notificationsRefused = true) }
+                request.openSettings()
+            } else {
+                request.askAndroid()
+            }
+        }
+    }
+
+    /** Android's prompt came back. Refused, the switch stays off and the section says why. */
+    fun notificationsAnswered(granted: Boolean, canAskAgain: Boolean) {
+        viewModelScope.launch {
+            notificationAccess.answered(granted, canAskAgain)
+            mutableState.update {
+                it.copy(notifications = it.notifications.copy(enabled = granted), notificationsRefused = !granted)
+            }
+        }
     }
 
     private suspend fun runTest() {

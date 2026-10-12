@@ -348,7 +348,13 @@ What a poll is worth saying is decided in one place (`Announcer`), and why is in
 - **A failed poll never produces "all OK"** and never changes what is known. A failure that may pass by itself raises one notification after three polls in a row, unless the profile's "Tell me when this Nagios can't be reached" is off. One that will not (a rejected password or Access token, unreadable credentials) raises it at once, regardless. The next good poll removes it.
 - One notification per problem, grouped per profile, with a channel per kind so classes can be muted in system settings. No buttons: a tap opens the host, the service or Problems.
 
-Status: the rules and their memory are in place and nothing calls them yet. Polling and the notifications themselves follow.
+How it is switched on:
+
+- The profile editor has a "Notifications" section: the switch, the interval, "Only unhandled problems" and "Tell me when this Nagios can't be reached". The last three show only while the switch is on.
+- Switching it on asks Android for permission to show notifications, there and then, if the app does not have it. If Android says no, the switch stays off and the section says why, with a button that asks again, or opens the app's notification settings once Android has stopped asking.
+- After a profile has loaded successfully the app offers notifications for it, once. "Not now" is remembered. Profiles from before this existed are offered once too; none is switched on by an update.
+
+Status: background polling runs for profiles that have notifications on, keeps the cache fresh and remembers what it would have said. **It posts nothing yet.** The notifications themselves follow.
 
 ## 8. Widget
 
@@ -378,6 +384,8 @@ Behaviour for all tiers:
 ## 10. Data model (Room)
 
 - `profiles` (database `profiles.db`, since M1): name, base URL, remembered CGI directory, username, cleartext opt-in, Access client ID, and three secret columns holding ciphertext only: `password_enc`, `access_client_secret_enc`, and the values inside `custom_headers`. Secrets are AES-256-GCM under a non-exportable Android Keystore key (`SecretCipher`). The UI never reads a secret back: it shows "saved" and offers Replace. If the key is lost (device restore), the profile survives and its credentials have to be entered again.
+
+Since M4 a profile also carries its notification choices: `notify` (off by default), `poll_minutes`, `notify_unhandled_only`, `notify_unreachable`, and `notify_offered`, which records that the app has made its one offer for that profile.
 
 Status is cached in a second database, `status.db`, which is disposable where `profiles.db` is not ([ADR 0005](adr/0005-status-cache-in-a-separate-disposable-database.md)). There is no history in v1.
 

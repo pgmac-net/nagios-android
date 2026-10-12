@@ -218,6 +218,73 @@ class ProfileRepositoryTest {
         assertEquals(SettingsResult.InvalidUrl, repository.settingsFor(id))
     }
 
+    @Test
+    fun `a new profile has notifications off, with the defaults waiting, and has not been offered them`() =
+        runBlocking {
+            val profile = checkNotNull(repository.get(repository.save(draft())))
+
+            assertEquals(NotificationSettings(), profile.notifications)
+            assertFalse(profile.notifications.enabled)
+            assertEquals(PollInterval.FIFTEEN_MINUTES, profile.notifications.interval)
+            assertTrue(profile.notifications.unhandledOnly && profile.notifications.tellUnreachable)
+            assertFalse(profile.notificationsOffered)
+        }
+
+    @Test
+    fun `notification choices are saved and read back`() = runBlocking {
+        val chosen = NotificationSettings(
+            enabled = true,
+            interval = PollInterval.ONE_HOUR,
+            unhandledOnly = false,
+            tellUnreachable = false,
+        )
+
+        val id = repository.save(draft().copy(notifications = chosen))
+
+        assertEquals(chosen, repository.get(id)?.notifications)
+    }
+
+    @Test
+    fun `an interval this version does not offer falls back to the shortest`() = runBlocking {
+        val id = repository.save(draft())
+        database.openHelper.writableDatabase.execSQL("UPDATE profiles SET poll_minutes = 5")
+
+        assertEquals(PollInterval.FIFTEEN_MINUTES, repository.get(id)?.notifications?.interval)
+    }
+
+    @Test
+    fun `accepting the offer switches notifications on and keeps the profile's other choices`() = runBlocking {
+        val chosen =
+            NotificationSettings(enabled = false, interval = PollInterval.THIRTY_MINUTES, unhandledOnly = false)
+        val id = repository.save(draft().copy(notifications = chosen))
+
+        repository.notificationsOffered(id, accepted = true)
+
+        assertEquals(chosen.copy(enabled = true), repository.get(id)?.notifications)
+        assertTrue(checkNotNull(repository.get(id)).notificationsOffered)
+        assertEquals(PASSWORD, ready(repository.settingsFor(id)).password)
+    }
+
+    @Test
+    fun `an offer is remembered through later edits, and switching them on in the editor counts as one`() =
+        runBlocking {
+            val offered = repository.save(draft())
+            repository.notificationsOffered(offered, accepted = false)
+            assertFalse("declining switches nothing on", checkNotNull(repository.get(offered)).notifications.enabled)
+
+            // And a refusal later does not switch off what was switched on in between.
+            val on = repository.save(draft().copy(notifications = NotificationSettings(enabled = true)))
+            repository.notificationsOffered(on, accepted = false)
+            assertTrue(checkNotNull(repository.get(on)).notifications.enabled)
+            repository.save(draft(id = offered, password = Keep).copy(name = "Renamed"))
+            assertTrue(checkNotNull(repository.get(offered)).notificationsOffered)
+
+            val switchedOn = repository.save(draft().copy(notifications = NotificationSettings(enabled = true)))
+            assertTrue(checkNotNull(repository.get(switchedOn)).notificationsOffered)
+            repository.save(draft(id = switchedOn, password = Keep))
+            assertTrue("still, once they are off again", checkNotNull(repository.get(switchedOn)).notificationsOffered)
+        }
+
     private fun ready(result: SettingsResult): ConnectionSettings =
         (result as? SettingsResult.Ready)?.settings ?: throw AssertionError("expected Ready but got $result")
 

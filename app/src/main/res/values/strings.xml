@@ -120,6 +120,23 @@
     <string name="local_network_title">Reach your local network?</string>
     <string name="local_network_text">This Nagios is on your local network. Android asks before an app may reach devices there, and calls the permission “Nearby devices”. Nagwatch only talks to the address you entered; it does not search for or scan other devices.\n\nIf you say no, Nagwatch still tries, which works when you reach Nagios over a VPN.</string>
     <string name="local_network_not_now">Not now</string>
+
+    <string name="notify_title">Notifications</string>
+    <string name="notify_switch">Tell me about new problems</string>
+    <string name="notify_hint">Nagwatch checks this Nagios in the background and tells you when something new is wrong. Android decides exactly when it runs, so expect news to be up to the interval late, and later while the phone is idle.</string>
+    <string name="notify_refused">Android is not letting Nagwatch show notifications, so this stays off.</string>
+    <string name="action_allow_notifications">Allow notifications</string>
+    <string name="notify_interval">Check about every</string>
+    <string name="notify_interval_15">15 minutes</string>
+    <string name="notify_interval_30">30 minutes</string>
+    <string name="notify_interval_60">1 hour</string>
+    <string name="notify_unhandled_only">Only unhandled problems</string>
+    <string name="notify_unhandled_only_hint">Leaves out problems that are acknowledged or in scheduled downtime.</string>
+    <string name="notify_unreachable">Tell me when this Nagios can’t be reached</string>
+    <string name="notify_unreachable_hint">After three checks in a row get no answer. Worth turning off for a Nagios you can only reach at home. A rejected password is always reported.</string>
+    <string name="notify_offer_title">Get told about new problems?</string>
+    <string name="notify_offer_text">Nagwatch can check %1$s in the background about every 15 minutes and tell you when something new is wrong.\n\nYou can change this at any time in the profile’s settings.</string>
+    <string name="notify_offer_turn_on">Turn on</string>
     <string name="actions_read_only">This Nagios user is read-only, so actions are unavailable.</string>
     <string name="acknowledge_title">Acknowledge this problem</string>
     <string name="comment_title">Add a comment</string>

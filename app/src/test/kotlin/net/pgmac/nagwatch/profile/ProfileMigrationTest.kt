@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.profile
 
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.migration.Migration
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -45,7 +46,7 @@ class ProfileMigrationTest {
     fun `a profile saved by version 1 survives the upgrade, with no date format yet`() = runBlocking {
         createVersion(1)
 
-        val profiles = open(migrate = true).profiles()
+        val profiles = open(*ProfileDatabase.MIGRATIONS.toTypedArray()).profiles()
 
         val kept = profiles.get(1)
         assertNotNull(kept)
@@ -62,22 +63,63 @@ class ProfileMigrationTest {
     }
 
     @Test
+    fun `a profile saved by version 2 survives the upgrade, with notifications off and not yet offered`() =
+        runBlocking {
+            createVersion(2) { db -> db.execSQL("UPDATE profiles SET date_format = 'EURO'") }
+
+            val profiles = open(*ProfileDatabase.MIGRATIONS.toTypedArray()).profiles()
+
+            val kept = checkNotNull(profiles.get(1))
+            assertEquals("Home", kept.name)
+            assertEquals("encrypted-password", kept.encryptedPassword)
+            assertEquals("EURO", kept.dateFormat)
+            assertEquals("nobody is polled in the background who did not ask to be", false, kept.notify)
+            assertEquals(15, kept.pollMinutes)
+            assertEquals(true, kept.notifyUnhandledOnly)
+            assertEquals(true, kept.notifyUnreachable)
+            assertEquals("so the app may offer once", false, kept.notifyOffered)
+
+            profiles.answerNotifyOffer(1, accepted = false)
+            assertEquals(false to true, profiles.get(1)?.let { it.notify to it.notifyOffered })
+            profiles.answerNotifyOffer(1, accepted = true)
+            assertEquals(true to true, profiles.get(1)?.let { it.notify to it.notifyOffered })
+        }
+
+    @Test
     fun `without the migration the old database is refused, not wiped`() {
         createVersion(1)
 
         assertThrows(IllegalStateException::class.java) {
-            runBlocking { open(migrate = false).profiles().get(1) }
+            runBlocking { open().profiles().get(1) }
         }
     }
 
-    private fun open(migrate: Boolean): ProfileDatabase {
-        val builder = Room.databaseBuilder(context(), ProfileDatabase::class.java, file.name).allowMainThreadQueries()
-        if (migrate) builder.addMigrations(ProfileDatabase.MIGRATION_1_2)
-        return builder.build().also { opened = it }
+    @Test
+    fun `a version 2 database is refused too without its own migration`() {
+        createVersion(2)
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { open(ProfileDatabase.MIGRATION_1_2).profiles().get(1) }
+        }
     }
 
+    @Test
+    fun `the app opens its profiles with every migration there is`() {
+        assertEquals(
+            (1 until ProfileDatabase.VERSION).map { it to it + 1 },
+            ProfileDatabase.MIGRATIONS.map { it.startVersion to it.endVersion },
+        )
+    }
+
+    private fun open(vararg migrations: Migration): ProfileDatabase =
+        Room.databaseBuilder(context(), ProfileDatabase::class.java, file.name)
+            .allowMainThreadQueries()
+            .addMigrations(*migrations)
+            .build()
+            .also { opened = it }
+
     /** A database exactly as [version] of the app created it, holding one profile. */
-    private fun createVersion(version: Int) {
+    private fun createVersion(version: Int, then: (SQLiteDatabase) -> Unit = {}) {
         val schema = Json.parseToJsonElement(File(SCHEMAS, "$version.json").readText()).jsonObject
         val table = schema.getValue("database").jsonObject.getValue("entities").jsonArray.first().jsonObject
         val create = table.getValue("createSql").jsonPrimitive.content
@@ -91,6 +133,7 @@ class ProfileMigrationTest {
                     "'https://nagios.example.org/nagios', 'https://nagios.example.org/nagios/cgi-bin/', " +
                     "'nagwatch', 'encrypted-password', NULL, NULL, '[]', 1)",
             )
+            then(db)
             db.version = version
         }
     }

@@ -22,12 +22,16 @@ import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.model.ServerInfo
+import net.pgmac.nagwatch.notify.TestNotificationAccess
+import net.pgmac.nagwatch.profile.NotificationSettings
+import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.ProfileProblem
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SecretCipher
 import net.pgmac.nagwatch.profile.SettingsResult
 import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
+import net.pgmac.nagwatch.ui.PermissionRequest
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkRequest
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.After
@@ -270,6 +274,106 @@ class ProfileEditorViewModelTest {
     }
 
     @Test
+    fun `notifications switch on at once when Android already allows them, and are saved with the profile`() {
+        val viewModel = editor(notifications = TestNotificationAccess(held = true))
+        val calls = mutableListOf<String>()
+        viewModel.fill()
+
+        viewModel.setNotifications(true, recording(calls))
+        viewModel.edit {
+            it.copy(notifications = it.notifications.copy(interval = PollInterval.ONE_HOUR, tellUnreachable = false))
+        }
+        viewModel.save()
+        viewModel.awaitState { it.done }
+
+        assertTrue("Android was not asked for what it had already given", calls.isEmpty())
+        val saved = runBlocking { repository.observeProfiles().first() }.single()
+        assertEquals(
+            NotificationSettings(enabled = true, interval = PollInterval.ONE_HOUR, tellUnreachable = false),
+            saved.notifications,
+        )
+        assertEquals("the editor shows what was saved", saved.notifications, editor(saved.id).state.value.notifications)
+    }
+
+    @Test
+    fun `switching notifications on asks Android first, and the switch follows its answer`() {
+        val viewModel = editor(notifications = TestNotificationAccess(held = false))
+        val calls = mutableListOf<String>()
+
+        viewModel.setNotifications(true, recording(calls))
+        awaitCalls(calls, 1)
+
+        assertEquals(listOf("prompt"), calls)
+        assertFalse("not before Android has answered", viewModel.state.value.notifications.enabled)
+
+        viewModel.notificationsAnswered(granted = true, canAskAgain = true)
+        val on = viewModel.awaitStateValue { it.notifications.enabled }
+        assertFalse(on.notificationsRefused)
+    }
+
+    @Test
+    fun `when Android says no the switch stays off and the editor says why`() {
+        val access = TestNotificationAccess(held = false)
+        val viewModel = editor(notifications = access)
+        val calls = mutableListOf<String>()
+        viewModel.setNotifications(true, recording(calls))
+        awaitCalls(calls, 1)
+
+        viewModel.notificationsAnswered(granted = false, canAskAgain = true)
+
+        val refused = viewModel.awaitStateValue { it.notificationsRefused }
+        assertFalse(refused.notifications.enabled)
+        assertFalse("Android would still ask", access.history.exhausted)
+
+        // Trying again asks again while Android still will, and opens its settings once it will not.
+        viewModel.setNotifications(true, recording(calls))
+        awaitCalls(calls, 2)
+        viewModel.notificationsAnswered(granted = false, canAskAgain = false)
+        viewModel.setNotifications(true, recording(calls))
+        awaitCalls(calls, 3)
+
+        assertEquals(listOf("prompt", "prompt", "settings"), calls)
+        assertFalse(viewModel.state.value.notifications.enabled)
+    }
+
+    @Test
+    fun `after allowing them in settings, the switch works and the refusal is gone`() {
+        val access = TestNotificationAccess(held = false).also { it.history.exhausted = true }
+        val viewModel = editor(notifications = access)
+        val calls = mutableListOf<String>()
+        viewModel.setNotifications(true, recording(calls))
+        awaitCalls(calls, 1)
+        assertEquals(listOf("settings"), calls)
+        viewModel.awaitState { it.notificationsRefused }
+
+        access.held = true
+        viewModel.setNotifications(true, recording(calls))
+
+        assertTrue(viewModel.state.value.notifications.enabled)
+        assertFalse(viewModel.state.value.notificationsRefused)
+        assertEquals("nothing more was asked", 1, calls.size)
+    }
+
+    @Test
+    fun `switching notifications off never asks Android anything`() {
+        val id = saveProfile()
+        runBlocking { repository.notificationsOffered(id, accepted = true) }
+        val viewModel = editor(id, notifications = TestNotificationAccess(held = false))
+        val calls = mutableListOf<String>()
+        assertTrue(viewModel.state.value.notifications.enabled)
+
+        viewModel.setNotifications(false, recording(calls))
+        pause()
+
+        assertFalse(viewModel.state.value.notifications.enabled)
+        assertTrue(calls.isEmpty())
+    }
+
+    private fun recording(calls: MutableList<String>) = PermissionRequest({
+        calls += "prompt"
+    }, { calls += "settings" })
+
+    @Test
     fun `test connection uses what is on screen, with kept secrets from storage`() {
         val id = saveProfile()
         val viewModel = editor(id)
@@ -369,9 +473,10 @@ class ProfileEditorViewModelTest {
     private fun editor(
         id: Long? = null,
         local: TestLocalNetwork = TestLocalNetwork(FakeLocalNetworkPermission(true)),
+        notifications: TestNotificationAccess = TestNotificationAccess(held = true),
     ): ProfileEditorViewModel {
         val handle = SavedStateHandle(mapOf(ProfileEditorViewModel.ARG_PROFILE_ID to (id ?: 0L)))
-        return ProfileEditorViewModel(handle, repository, tester, local.network)
+        return ProfileEditorViewModel(handle, repository, tester, local.network, notifications.access)
             .also { vm -> vm.awaitState { !it.loading } }
     }
 

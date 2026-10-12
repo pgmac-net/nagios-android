@@ -64,6 +64,10 @@ _Avoid_: Digest, group (the group is how Android stacks a profile's notification
 A profile's Nagios cannot be polled. One that may pass by itself (no answer, a captive portal) is told after three failed polls in a row; one that will not (a rejected password) is told at once.
 _Avoid_: Downtime (that is scheduled, in Nagios), offline
 
+**Offer (of notifications)**:
+The one time the app asks, for a profile that has just loaded, whether to switch notifications on. Whatever the answer it is not made again for that profile, and nothing is switched on without a yes.
+_Avoid_: Prompt (that is Android's), onboarding
+
 **Unreachable (instance)**:
 The last poll failed to get a valid response from the profile's Nagios. Distinct from OK and from stale.
 _Avoid_: Offline, down (down = host state)

@@ -71,6 +71,13 @@ data class ProfileStatus(
     }
 }
 
+/** What one refresh came to, for a caller that has to act on it and cannot watch [StatusRepository.statuses]. */
+sealed interface Refreshed {
+    class Fresh(val report: ProblemReport) : Refreshed
+
+    class Failed(val error: StatusError) : Refreshed
+}
+
 /**
  * Polls profiles and holds the latest result, in memory and in the on-disk
  * cache. On first use of a profile the cached result is served at once, so the
@@ -126,28 +133,34 @@ class StatusRepository @Inject constructor(
         if (last == null || Duration.between(last, clock.instant()) >= maxAge) refresh(profileId)
     }
 
-    suspend fun refresh(profileId: Long) {
+    /** @return what it came to, or null if a refresh of this profile was already running and this one did nothing. */
+    suspend fun refresh(profileId: Long): Refreshed? {
         val accepted = synchronized(lock) {
             (running.add(profileId)).also { added -> if (added) update(profileId) { it.copy(refreshing = true) } }
         }
-        if (!accepted) return
+        if (!accepted) return null
         try {
-            when (val outcome = fetch(profileId)) {
+            return when (val outcome = fetch(profileId)) {
                 is Outcome.Fresh -> {
+                    val report = classify(outcome.snapshot)
                     // Still refreshing until the cache is written and the marker cleared below:
                     // "not refreshing" must mean a new refresh would be accepted.
                     update(profileId) {
                         ProfileStatus(
-                            report = classify(outcome.snapshot),
+                            report = report,
                             snapshot = outcome.snapshot,
                             lastSuccess = outcome.snapshot.fetchedAt,
                             refreshing = true,
                         )
                     }
                     store(profileId, outcome.snapshot)
+                    Refreshed.Fresh(report)
                 }
 
-                is Outcome.Failed -> update(profileId) { it.copy(error = outcome.error) }
+                is Outcome.Failed -> {
+                    update(profileId) { it.copy(error = outcome.error) }
+                    Refreshed.Failed(outcome.error)
+                }
             }
         } finally {
             // Also runs when the caller is cancelled mid-refresh (leaving the screen).

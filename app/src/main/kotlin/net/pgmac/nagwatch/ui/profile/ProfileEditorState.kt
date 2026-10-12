@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.ui.profile
 
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.HeaderDraft
+import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.ProfileProblem
@@ -59,6 +60,9 @@ data class ProfileEditorState(
     val done: Boolean = false,
     /** The app's own sentence about local network access is to be shown before Android's prompt. */
     val explainLocalNetwork: Boolean = false,
+    val notifications: NotificationSettings = NotificationSettings(),
+    /** Android said no to notifications, so the switch stayed off. The section says so. */
+    val notificationsRefused: Boolean = false,
 ) {
     val isNew: Boolean get() = profileId == null
 
@@ -75,6 +79,7 @@ data class ProfileEditorState(
         accessClientSecret = accessClientSecret.toInput(),
         customHeaders = headers.map { HeaderDraft(it.name, it.value.toInput()) },
         allowCleartext = allowCleartext,
+        notifications = notifications,
     )
 
     companion object {
@@ -89,6 +94,7 @@ data class ProfileEditorState(
             accessClientSecret = SecretField(stored = profile.hasAccessClientSecret),
             headers = profile.customHeaderNames.map { HeaderField(it, SecretField(stored = true)) },
             allowCleartext = profile.allowCleartext,
+            notifications = profile.notifications,
         )
     }
 }

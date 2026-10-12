@@ -24,9 +24,11 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileProblem
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkTags
+import net.pgmac.nagwatch.ui.notify.NotificationTags
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.ui.toUiText
 import org.junit.Assert.assertEquals
@@ -52,6 +54,14 @@ class ProfileScreensTest {
 
         override fun testConnection() {
             calls += "test"
+        }
+
+        override fun setNotifications(enabled: Boolean) {
+            calls += "setNotifications $enabled"
+        }
+
+        override fun editNotifications(change: (NotificationSettings) -> NotificationSettings) {
+            state = state.copy(notifications = change(state.notifications))
         }
 
         override fun localNetworkContinue() {
@@ -272,6 +282,25 @@ class ProfileScreensTest {
 
         composeRule.onAllNodesWithText("Delete")[1].performClick()
         assertEquals(listOf("delete"), calls)
+    }
+
+    @Test
+    fun `the editor has a notifications section, off for a new profile`() {
+        showEditor(ProfileEditorState(loading = false))
+
+        composeRule.onNodeWithTag(NotificationTags.SWITCH).performScrollTo().assertIsDisplayed().assertIsOff()
+        composeRule.onNodeWithTag(NotificationTags.SWITCH).performClick()
+        assertEquals(listOf("setNotifications true"), calls)
+    }
+
+    @Test
+    fun `a profile with notifications on shows its choices, and a change to one is a change to the profile`() {
+        showEditor(ProfileEditorState.from(storedProfile.copy(notifications = NotificationSettings(enabled = true))))
+
+        composeRule.onNodeWithTag(NotificationTags.SWITCH).performScrollTo().assertIsOn()
+        composeRule.onNodeWithTag(NotificationTags.UNREACHABLE).performScrollTo().performClick()
+
+        assertEquals(NotificationSettings(enabled = true, tellUnreachable = false), state.toDraft().notifications)
     }
 
     @Test
