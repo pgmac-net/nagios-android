@@ -204,12 +204,12 @@ Things to know:
 - **Tests.** `PollScheduleTest` uses a fake scheduler and a real profile database. `WorkManagerPollSchedulerTest` uses WorkManager's test helpers to read back what was enqueued. `PollWorkerTest` is the only test that runs in the real `NagwatchApplication`, to show the worker can find its dependencies.
 - **The profiles database changed (version 3).** `ProfileDatabase.MIGRATIONS` is the one list of migrations; the app and `ProfileMigrationTest` both open the database with it, and a test fails if a version has no migration in it.
 - **A decision is delivered before it is saved.** If the app dies between the two, the next run says the same thing again, which replaces the same notification. The other order would lose it.
-- **On a phone**, Android decides when a job runs. To run one now, find its id and force it (both commands touch only the debug app):
+- **On a phone**, Android decides when a job runs, and it cannot be hurried: `adb shell cmd jobscheduler run` starts the job, and WorkManager ends it within a tenth of a second, because it will not run periodic work before its interval is up. So debug builds have a way of their own, `PollNowReceiver` (`app/src/debug`), which queues the same worker once:
   ```
-  adb shell dumpsys jobscheduler | grep -A2 'net.pgmac.nagwatch.debug/androidx.work'
-  adb shell cmd jobscheduler run -f net.pgmac.nagwatch.debug <job id>
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.PollNowReceiver --el profile <profile id>
   ```
-  The "Updated" time on the Problems tab moves when the run has finished.
+  It asks for the `DUMP` permission, which adb's shell holds and no ordinary app can, and it is not in a release build. It does what the scheduled job does: a profile with notifications off is not polled. The "Updated" time on the Problems tab moves when the run has finished. The scheduled job itself can be seen with `adb shell dumpsys jobscheduler | grep -A12 'PollWorker'`: it is ready when `TIMING_DELAY` is no longer among its unsatisfied constraints.
+- **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
 
 ## Notifications
 
@@ -217,7 +217,8 @@ Things to know:
 
 - **Identity.** A problem's notification is `(tag, ID_PROBLEM)`, the tag made from the profile id, the host and the service, separated by line breaks (which a Nagios name cannot contain). The outage, the summary and the group's entry use the profile id as tag with their own ids. Posting to the same pair replaces; that is how worse, better and recovered work.
 - **Channels are set once.** `NotifyChannel` lists them. Android ignores a change of importance to a channel that exists, by design, so changing a default means a new channel id and deleting the old one. Adding a channel is safe.
-- **The group's entry.** Android shows a group only if it has a summary notification of its own and does not remove that when the last member goes, so `tidyGroup` posts it while there are members and cancels it after.
+- **The group's entry.** Android shows a group only if it has a summary notification of its own and does not remove that when the last member goes, so `tidyGroup` posts it while there are members and cancels it after. **Android's list of what is showing lags** behind a cancel or a post, so `tidyGroup` is told what was just taken down and whether anything was just posted, and does not trust the list for those. Robolectric does not lag; the tests that cover this hand the notifier a stale list on purpose.
+- **Critical notifications are a heads-up**, over whatever app is open, and tend to be swiped away within seconds. When checking on a phone, use warnings for anything that has to stay put, and read how a notification went from the event log: `adb logcat -d -b events | grep notification_cancel` (the number after the key is the reason: 1 a tap, 2 a swipe, 8 the app).
 - **Silence.** `setSilent(true)` on a member of a group works, on Android 8 and later, by leaving the sound to the group's entry, which itself leaves it to the members. The tests read that back as `groupAlertBehavior`.
 - **Posting needs the permission; taking down does not.** `deliver` cancels first and posts only if `NotificationPermission.isHeld()`. It uses the platform `NotificationManager`, with that check, so there is one place the rule lives.
 - **Taps come in by a name other apps cannot use.** `MainActivity` is exported, because the launcher starts it, so any app can send it an intent. A notification's intent is therefore addressed to the activity alias `.notify.FromNotification`, which is `exported="false"`, and `NotificationTarget.from` returns null for any intent whose component is not exactly this app's package and that name. It also returns null for an intent Android is replaying from the recent apps list, so a tap is acted on once. Do not read a target from an intent any other way, and do not export the alias: either lets another app make Nagwatch switch profile and look up a host of its choosing.

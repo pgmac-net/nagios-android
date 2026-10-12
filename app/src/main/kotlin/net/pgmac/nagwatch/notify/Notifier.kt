@@ -7,6 +7,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
@@ -60,22 +61,32 @@ enum class NotifyChannel(val id: String, val label: Int, val importance: Int) {
  * Nothing here decides *whether* to say something: that is [Announcer], and has tests of its own.
  */
 @Singleton
-class AndroidNotifier @Inject constructor(
-    @ApplicationContext private val context: Context,
+class AndroidNotifier internal constructor(
+    private val context: Context,
     private val permission: NotificationPermission,
+    /** What Android says is showing. It lags: see [tidyGroup]. A parameter so a test can make it lag. */
+    private val showing: (NotificationManager) -> List<StatusBarNotification>,
 ) : Notifier {
+    @Inject
+    constructor(@ApplicationContext context: Context, permission: NotificationPermission) :
+        this(context, permission, { it.activeNotifications.toList() })
+
     private val manager: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
 
     override fun deliver(profile: Profile, decision: Decision) {
         // Taking down needs no permission, and is done even when posting is not allowed.
-        decision.remove.forEach { manager.cancel(problemTag(profile.id, it), ID_PROBLEM) }
-        if (decision.removeOutage) manager.cancel(profileTag(profile.id), ID_OUTAGE)
+        val takenDown = buildSet {
+            decision.remove.forEach { add(problemTag(profile.id, it) to ID_PROBLEM) }
+            if (decision.removeOutage) add(profileTag(profile.id) to ID_OUTAGE)
+        }
+        takenDown.forEach { (tag, id) -> manager.cancel(tag, id) }
 
-        if (decision.post.isNotEmpty() && permission.isHeld()) {
+        val posting = decision.post.isNotEmpty() && permission.isHeld()
+        if (posting) {
             ensureChannels()
             decision.post.forEach { post(profile, it) }
         }
-        tidyGroup(profile)
+        tidyGroup(profile, takenDown, posting)
     }
 
     private fun post(profile: Profile, notice: Notice) {
@@ -155,13 +166,20 @@ class AndroidNotifier @Inject constructor(
     /**
      * Android shows a group only if it has an entry of its own, and does not remove that entry
      * when the last member goes. So it is posted while there are members and taken away after.
+     *
+     * Posting and cancelling are requests, and what Android reports as showing does not reflect
+     * them at once. So what was just taken down is not counted as a member even if Android still
+     * lists it, and having just posted counts as having members even if Android does not yet.
+     * Without this the entry outlived its last member until the next poll (found on a phone).
      */
-    private fun tidyGroup(profile: Profile) {
+    private fun tidyGroup(profile: Profile, takenDown: Set<Pair<String, Int>>, posted: Boolean) {
         val key = group(profile.id)
-        val members = manager.activeNotifications.count { shown ->
-            shown.notification.group == key && shown.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0
+        val others = showing(manager).count { shown ->
+            shown.notification.group == key &&
+                shown.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0 &&
+                (shown.tag to shown.id) !in takenDown
         }
-        if (members == 0) {
+        if (!posted && others == 0) {
             manager.cancel(profileTag(profile.id), ID_GROUP)
         } else if (permission.isHeld()) {
             ensureChannels()

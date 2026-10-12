@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+            Debug builds only. Lets a developer run a background poll now, over adb, without
+            waiting out Android's fifteen minutes (docs/development.md, "Background polling").
+            It asks for the DUMP permission, which adb's shell and the system hold and no
+            ordinary app can, so nothing else on the phone can use it.
+        -->
+        <receiver
+            android:name="net.pgmac.nagwatch.debug.PollNowReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+
+</manifest>

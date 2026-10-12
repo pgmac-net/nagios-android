@@ -279,6 +279,39 @@ class AndroidNotifierTest {
         assertEquals(1, problems().size)
     }
 
+    @Test
+    fun `the group goes with its last member even while Android still lists what was just taken down`() {
+        raise(disk, ServiceState.CRITICAL)
+        val notYetCaughtUp = active()
+        val onAPhone = AndroidNotifier(context, { allowed }, { notYetCaughtUp })
+
+        onAPhone.deliver(home, Decision(remove = listOf(disk), state = AnnouncedState()))
+
+        assertTrue("nothing left, and no empty group either", active().isEmpty())
+    }
+
+    @Test
+    fun `the group is there for a first member even before Android lists it`() {
+        val onAPhone = AndroidNotifier(context, { allowed }, { emptyList() })
+
+        onAPhone.deliver(home, Decision(post = listOf(Notice.Summary(2, first = true)), state = AnnouncedState()))
+
+        assertEquals(1, active().count { it.id == AndroidNotifier.ID_GROUP })
+    }
+
+    @Test
+    fun `taking one down leaves the group for the members still showing, whatever Android lists`() {
+        raise(disk, ServiceState.CRITICAL)
+        raise(load, ServiceState.WARNING)
+        val notYetCaughtUp = active()
+        val onAPhone = AndroidNotifier(context, { allowed }, { notYetCaughtUp })
+
+        onAPhone.deliver(home, Decision(remove = listOf(disk), state = AnnouncedState()))
+
+        assertEquals(1, active().count { it.id == AndroidNotifier.ID_GROUP })
+        assertEquals(1, problems().size)
+    }
+
     // ---------------------------------------------------------------- permission
 
     @Test
