@@ -171,11 +171,21 @@ scripts/test-nagios/stop.sh
 
 `status.db` holds the last poll of each profile and the detail of objects the user has opened (`StatusCache`, `DetailCache`). It exists so the app can show something before the network answers.
 
-- **It is disposable.** Its migrations are destructive: change the schema, raise `StatusDatabase.VERSION`, and the cache is wiped and refilled. Do not put anything in it that cannot be fetched again. See [ADR 0005](adr/0005-status-cache-in-a-separate-disposable-database.md).
+- **It is disposable.** Its migrations are destructive: change the schema, raise `StatusDatabase.VERSION`, and the cache is wiped and refilled. Do not put anything in it that cannot be fetched again. See [ADR 0005](adr/0005-status-cache-in-a-separate-disposable-database.md). The one exception is what has been announced, which can be rebuilt instead: raising the version costs every profile with notifications on one summary at its next poll (ADR 0008).
 - **Every multi-row write is one transaction** (`StatusCacheDao`), so a crash never leaves half a poll.
 - **Everything is bounded per profile.** Adding a table means deciding what stops it growing.
 - **No foreign key to profiles.** Deleting a profile clears its cache through `ProfileCleanup`; `CacheJanitor` sweeps orphans at startup. A new store keyed by profile id needs both.
 - `StatusRepository` serves the cached result first and keeps `refreshing` true until the fresh result is on disk: "not refreshing" has to mean a new refresh would be accepted.
+
+## What gets announced
+
+`Announcer.decide(state, outcome, settings)` (`notify/`) is the whole of what a background poll is worth saying: given what was announced before and what the poll found, it returns what to post, what to take down and what to remember. The rules and their reasons are [ADR 0008](adr/0008-what-is-announced-and-where-that-is-remembered.md).
+
+- **It has no Android and no clock in it, and has to stay that way.** How a notice looks, its channel and what a tap does belong to whatever posts it. A rule about *whether* to say something belongs here, with a test.
+- **Its tests build a real `ProblemReport`** with `ProblemClassifier`, so handled, rolled-up and SOFT mean in the tests what they mean in the app.
+- **A failed poll never touches `known`.** That is what keeps a failure from announcing a recovery.
+- `AnnouncedStore` keeps the state in `status.db`. Losing it is survivable by design: the next poll is a first poll. Severities and outage causes are stored by name, and a name this version does not know is dropped on load.
+- Adding a `StatusError` or `NagiosError` will not compile until `OutageCause.of` says whether it may pass by itself. Decide that, don't default it.
 
 ## Fuzzing
 

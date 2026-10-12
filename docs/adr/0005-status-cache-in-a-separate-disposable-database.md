@@ -13,3 +13,4 @@ The two hold opposite kinds of data. `profiles.db` holds the user's saved connec
 - A schema change to `status.db` simply wipes it; the next refresh refills it. Raise `StatusDatabase.VERSION` and move on. Never add anything to it that cannot be re-fetched.
 - There is no foreign key between the databases. Deleting a profile clears its cache in code (`ProfileCleanup`), and `CacheJanitor` sweeps for orphans at startup in case the app died between the two steps.
 - Anything the user creates and would mind losing (settings, in future) belongs elsewhere, not here.
+- Since M4 it also holds what has been announced, which cannot be re-fetched but can be rebuilt at a small, stated cost. See [ADR 0008](0008-what-is-announced-and-where-that-is-remembered.md).
