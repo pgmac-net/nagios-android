@@ -128,6 +128,14 @@ _Avoid_: Full status, extended info
 A detail record kept because the user opened that object's screen. The most recently opened are kept, per profile.
 _Avoid_: Favourite, pinned
 
+**Polled (profile)**:
+Fetched in the background on a schedule. A profile is polled while it has notifications on or a widget on the home screen, and not otherwise.
+_Avoid_: Monitored, synced
+
+**Announcing (profile)**:
+Having its notifications on, so that a poll may notify. A widget makes a profile polled; it never makes it announcing.
+_Avoid_: Notifying (that is what Nagios does)
+
 **Widget tier**:
 One of four responsive widget layouts: Badge, Counts, Short list, Full list.
 _Avoid_: Size, mode

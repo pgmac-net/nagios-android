@@ -121,6 +121,24 @@
     <string name="local_network_text">This Nagios is on your local network. Android asks before an app may reach devices there, and calls the permission “Nearby devices”. Nagwatch only talks to the address you entered; it does not search for or scan other devices.\n\nIf you say no, Nagwatch still tries, which works when you reach Nagios over a VPN.</string>
     <string name="local_network_not_now">Not now</string>
 
+    <string name="widget_label">Nagwatch status</string>
+    <string name="widget_description">Problems on one Nagios, from a single number up to a list.</string>
+    <string name="widget_refresh">Refresh</string>
+    <plurals name="widget_more">
+        <item quantity="one">and %1$d more problem</item>
+        <item quantity="other">and %1$d more problems</item>
+    </plurals>
+    <string name="widget_updated">Updated %1$s</string>
+    <string name="widget_stale">Out of date · as of %1$s</string>
+    <string name="widget_unreachable">Can’t reach Nagios · as of %1$s</string>
+    <string name="widget_unreachable_no_data">Can’t reach Nagios</string>
+    <string name="widget_no_data">No data yet</string>
+    <string name="widget_no_profile">No profile. Tap to choose one.</string>
+    <string name="widget_config_title">Widget</string>
+    <string name="widget_config_explanation">Choose the Nagios this widget shows. Nagwatch will check it in the background, at the interval set in its profile, for as long as the widget is on your home screen. That happens even with notifications off; it does not turn them on. The widget shows host and service names on your home screen.</string>
+    <string name="widget_config_interval">Checked about every %1$s</string>
+    <string name="widget_config_no_profiles">There are no profiles yet. Add one in Nagwatch, then place the widget again.</string>
+    <string name="widget_config_open_app">Open Nagwatch</string>
     <string name="background_title">Background checks</string>
     <string name="background_hint">How often Nagwatch checks this Nagios while the app is closed. It applies when this profile has notifications on or a widget on the home screen; otherwise nothing is checked in the background. Android decides exactly when, so allow for it running late.</string>
     <string name="notify_title">Notifications</string>

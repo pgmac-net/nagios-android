@@ -70,6 +70,15 @@ data class ProfileStatus(
     fun isStale(now: Instant): Boolean = Staleness.isStale(lastSuccess, now, staleAfter)
 }
 
+/**
+ * Told when a poll of a profile has finished, whichever way it went and whoever asked for it.
+ * What is on disk is up to date by then. For things that show status outside the app's own
+ * screens and cannot watch [StatusRepository.statuses]: the widget.
+ */
+fun interface PollObserver {
+    suspend fun polled(profileId: Long)
+}
+
 /** What one refresh came to, for a caller that has to act on it and cannot watch [StatusRepository.statuses]. */
 sealed interface Refreshed {
     class Fresh(val report: ProblemReport) : Refreshed
@@ -89,6 +98,7 @@ class StatusRepository @Inject constructor(
     private val clients: NagiosClientProvider,
     private val cache: StatusCache,
     private val clock: Clock,
+    private val observers: Set<@JvmSuppressWildcards PollObserver> = emptySet(),
 ) {
     private val mutableStatuses = MutableStateFlow<Map<Long, ProfileStatus>>(emptyMap())
     val statuses: StateFlow<Map<Long, ProfileStatus>> = mutableStatuses.asStateFlow()
@@ -144,9 +154,9 @@ class StatusRepository @Inject constructor(
             (running.add(profileId)).also { added -> if (added) update(profileId) { it.copy(refreshing = true) } }
         }
         if (!accepted) return null
-        try {
+        val result = try {
             val staleAfter = staleAfter(profileId)
-            return when (val outcome = fetch(profileId)) {
+            when (val outcome = fetch(profileId)) {
                 is Outcome.Fresh -> {
                     val report = classify(outcome.snapshot)
                     // Still refreshing until the cache is written and the marker cleared below:
@@ -179,6 +189,8 @@ class StatusRepository @Inject constructor(
                 update(profileId) { it.copy(refreshing = false) }
             }
         }
+        observers.forEach { it.polled(profileId) }
+        return result
     }
 
     /**

@@ -343,8 +343,9 @@ Profile list/editor (section 4), notification toggles per profile, theme, about 
 
 ## 7. Background polling and notifications
 
-- Off until switched on, per profile. A profile with notifications off is not polled in the background.
-- One WorkManager periodic job per enabled profile, every 15 minutes (Android's floor), 30 minutes or an hour.
+- Notifications are off until switched on, per profile.
+- **A profile is polled in the background while it has notifications on or a widget on the home screen**, and at no other time. A widget is a reason to poll and never a reason to notify ([ADR 0009](adr/0009-a-widget-is-a-reason-to-poll-and-never-a-reason-to-notify.md)).
+- One WorkManager periodic job per polled profile, every 15 minutes (Android's floor), 30 minutes or an hour.
 - Each poll writes to Room; the widget and the app read the cache. One network cost serves all three consumers.
 - Expected alert latency is up to about 15 minutes ([ADR 0002](adr/0002-no-backend-direct-polling.md)). The README says so plainly.
 
@@ -392,8 +393,14 @@ Behaviour for all tiers:
 - Tap a count or badge: open the Problems view. Tap a list row: open that service's detail.
 - **Stale** (last good poll older than 2x the interval) and **unreachable** (the most recent poll failed) are shown distinctly. Old green is never shown as current. Both **keep the last known numbers**, drawn greyed, with "as of" and the reason: a host that was down twenty minutes ago probably still is. A profile never polled says "no data yet", which is not the same as nothing wrong.
 - What a widget shows is decided in one plain function (`WidgetModel`), from what is on disk: the last good poll, what the most recent attempt came to, and the profile's interval. The four layouts each draw some of it and decide nothing.
-- One widget instance = one profile, chosen in a configuration screen. Multiple widgets allowed.
-- Follows system light/dark and Material You colour. State colours (red/amber/green) are fixed so they keep their meaning.
+- One widget instance = one profile, chosen in a configuration screen that Android opens when the widget is placed, and again from the widget's menu (Android 12 and later). Multiple widgets allowed. The screen says what a widget costs before anything is chosen: the profile is checked in the background for as long as the widget is there, and that does not turn notifications on.
+- A widget with no profile, or whose profile was deleted, says so, and a tap opens the configuration screen.
+- **Refresh** (Full list only) polls the widget's profile once, now, whether or not its notifications are on.
+- Widgets are redrawn when a poll finishes, whoever asked for it, and by Android about every half hour, which is what makes one turn "out of date" when no poll can run.
+- Home screen only; not offered for the lock screen. A widget puts host and service names on the home screen.
+- Taps come in by the same non-exported name a notification's tap uses, so another app cannot forge one.
+- Follows system light/dark and Material You colour. State colours (red/amber/green) are fixed so they keep their meaning. Below Android 12 there is no Material You, so the background and text use Glance's fixed scheme; **the widget is untested on Android 8 to 11** (section 13).
+- The tiers are breakpoints in dp, not cell counts: under 110 dp wide is a Badge; under 110 dp high is Counts; from 250 dp high and 180 dp wide is the Full list; anything between is the Short list, with two to four problems by height. A launcher that reports an odd size gets the nearest layout.
 
 ## 9. nagiosgraph
 
@@ -456,4 +463,4 @@ Outside this repo: pgmac-net/homelabia#211. The maintainer's Nagios is already p
 ## 13. Open questions
 
 - ~~Whether Nagios Core versions older than 4.4 return the fields the detail screen needs.~~ **Closed in M2, by not depending on the answer.** Only 4.5 could be tested, and no field-level changelog for the JSON CGIs was found, so the question cannot be answered from here. Instead: the claim is "tested on 4.5; 4.0.7 and later expected to work, not tested"; nothing is refused on a version number; the parsers tolerate missing fields; comments and downtimes each degrade to "unavailable" on their own; and Test connection adds a note below 4.4. The minimum version is not raised. Reports from other versions are asked for in the README.
-- Whether Android 8-11 devices need a different widget fallback, since dynamic colour and some Glance behaviour need Android 12 (M5).
+- ~~Whether Android 8-11 devices need a different widget fallback, since dynamic colour and some Glance behaviour need Android 12.~~ **Closed in M5, without evidence either way.** One widget for every version: Glance works back to Android 8, uses a fixed colour scheme where there is no Material You, and picks the nearest declared layout where the system reports size less precisely. It could only be seen on Android 17 (no emulator image for older versions here), so the claim is "expected to work on 8 to 11, not tested", and the README asks for reports. A separate layout for versions nobody could run would have been more code nobody had seen working.

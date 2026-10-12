@@ -278,6 +278,57 @@ class StatusRepositoryTest {
     }
 
     @Test
+    fun `whoever is listening is told when a poll has finished, worked or not, with the result already on disk`() =
+        runBlocking {
+            val id = saveProfile()
+            val seen = mutableListOf<Pair<Long, PollAttempt?>>()
+            val observed = StatusRepository(
+                profiles,
+                provider(client),
+                cache,
+                clock,
+                setOf(
+                    PollObserver {
+                        seen +=
+                            it to cache.loadAttempt(it)
+                    },
+                ),
+            )
+
+            observed.refresh(id)
+            client.statusResult = { failure(NagiosError.BadCredentials) }
+            observed.refresh(id)
+
+            assertEquals(
+                listOf(id to PollAttempt(T0, null), id to PollAttempt(T0, OutageCause.CREDENTIALS_REJECTED)),
+                seen,
+            )
+        }
+
+    @Test
+    fun `a refresh that did nothing because one was already running tells nobody`() = runBlocking {
+        val id = saveProfile()
+        val told = java.util.concurrent.CopyOnWriteArrayList<Long>()
+        val fetching = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        client.statusResult = {
+            fetching.countDown()
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+            NagiosResult.Success(snapshot())
+        }
+        val observed = StatusRepository(profiles, provider(client), cache, clock, setOf(PollObserver { told += it }))
+        val first = kotlin.concurrent.thread { runBlocking { observed.refresh(id) } }
+        assertTrue(fetching.await(5, java.util.concurrent.TimeUnit.SECONDS))
+
+        assertEquals(null, observed.refresh(id))
+        assertTrue("the one that is running will tell them", told.isEmpty())
+
+        release.countDown()
+        first.join()
+        assertEquals(listOf(id), told.toList())
+    }
+
+    @Test
     fun `a refresh of a profile that is gone writes nothing down`() = runBlocking {
         repository.refresh(404)
 

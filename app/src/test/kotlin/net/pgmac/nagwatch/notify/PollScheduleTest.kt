@@ -21,6 +21,7 @@ import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
 import net.pgmac.nagwatch.status.cache.AnnouncedStore
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
+import net.pgmac.nagwatch.widget.FakeWidgetBindings
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,7 +41,8 @@ class PollScheduleTest {
     private val announced = AnnouncedStore(statusDatabase.cache())
     private val notifier = FakeNotifier()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val schedule = PollSchedule(profiles, scheduler, notifier, announced, scope)
+    private val widgets = FakeWidgetBindings()
+    private val schedule = PollSchedule(profiles, widgets, scheduler, notifier, announced, scope)
 
     /** Something announced, so that forgetting it can be seen. */
     private val told = AnnouncedState(
@@ -218,6 +220,107 @@ class PollScheduleTest {
         until { runBlocking { announced.load(off1) } == AnnouncedState() }
         until { notifier.swept.isNotEmpty() }
         assertEquals(told, runBlocking { announced.load(on1) })
+    }
+
+    // ---------------------------------------------------------------- widgets
+
+    @Test
+    fun `a profile with a widget is polled even with notifications off, and is not treated as announcing`() {
+        val id = save(off)
+        runBlocking {
+            widgets.bind(41, id)
+            announced.save(id, told)
+        }
+
+        schedule.start()
+
+        assertEquals(listOf("schedule $id 15"), events(1))
+        until { notifier.swept.isNotEmpty() }
+        assertEquals(
+            "its notifications are off, so nothing of its is kept showing",
+            listOf(emptySet<Long>()),
+            notifier.swept.toList(),
+        )
+        until { runBlocking { announced.load(id) } == AnnouncedState() }
+    }
+
+    @Test
+    fun `adding a widget starts the polling and removing the last one stops it, without touching notifications`() {
+        val id = save(off)
+        schedule.start()
+        assertEquals(listOf("cancel $id"), events(1))
+
+        runBlocking { widgets.bind(41, id) }
+        assertEquals("schedule $id 15", events(2).last())
+
+        runBlocking { widgets.bind(42, id) }
+        runBlocking { widgets.unbind(listOf(41)) }
+        pause()
+        assertEquals("one widget is left", 2, scheduler.events.size)
+
+        runBlocking { widgets.unbind(listOf(42)) }
+        assertEquals("cancel $id", events(3).last())
+        assertTrue("it never announced, so there is nothing to take down", notifier.cleared.isEmpty())
+    }
+
+    @Test
+    fun `switching notifications off with a widget still there keeps the polling and takes the notifications down`() {
+        val id = save(on)
+        runBlocking {
+            widgets.bind(41, id)
+            announced.save(id, told)
+        }
+        schedule.start()
+        events(1)
+        until { notifier.swept.isNotEmpty() }
+
+        save(off, id)
+
+        until { notifier.cleared.isNotEmpty() }
+        assertEquals(listOf(id), notifier.cleared.toList())
+        until { runBlocking { announced.load(id) } == AnnouncedState() }
+        pause()
+        assertEquals("still polled, for the widget", listOf("schedule $id 15"), scheduler.events.toList())
+
+        runBlocking { widgets.unbind(listOf(41)) }
+        assertEquals("cancel $id", events(2).last())
+    }
+
+    @Test
+    fun `a widget on a profile that is already polled changes nothing`() {
+        val id = save(on)
+        schedule.start()
+        events(1)
+
+        runBlocking { widgets.bind(41, id) }
+        pause()
+
+        assertEquals(listOf("schedule $id 15"), scheduler.events.toList())
+        assertTrue(notifier.cleared.isEmpty())
+    }
+
+    @Test
+    fun `a widget-only profile follows its own interval`() {
+        val id = save(off.copy(interval = PollInterval.ONE_HOUR))
+        runBlocking { widgets.bind(41, id) }
+        schedule.start()
+        assertEquals(listOf("schedule $id 60"), events(1))
+
+        save(off.copy(interval = PollInterval.THIRTY_MINUTES), id)
+
+        assertEquals("schedule $id 30", events(2).last())
+    }
+
+    @Test
+    fun `a widget whose profile was deleted keeps nothing polled`() {
+        val id = save(off)
+        runBlocking { widgets.bind(41, id) }
+        schedule.start()
+        events(1)
+
+        runBlocking { profiles.delete(id) }
+
+        assertEquals("cancel $id", events(2).last())
     }
 
     @Test

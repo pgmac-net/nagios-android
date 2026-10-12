@@ -245,6 +245,7 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.datastore.preferences)
     implementation(libs.work.runtime)
+    implementation(libs.glance.appwidget)
     implementation(libs.navigation.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
@@ -264,6 +265,7 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.okhttp.tls)
     testImplementation(libs.work.testing)
+    testImplementation(libs.glance.appwidget.testing)
 
     // The fuzzing engine itself; see the "fuzzer" configuration above.
     add("fuzzer", libs.jazzer)
