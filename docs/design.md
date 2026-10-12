@@ -384,7 +384,7 @@ Built with Glance `SizeMode.Responsive`; the system supplies size ranges in dp, 
 | Tier | Approx. cells | Content |
 |---|---|---|
 | **Badge** | 1x1 | Fill colour = worst unhandled state; one number = unhandled problems. Green tick at zero. Grey + icon when stale or unreachable |
-| **Counts** | 2x1 to 4x1 | Chips: CRIT / WARN / UNKN / hosts DOWN (unhandled; acknowledged dimmed if room). Last-update time from 3 wide |
+| **Counts** | 2x1 to 4x1 | Chips: CRIT / WARN / UNKN / hosts DOWN (unhandled; acknowledged dimmed if room). In one row from about 270 dp wide (four cells), with the last-update time; two by two below that, so that none is cut off |
 | **Short list** | 2x2 to 4x2 | Counts row + top 2-4 problems, worst then newest: host, service, duration. No plugin output |
 | **Full list** | 3x3 to 4x6 | Counts row + scrollable list: host, service, state colour, duration, one truncated line of plugin output. Refresh button, profile name, last-update stamp |
 
@@ -400,7 +400,7 @@ Behaviour for all tiers:
 - Home screen only; not offered for the lock screen. A widget puts host and service names on the home screen.
 - Taps come in by the same non-exported name a notification's tap uses, so another app cannot forge one.
 - Follows system light/dark and Material You colour. State colours (red/amber/green) are fixed so they keep their meaning. Below Android 12 there is no Material You, so the background and text use Glance's fixed scheme; **the widget is untested on Android 8 to 11** (section 13).
-- The tiers are breakpoints in dp, not cell counts: under 110 dp wide is a Badge; under 110 dp high is Counts; from 250 dp high and 180 dp wide is the Full list; anything between is the Short list, with two to four problems by height. A launcher that reports an odd size gets the nearest layout.
+- The tiers are breakpoints in dp, not cell counts: under 110 dp wide is a Badge; under 110 dp high is Counts; from 250 dp high and 180 dp wide is the Full list; anything between is the Short list, with two to four problems by height. Under 270 dp wide the counts are two rows in every layout. A launcher that reports an odd size gets the nearest layout.
 
 ## 9. nagiosgraph
 
