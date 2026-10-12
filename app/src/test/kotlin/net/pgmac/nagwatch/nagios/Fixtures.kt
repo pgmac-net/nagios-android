@@ -12,6 +12,14 @@ internal object Fixtures {
 
     fun json(name: String): JsonObject = TEST_JSON.parseToJsonElement(text(name)) as JsonObject
 
+    /**
+     * A capture that is **not valid JSON**, from `/invalid_escapes`. Kept apart from the fixtures
+     * because every file there is parsed strictly by the leak check. See that directory's README.
+     */
+    fun invalid(name: String): String =
+        checkNotNull(javaClass.getResourceAsStream("/invalid_escapes/$name")) { "missing capture $name" }
+            .bufferedReader().use { it.readText() }
+
     /** What Apache sends when the CGI crashes. */
     const val SERVER_ERROR_HTML = "<html><head><title>500 Internal Server Error</title></head>" +
         "<body><h1>Internal Server Error</h1></body></html>"

@@ -18,7 +18,7 @@ import net.pgmac.nagwatch.nagios.NagiosResult
  * Whatever the text is, the answer is a result, never an exception.
  */
 internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonObject> {
-    val body = parseJsonObject(json, text)
+    val body = parseJsonObject(json, repairInvalidEscapes(text))
     val result = body?.get("result") as? JsonObject
     val code = (result?.get("type_code") as? JsonPrimitive)?.smallWholeNumber()
     return when {
@@ -27,6 +27,55 @@ internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonO
         else -> NagiosResult.Failure(NagiosError.Api(code, result.text("type_text"), result.text("message")))
     }
 }
+
+/**
+ * Rewrites the two escapes Nagios writes that JSON does not have.
+ *
+ * Nagios' JSON writer escapes a bell as `\a` and a vertical tab as `\v`, which RFC 8259 does not
+ * allow. Left alone, one check printing either character makes the whole response unparseable:
+ * the poll fails, and the app says something other than Nagios is answering. Measured on Nagios
+ * Core 4.5.3, by passing every control character through a check; all the others are written as
+ * a valid escape or are legal as they stand (pgmac-net/nagios-android#23).
+ *
+ * Escapes are read left to right, a backslash together with the character after it, because
+ * that is how JSON reads them. A real backslash is written `\\`, so `\\a` is a backslash and then
+ * an `a`, and is left alone; `\\\a` is a backslash and then a bell, and is repaired.
+ * Looking for "a backslash before an a" would get both wrong.
+ *
+ * The result is longer by four characters per repair, so a body made of nothing else is three
+ * times its size. The size limit is applied to what the server sent, before this, and that is
+ * the bound.
+ *
+ * A text with neither is returned as the same string, without copying.
+ */
+internal fun repairInvalidEscapes(text: String): String {
+    var repaired: StringBuilder? = null
+    var i = 0
+    while (i < text.length) {
+        val c = text[i]
+        if (c != '\\' || i + 1 >= text.length) {
+            repaired?.append(c)
+            i++
+            continue
+        }
+        val escape = text[i + 1]
+        val replacement = REPAIRS[escape]
+        if (replacement != null &&
+            repaired == null
+        ) {
+            repaired = StringBuilder(text.length + REPAIR_HEADROOM).append(text, 0, i)
+        }
+        repaired?.append(replacement ?: "\\$escape")
+        i += 2
+    }
+    return repaired?.toString() ?: text
+}
+
+/** Room for a few repairs without growing the buffer. A guess, and only a guess: it is not a limit. */
+private const val REPAIR_HEADROOM = 16
+
+/** What each invalid escape becomes: the same character, written as JSON has it. */
+private val REPAIRS = mapOf('a' to "\\u0007", 'v' to "\\u000b")
 
 /**
  * The text as a JSON object, or null if it is not JSON, not an object, or nests deeper

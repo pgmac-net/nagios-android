@@ -14,6 +14,7 @@ import net.pgmac.nagwatch.nagios.http.StatusParser
 import net.pgmac.nagwatch.nagios.http.interpretResponseBody
 import net.pgmac.nagwatch.nagios.http.obj
 import net.pgmac.nagwatch.nagios.http.parseJsonObject
+import net.pgmac.nagwatch.nagios.http.repairInvalidEscapes
 import net.pgmac.nagwatch.nagios.http.string
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
@@ -34,13 +35,22 @@ object FuzzEntryPoints {
     private val json = Json { ignoreUnknownKeys = true }
     private const val BYTE = 0xFFL
 
+    /** Each repaired escape is two characters that become six: three times at most. */
+    private const val REPAIR_GROWTH_LIMIT = 3
+
     /** Keeps the stand-in clock within the years `Instant` can hold. */
     private const val MAX_EPOCH = 100_000_000_000L
 
     /** Text to "is this Nagios, and did it succeed": the first thing every response meets. */
     @JvmStatic
     fun responseBody(data: ByteArray) {
-        interpretResponseBody(json, String(data, Charsets.UTF_8))
+        val text = String(data, Charsets.UTF_8)
+        interpretResponseBody(json, text)
+        // The repair is applied to anything a server sends, so it has to be idempotent: a second
+        // pass finds nothing, because nothing it writes is an escape it rewrites.
+        val repaired = repairInvalidEscapes(text)
+        check(repairInvalidEscapes(repaired) == repaired) { "repairing twice is not repairing once" }
+        check(repaired.length <= text.length * REPAIR_GROWTH_LIMIT) { "a repair grew a body more than allowed" }
     }
 
     /** Whatever survives as a JSON object goes through every function that reads status. */

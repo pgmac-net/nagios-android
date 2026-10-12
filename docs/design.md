@@ -128,6 +128,16 @@ A service whose plugin output contains non-ASCII text makes `statusjson.cgi` ans
 
 That record is returned **degraded** (name and state only), shown as "details unavailable", and counted as unhandled because nothing proves otherwise. The search is bounded (40 extra requests, 5 degraded records per list); past that the server error is reported. The search is repeated on each poll: list positions shift as states change, so a remembered position cannot be trusted.
 
+#### A bell or a vertical tab in plugin output
+
+Nagios Core's JSON writer escapes a bell as `\a` and a vertical tab as `\v`. Neither is a JSON escape, so one check printing either makes the whole response unparseable (HTTP 200, not JSON), and with it the whole poll: not one record, which is what the non-ASCII case above degrades to. Measured on Nagios Core 4.5.3 by passing every control character through a check: only these two are written invalidly; the others get a valid escape or are legal as they stand.
+
+The body is therefore repaired before it is parsed (`repairInvalidEscapes`, applied in `interpretResponseBody`): `\a` becomes `\u0007` and `\v` becomes `\u000b`. Escapes are read left to right, a backslash with the character after it, because that is how JSON reads them. Nagios writes a real backslash as `\\`, so a real backslash before an `a` is `\\a` and is left alone, and a real backslash before a bell is `\\\a`: an escaped backslash, then the invalid escape. A body with neither is returned untouched.
+
+- **There is no fallback to the isolation search above.** A body that is still not JSON after the repair is "not Nagios", as before. Probing for a bad record in a response that is not Nagios' (a captive portal's page, say) would only cost requests.
+- **The characters are left in the text** once parsed, like every other control character. Showing them tidily is a separate question.
+- **The size limit applies to what the server sent**, before the repair. A body made of nothing but bells is three times its size afterwards, which is the bound (the fuzz target asserts it).
+
 How much is fetched is the server's decision, so it is bounded rather than trusted: a single response is capped at 8 MiB, and a list is cut off at 50,000 records (a server that never sends a short page would otherwise be followed forever). Both report `ResponseTooLarge`.
 
 ### Writes (`cmd.cgi`)
