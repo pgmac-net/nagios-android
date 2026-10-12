@@ -10,6 +10,7 @@ import net.pgmac.nagwatch.nagios.command.CommandPage
 import net.pgmac.nagwatch.nagios.command.ServerClock
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.http.AnnotationParser
+import net.pgmac.nagwatch.nagios.http.MAX_REPAIRS
 import net.pgmac.nagwatch.nagios.http.StatusParser
 import net.pgmac.nagwatch.nagios.http.interpretResponseBody
 import net.pgmac.nagwatch.nagios.http.obj
@@ -35,8 +36,8 @@ object FuzzEntryPoints {
     private val json = Json { ignoreUnknownKeys = true }
     private const val BYTE = 0xFFL
 
-    /** Each repaired escape is two characters that become six: three times at most. */
-    private const val REPAIR_GROWTH_LIMIT = 3
+    /** Each repair adds four characters, and there is an allowance of them. */
+    private const val REPAIR_GROWTH_LIMIT = 4 * MAX_REPAIRS
 
     /** Keeps the stand-in clock within the years `Instant` can hold. */
     private const val MAX_EPOCH = 100_000_000_000L
@@ -48,9 +49,9 @@ object FuzzEntryPoints {
         interpretResponseBody(json, text)
         // The repair is applied to anything a server sends, so it has to be idempotent: a second
         // pass finds nothing, because nothing it writes is an escape it rewrites.
-        val repaired = repairInvalidEscapes(text)
+        val repaired = repairInvalidEscapes(text) ?: return
         check(repairInvalidEscapes(repaired) == repaired) { "repairing twice is not repairing once" }
-        check(repaired.length <= text.length * REPAIR_GROWTH_LIMIT) { "a repair grew a body more than allowed" }
+        check(repaired.length <= text.length + REPAIR_GROWTH_LIMIT) { "a repair grew a body more than allowed" }
     }
 
     /** Whatever survives as a JSON object goes through every function that reads status. */

@@ -18,7 +18,8 @@ import net.pgmac.nagwatch.nagios.NagiosResult
  * Whatever the text is, the answer is a result, never an exception.
  */
 internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonObject> {
-    val body = parseJsonObject(json, repairInvalidEscapes(text))
+    val repaired = repairInvalidEscapes(text) ?: return NagiosResult.Failure(NagiosError.ResponseTooLarge)
+    val body = parseJsonObject(json, repaired)
     val result = body?.get("result") as? JsonObject
     val code = (result?.get("type_code") as? JsonPrimitive)?.smallWholeNumber()
     return when {
@@ -42,14 +43,17 @@ internal fun interpretResponseBody(json: Json, text: String): NagiosResult<JsonO
  * an `a`, and is left alone; `\\\a` is a backslash and then a bell, and is repaired.
  * Looking for "a backslash before an a" would get both wrong.
  *
- * The result is longer by four characters per repair, so a body made of nothing else is three
- * times its size. The size limit is applied to what the server sent, before this, and that is
- * the bound.
+ * The result is longer by four characters per repair, and the body's size limit was applied to
+ * what the server sent, before this. So the repair has an allowance of its own: more than
+ * [maxRepairs] and it gives up and returns null, which the caller reports as too large. A real
+ * check prints a bell now and then, and never tens of thousands of them. Growth is therefore at
+ * most four times [maxRepairs] characters, whatever the body.
  *
- * A text with neither is returned as the same string, without copying.
+ * A text with nothing to repair is returned as the same string, without copying.
  */
-internal fun repairInvalidEscapes(text: String): String {
+internal fun repairInvalidEscapes(text: String, maxRepairs: Int = MAX_REPAIRS): String? {
     var repaired: StringBuilder? = null
+    var repairs = 0
     var i = 0
     while (i < text.length) {
         val c = text[i]
@@ -60,16 +64,18 @@ internal fun repairInvalidEscapes(text: String): String {
         }
         val escape = text[i + 1]
         val replacement = REPAIRS[escape]
-        if (replacement != null &&
-            repaired == null
-        ) {
-            repaired = StringBuilder(text.length + REPAIR_HEADROOM).append(text, 0, i)
+        if (replacement != null) {
+            if (++repairs > maxRepairs) return null
+            if (repaired == null) repaired = StringBuilder(text.length + REPAIR_HEADROOM).append(text, 0, i)
         }
         repaired?.append(replacement ?: "\\$escape")
         i += 2
     }
     return repaired?.toString() ?: text
 }
+
+/** How many invalid escapes one body may have repaired: 65,536 is at most 256 KiB of growth. */
+internal const val MAX_REPAIRS = 65_536
 
 /** Room for a few repairs without growing the buffer. A guess, and only a guess: it is not a limit. */
 private const val REPAIR_HEADROOM = 16
