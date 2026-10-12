@@ -121,9 +121,11 @@
     <string name="local_network_text">This Nagios is on your local network. Android asks before an app may reach devices there, and calls the permission “Nearby devices”. Nagwatch only talks to the address you entered; it does not search for or scan other devices.\n\nIf you say no, Nagwatch still tries, which works when you reach Nagios over a VPN.</string>
     <string name="local_network_not_now">Not now</string>
 
+    <string name="background_title">Background checks</string>
+    <string name="background_hint">How often Nagwatch checks this Nagios while the app is closed. It applies when this profile has notifications on or a widget on the home screen; otherwise nothing is checked in the background. Android decides exactly when, so allow for it running late.</string>
     <string name="notify_title">Notifications</string>
     <string name="notify_switch">Tell me about new problems</string>
-    <string name="notify_hint">Nagwatch checks this Nagios in the background and tells you when something new is wrong. Android decides exactly when it runs, so expect news to be up to the interval late, and later while the phone is idle.</string>
+    <string name="notify_hint">Nagwatch checks this Nagios in the background and tells you when something new is wrong. Expect news to be up to the interval above late, and later while the phone is idle.</string>
     <string name="notify_refused">Android is not letting Nagwatch show notifications, so this stays off.</string>
     <string name="action_allow_notifications">Allow notifications</string>
     <string name="notify_interval">Check about every</string>

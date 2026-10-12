@@ -177,6 +177,8 @@ scripts/test-nagios/stop.sh
 - **Every multi-row write is one transaction** (`StatusCacheDao`), so a crash never leaves half a poll.
 - **Everything is bounded per profile.** Adding a table means deciding what stops it growing.
 - **No foreign key to profiles.** Deleting a profile clears its cache through `ProfileCleanup`; `CacheJanitor` sweeps orphans at startup. A new store keyed by profile id needs both.
+- **`poll_attempt` is separate from `poll_meta`.** The second only knows about the last poll that worked. The first is what the latest one came to, written by `StatusRepository.refresh` after every attempt; without it, "unreachable" exists only in the memory of the process that polled.
+- **Stale is `Staleness`, nowhere else.** Twice the profile's interval, used by the screens (`ProfileStatus.staleAfter`, set whenever a profile is refreshed or shown from the cache) and by the widget. A change to a profile's interval reaches an open screen at its next refresh.
 - `StatusRepository` serves the cached result first and keeps `refreshing` true until the fresh result is on disk: "not refreshing" has to mean a new refresh would be accepted.
 
 ## What gets announced
@@ -213,6 +215,16 @@ Things to know:
   ```
   It asks for the `DUMP` permission, which adb's shell holds and no ordinary app can, and it is not in a release build. It does what the scheduled job does: a profile with notifications off is not polled. The "Updated" time on the Problems tab moves when the run has finished. The scheduled job itself can be seen with `adb shell dumpsys jobscheduler | grep -A12 'PollWorker'`: it is ready when `TIMING_DELAY` is no longer among its unsatisfied constraints.
 - **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
+
+## The widget
+
+No widget exists yet; this is what one will be drawn from.
+
+- `WidgetModel.of(profile, snapshot, attempt, now)` (`widget/`) decides everything a widget shows: one of five states (current, stale, unreachable, no data, profile gone), the four counts, the rows in the Problems tab's order, the "as of" time and the reason for a failure. It has no Android and no clock in it.
+- **Old green is never shown as current.** Stale and unreachable keep the last numbers and are marked `isDemoted`; the layouts must draw that, not decide it.
+- `counts` is null when nothing is known. That is not zero, and a layout must not print it as zero.
+- Rows are bounded (`WidgetModel.MAX_ROWS`), with `more` saying how many were left out: what is handed to the launcher is the app's to limit.
+- One line of plugin output comes from `CheckStatus.firstOutputLine()`, shared with notifications.
 
 ## Notifications
 

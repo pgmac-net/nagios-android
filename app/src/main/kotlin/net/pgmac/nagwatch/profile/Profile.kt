@@ -20,8 +20,11 @@ enum class PollInterval(val minutes: Int) {
 }
 
 /**
- * What a profile says about notifications. A profile is polled in the background only while
- * [enabled] is true: with it off the app makes no request the person did not ask for.
+ * What a profile says about background checks and notifications.
+ *
+ * [interval] is how often the profile is polled in the background, whatever the reason for
+ * polling it. The rest is about notifications. The name is from when notifications were the
+ * only reason; the stored columns are unchanged.
  */
 data class NotificationSettings(
     val enabled: Boolean = false,

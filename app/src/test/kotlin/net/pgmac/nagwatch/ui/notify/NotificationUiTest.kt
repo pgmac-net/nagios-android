@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -67,34 +68,50 @@ class NotificationUiTest {
     }
 
     @Test
-    fun `on, it shows the interval and both choices as they are set`() {
+    fun `on, it shows both choices as they are set, and the interval is not among them`() {
         settings = NotificationSettings(enabled = true, interval = PollInterval.THIRTY_MINUTES, tellUnreachable = false)
         showFields()
 
         composeRule.onNodeWithTag(NotificationTags.SWITCH).assertIsOn()
-        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.THIRTY_MINUTES)).assertIsSelected()
+        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.THIRTY_MINUTES)).assertDoesNotExist()
         composeRule.onNodeWithTag(NotificationTags.UNHANDLED_ONLY).assertIsOn()
         composeRule.onNodeWithTag(NotificationTags.UNREACHABLE).assertIsOff()
     }
 
     @Test
-    fun `the interval and the two choices can be changed`() {
+    fun `the two choices can be changed`() {
         settings = NotificationSettings(enabled = true)
         showFields()
 
-        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.ONE_HOUR)).performClick()
         composeRule.onNodeWithTag(NotificationTags.UNHANDLED_ONLY).performClick()
         composeRule.onNodeWithTag(NotificationTags.UNREACHABLE).performClick()
 
+        assertEquals(NotificationSettings(enabled = true, unhandledOnly = false, tellUnreachable = false), settings)
+    }
+
+    @Test
+    fun `background checks show the interval that is set, whether or not notifications are on`() {
+        settings = NotificationSettings(enabled = false, interval = PollInterval.THIRTY_MINUTES)
+        showBackgroundChecks()
+
+        composeRule.onNodeWithText("Background checks").assertIsDisplayed()
+        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.THIRTY_MINUTES)).assertIsSelected()
+        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.FIFTEEN_MINUTES)).assertIsNotSelected()
+        composeRule.onNodeWithText("a widget", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `choosing another interval changes it, and nothing else`() {
+        settings = NotificationSettings(enabled = false, unhandledOnly = false)
+        showBackgroundChecks()
+
+        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.ONE_HOUR)).performClick()
+
         assertEquals(
-            NotificationSettings(
-                enabled = true,
-                interval = PollInterval.ONE_HOUR,
-                unhandledOnly = false,
-                tellUnreachable = false,
-            ),
+            NotificationSettings(enabled = false, interval = PollInterval.ONE_HOUR, unhandledOnly = false),
             settings,
         )
+        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.ONE_HOUR)).assertIsSelected()
     }
 
     @Test
@@ -148,6 +165,14 @@ class NotificationUiTest {
         composeRule.onNodeWithTag(NotificationTags.OFFER_NOT_NOW).performClick()
 
         assertEquals(listOf("on", "not now"), calls)
+    }
+
+    private fun showBackgroundChecks() {
+        composeRule.setContent {
+            NagwatchTheme(dynamicColor = false) {
+                Column { BackgroundCheckFields(settings.interval) { settings = settings.copy(interval = it) } }
+            }
+        }
     }
 
     private fun showFields() {

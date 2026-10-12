@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -25,6 +26,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.NotificationSettings
+import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileProblem
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkTags
@@ -282,6 +284,19 @@ class ProfileScreensTest {
 
         composeRule.onAllNodesWithText("Delete")[1].performClick()
         assertEquals(listOf("delete"), calls)
+    }
+
+    @Test
+    fun `the editor shows how often the profile is checked even with notifications off, and it can be changed`() {
+        showEditor(ProfileEditorState(loading = false))
+
+        composeRule.onNodeWithTag(
+            NotificationTags.interval(PollInterval.FIFTEEN_MINUTES),
+        ).performScrollTo().assertIsSelected()
+        composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.ONE_HOUR)).performClick()
+
+        assertEquals(PollInterval.ONE_HOUR, state.toDraft().notifications.interval)
+        assertEquals("and nothing was switched on by it", false, state.toDraft().notifications.enabled)
     }
 
     @Test

@@ -44,6 +44,30 @@ class DetailUiStateTest {
     private val later = T0.plusSeconds(600)
 
     @Test
+    fun `how old a record may be before it is called stale comes from the profile, loaded or not`() {
+        val hourly = status.copy(staleAfter = java.time.Duration.ofHours(2))
+
+        assertEquals(
+            java.time.Duration.ofHours(2),
+            detailUiState(ObjectDetail(ObjectRef("web01")), hourly, later).staleAfter,
+        )
+        assertEquals(
+            "with nothing polled yet it is still the profile's",
+            java.time.Duration.ofHours(2),
+            detailUiState(
+                ObjectDetail(ObjectRef("web01")),
+                ProfileStatus(staleAfter = java.time.Duration.ofHours(2)),
+                later,
+            ).staleAfter,
+        )
+        assertEquals(
+            "and the shortest when the profile is not known",
+            net.pgmac.nagwatch.status.Staleness.DEFAULT,
+            detailUiState(ObjectDetail(ObjectRef("web01")), null, later).staleAfter,
+        )
+    }
+
+    @Test
     fun `a host never opened before is shown from the last poll while it loads`() {
         val state = detailUiState(ObjectDetail(ObjectRef("web01")), status, later)
 

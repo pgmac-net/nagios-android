@@ -301,7 +301,7 @@ private fun Freshness(state: DetailUiState, actions: DetailActions) {
             )
         }
         if (record != null && !detail.refreshing &&
-            Duration.between(record.fetchedAt, state.now) > ProfileStatus.STALE_AFTER
+            Duration.between(record.fetchedAt, state.now) > state.staleAfter
         ) {
             Banner(
                 stringResource(R.string.problems_banner_stale, formatAge(record.fetchedAt, state.now)),
