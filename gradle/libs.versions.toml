@@ -36,7 +36,7 @@ floorBouncycastle = "1.85"
 floorCommonsLang3 = "3.18.0"
 floorHttpclient = "4.5.14"
 floorJdom2 = "2.0.6.1"
-floorJose4j = "0.9.6"
+floorJose4j = "0.9.7"
 floorLogback = "1.5.34"
 floorPlexusUtils = "3.6.1"
 
