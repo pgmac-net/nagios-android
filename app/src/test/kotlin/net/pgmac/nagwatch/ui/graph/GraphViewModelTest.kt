@@ -9,6 +9,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -55,7 +56,9 @@ class GraphViewModelTest {
     private val memory = GraphMemory()
     private val profiles =
         ProfileRepository(profileDatabase.profiles(), SecretCipher(softwareKeySource()), Json, setOf(memory))
-    private val asked = mutableListOf<GraphRequest>()
+
+    // Written from whichever thread the repository resumes on, read from the test's.
+    private val asked = java.util.concurrent.CopyOnWriteArrayList<GraphRequest>()
     private var answer: suspend (GraphRequest) -> GraphAnswer = { picture() }
     private val repository = GraphRepository(
         profiles,
@@ -122,7 +125,8 @@ class GraphViewModelTest {
         assertEquals(1, asked.size)
 
         model.show(GraphSize.FULL)
-        model.awaitState { !it.loading && asked.size == 2 }
+        awaitAsked(2)
+        model.awaitState { !it.loading }
 
         assertEquals(listOf(inline, GraphSize.FULL), asked.map { it.size })
     }
@@ -197,7 +201,8 @@ class GraphViewModelTest {
         val id = saveProfile()
         val first = service(id)
         first.show(inline)
-        first.awaitState { !it.loading && asked.size == 1 }
+        awaitAsked(1)
+        first.awaitState { !it.loading }
         assertFalse(first.state.value.visible)
 
         val second = service(id)
@@ -212,7 +217,8 @@ class GraphViewModelTest {
         answer = { GraphAnswer.NoGraph }
         val model = service(saveProfile())
         model.show(inline)
-        model.awaitState { !it.loading && asked.size == 1 }
+        awaitAsked(1)
+        model.awaitState { !it.loading }
         answer = { picture() }
 
         model.refresh()
@@ -226,7 +232,8 @@ class GraphViewModelTest {
         answer = { GraphAnswer.NoGraph }
         val model = service(saveProfile())
         model.show(inline)
-        model.awaitState { !it.loading && asked.size == 1 }
+        awaitAsked(1)
+        model.awaitState { !it.loading }
         val gate = CompletableDeferred<Unit>()
         answer = {
             gate.await()
@@ -234,7 +241,7 @@ class GraphViewModelTest {
         }
 
         model.refresh()
-        runBlocking { withTimeout(TIMEOUT_MS) { while (asked.size < 2) kotlinx.coroutines.delay(10) } }
+        awaitAsked(2)
 
         assertFalse("nothing flickers on a screen that had no graph", model.state.value.visible)
         gate.complete(Unit)
@@ -323,11 +330,26 @@ class GraphViewModelTest {
         return seen
     }
 
+    /**
+     * Waits until nagiosgraph has been asked [times] times.
+     *
+     * Apart from [awaitState], and never inside its condition. A state flow tells a waiter about
+     * a state only when it differs from the last one it told it about, and a view model that
+     * goes idle, loading, idle quickly enough ends where it began: the waiter is told nothing,
+     * and a condition that also depended on this count is never looked at again. That passed
+     * here and timed out on a slower machine.
+     */
+    private fun awaitAsked(times: Int) = runBlocking {
+        withTimeout(TIMEOUT_MS) { while (asked.size < times) delay(POLL_MS) }
+    }
+
+    /** [predicate] may read the state it is given and nothing else: see [awaitAsked]. */
     private fun GraphViewModel.awaitState(predicate: (GraphUiState) -> Boolean): GraphUiState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }
 
     private companion object {
         const val TIMEOUT_MS = 5_000L
         const val SETTLE_MS = 300L
+        const val POLL_MS = 10L
     }
 }
