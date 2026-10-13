@@ -18,6 +18,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -128,6 +131,52 @@ class HomeScreenTest {
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).assertIsNotSelected()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).assertIsNotSelected()
         composeRule.onNodeWithTag(ProblemsTags.LIST).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a swipe moves to the next tab and back, and the bar follows`() {
+        show()
+
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeLeft() }
+
+        composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.row("gw01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProblemsTags.LIST).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeLeft() }
+
+        composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).assertIsSelected()
+
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeRight() }
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeRight() }
+
+        composeRule.onNodeWithTag(HomeTags.tab(HomeTab.PROBLEMS)).assertIsSelected()
+        composeRule.onNodeWithTag(ProblemsTags.LIST).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a swipe past the last tab goes nowhere`() {
+        show()
+        composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).performClick()
+
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeLeft() }
+
+        composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).assertIsSelected()
+    }
+
+    @Test
+    fun `what was typed and chosen on a tab is still there after swiping away and back`() {
+        show()
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeLeft() }
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.SEARCH).performTextInput("db")
+
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeLeft() }
+        composeRule.onNodeWithTag(HomeTags.PAGER).performTouchInput { swipeRight() }
+
+        composeRule.onNodeWithTag(BrowseTags.SEARCH).assertTextContains("db")
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertIsSelected()
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
     }
 
     @Test

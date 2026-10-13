@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -27,13 +30,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -43,6 +49,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.Profile
@@ -68,6 +75,7 @@ object HomeTags {
     const val BANNER_DEGRADED = "home_banner_degraded"
     const val UPDATED = "home_updated"
     const val PROFILE_MENU = "home_profile_menu"
+    const val PAGER = "home_pager"
 
     fun tab(tab: HomeTab) = "home_tab_${tab.name}"
 }
@@ -155,17 +163,26 @@ fun HomeContent(
     modifier: Modifier = Modifier,
     initialTab: HomeTab = HomeTab.PROBLEMS,
 ) {
-    var tab by rememberSaveable { mutableStateOf(initialTab) }
+    // The tabs are pages: a swipe moves between them, and the bar says which is showing. The bar
+    // and Back move the same pager, so there is one answer to "which tab" (pgmac-net/nagios-android#63).
+    val pager = rememberPagerState(initialPage = initialTab.ordinal) { HomeTab.entries.size }
+    val tab = HomeTab.entries[pager.currentPage]
+    val scope = rememberCoroutineScope()
+    val show: (HomeTab) -> Unit = { to -> scope.launch { pager.animateScrollToPage(to.ordinal) } }
+    // A search box that has the keyboard is on the page being left. Left focused, the keyboard would
+    // stay up typing into a box nobody can see, and the pager would keep that page alive for it.
+    val focus = LocalFocusManager.current
+    LaunchedEffect(pager.currentPage) { focus.clearFocus() }
     // Each tab keeps its own search, filter and scroll position while another is shown.
     val tabStates = rememberSaveableStateHolder()
     val selected = state.selected
     // Back from Hosts or Services returns to Problems, where the app opens; from there it leaves.
-    BackHandler(enabled = tab != HomeTab.PROBLEMS) { tab = HomeTab.PROBLEMS }
+    BackHandler(enabled = tab != HomeTab.PROBLEMS) { show(HomeTab.PROBLEMS) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = { TopAppBar(title = { ProfileSwitcher(state, actions) }) },
-        bottomBar = { if (selected != null) HomeTabs(tab, onSelect = { tab = it }) },
+        bottomBar = { if (selected != null) HomeTabs(tab, onSelect = show) },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize().padding(innerPadding)) {
             when {
@@ -173,9 +190,11 @@ fun HomeContent(
 
                 selected == null -> NoProfiles(actions)
 
-                // Keyed by profile as well: another profile's hosts need another search.
-                else -> tabStates.SaveableStateProvider("${selected.id}:${tab.name}") {
-                    ProfileBody(state, selected, tab, actions)
+                else -> ProfileBody(state, selected, pager, actions) { page ->
+                    // Keyed by profile as well: another profile's hosts need another search.
+                    tabStates.SaveableStateProvider("${selected.id}:${page.name}") {
+                        TabBody(page, state, checkNotNull(state.status), actions)
+                    }
                 }
             }
         }
@@ -271,10 +290,20 @@ private fun NoProfiles(actions: HomeActions) {
     }
 }
 
-/** One profile's status in the chosen tab. Every tab loads, fails and refreshes the same way. */
+/**
+ * One profile's status, a page for each tab. Every tab loads, fails and refreshes the same way,
+ * so there is one pull to refresh over all of them, and while there is nothing to show yet
+ * there are no pages to swipe between.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileBody(state: HomeUiState, profile: Profile, tab: HomeTab, actions: HomeActions) {
+private fun ProfileBody(
+    state: HomeUiState,
+    profile: Profile,
+    pager: PagerState,
+    actions: HomeActions,
+    page: @Composable (HomeTab) -> Unit,
+) {
     val status = state.status
     val refreshing = status?.refreshing == true
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = actions::refresh, modifier = Modifier.fillMaxSize()) {
@@ -284,7 +313,11 @@ private fun ProfileBody(state: HomeUiState, profile: Profile, tab: HomeTab, acti
 
             status.report == null -> FirstFailure(status.error, profile, actions)
 
-            else -> TabBody(tab, state, status, actions)
+            else -> HorizontalPager(
+                state = pager,
+                key = { HomeTab.entries[it].name },
+                modifier = Modifier.fillMaxSize().testTag(HomeTags.PAGER),
+            ) { index -> page(HomeTab.entries[index]) }
         }
     }
 }
