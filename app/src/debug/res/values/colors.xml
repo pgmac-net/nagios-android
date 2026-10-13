@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <!-- The release icon is green. A debug build sits beside it on one phone, so it is amber
+         (and carries a "D", see drawable/ic_launcher_foreground.xml): similar, never the same. -->
+    <color name="ic_launcher_background">#FF8F00</color>
+</resources>

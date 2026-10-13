@@ -214,15 +214,15 @@ class BrowseModelTest {
     }
 
     @Test
-    fun `handled problems are shown until switched off, and are still counted when hidden`() {
+    fun `handled problems are hidden until switched on, and are still counted when hidden`() {
         val rows = hostRows(
             host("down", HostState.DOWN),
             host("acked", HostState.DOWN, CheckStatus(acknowledged = true)),
             host("up"),
         )
 
-        val shown = BrowseFilter<HostState>().apply(rows)
-        val hidden = BrowseFilter<HostState>(showHandled = false).apply(rows)
+        val shown = BrowseFilter<HostState>(showHandled = true).apply(rows)
+        val hidden = BrowseFilter<HostState>().apply(rows)
 
         assertEquals(listOf("down", "acked", "up"), shown.rows.map { it.title })
         assertEquals(listOf("down", "up"), hidden.rows.map { it.title })
@@ -234,7 +234,7 @@ class BrowseModelTest {
     fun `hiding handled never hides something that is not a problem`() {
         val rows = hostRows(host("up"), host("pending", HostState.PENDING))
 
-        assertEquals(2, BrowseFilter<HostState>(showHandled = false).apply(rows).rows.size)
+        assertEquals(2, BrowseFilter<HostState>().apply(rows).rows.size)
     }
 
     private fun hostRows(vararg hosts: HostStatus): List<BrowseRow<HostState>> {

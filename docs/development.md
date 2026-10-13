@@ -17,7 +17,7 @@
 | Refresh the lockfile | `./gradlew :app:resolveAndLockAll --write-locks` |
 | The SBOM a release would carry | `./gradlew :app:cyclonedxDirectBom` (output in `app/build/reports/sbom/`) |
 
-The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", so it sits beside a release build. Release builds are minified with R8 and **unsigned**, here and in CI. Only the release workflow signs one; see [Releasing](#releasing).
+The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", with an amber icon carrying a "D" (the release icon is green), so it sits beside a release build and the two can be told apart. The icon is two resources under `app/src/debug/res` that override the release ones. Release builds are minified with R8 and **unsigned**, here and in CI. Only the release workflow signs one; see [Releasing](#releasing).
 
 ## What `check` enforces
 
