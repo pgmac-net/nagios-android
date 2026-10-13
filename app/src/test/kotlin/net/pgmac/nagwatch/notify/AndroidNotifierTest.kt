@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.service.notification.StatusBarNotification
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -24,6 +25,8 @@ import net.pgmac.nagwatch.notify.Notice.Change
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
+import net.pgmac.nagwatch.ui.theme.DarkStateColors
+import net.pgmac.nagwatch.ui.theme.LightStateColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -83,6 +86,61 @@ class AndroidNotifierTest {
         assertEquals("problems_unknown", problem(ObjectRef("web01", "Odd")).channelId)
         assertEquals("problems_critical", problem(ObjectRef("db01")).channelId)
         assertEquals("problems_critical", problem(ObjectRef("db02")).channelId)
+    }
+
+    // ---------------------------------------------------------------- colour
+
+    @Test
+    fun `a problem's icon is tinted with its state's colour, as the app's own screens show it`() {
+        raise(disk, ServiceState.CRITICAL)
+        raise(load, ServiceState.WARNING)
+        raise(ObjectRef("web01", "Odd"), ServiceState.UNKNOWN)
+        raiseHost("db01", HostState.DOWN)
+        raiseHost("db02", HostState.UNREACHABLE)
+
+        val light = LightStateColors
+        assertEquals(light.critical.toArgb(), problem(disk).color)
+        assertEquals(light.warning.toArgb(), problem(load).color)
+        assertEquals(light.unknown.toArgb(), problem(ObjectRef("web01", "Odd")).color)
+        assertEquals(light.critical.toArgb(), problem(ObjectRef("db01")).color)
+        assertEquals(light.critical.toArgb(), problem(ObjectRef("db02")).color)
+    }
+
+    @Test
+    fun `a recovery is tinted with the colour of OK`() {
+        raise(disk, ServiceState.CRITICAL)
+
+        deliver(home, post = listOf(Notice.Recovered(disk)))
+
+        assertEquals(LightStateColors.ok.toArgb(), problem(disk).color)
+    }
+
+    @Test
+    @Config(application = android.app.Application::class, qualifiers = "night")
+    fun `on a dark phone the dark variants are used`() {
+        raise(disk, ServiceState.WARNING)
+
+        assertEquals(DarkStateColors.warning.toArgb(), problem(disk).color)
+    }
+
+    @Test
+    fun `a summary, an outage and the group's entry have no state colour to wear`() {
+        deliver(home, post = listOf(Notice.Summary(count = 6, first = true)))
+        deliver(home, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+
+        assertEquals(Notification.COLOR_DEFAULT, shown(home, AndroidNotifier.ID_SUMMARY).color)
+        assertEquals(Notification.COLOR_DEFAULT, shown(home, AndroidNotifier.ID_OUTAGE).color)
+        assertEquals(Notification.COLOR_DEFAULT, shown(home, AndroidNotifier.ID_GROUP).color)
+    }
+
+    @Test
+    fun `every channel can be made without posting, for the page that lists them`() {
+        assertTrue(manager.notificationChannels.isEmpty())
+
+        NotifyChannel.createAll(context)
+        NotifyChannel.createAll(context)
+
+        assertEquals(NotifyChannel.entries.map { it.id }.toSet(), manager.notificationChannels.map { it.id }.toSet())
     }
 
     // ---------------------------------------------------------------- problems

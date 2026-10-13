@@ -8,6 +8,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -22,10 +24,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.notify.NOTIFICATION_PERMISSION
+import net.pgmac.nagwatch.notify.NotifyChannel
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.ui.PermissionRequest
 import net.pgmac.nagwatch.ui.appNotificationSettings
+import net.pgmac.nagwatch.ui.openAppNotificationSettings
 import net.pgmac.nagwatch.ui.rememberPermissionRequest
 
 object NotificationTags {
@@ -34,6 +38,7 @@ object NotificationTags {
     const val ALLOW = "notify_allow"
     const val UNHANDLED_ONLY = "notify_unhandled_only"
     const val UNREACHABLE = "notify_unreachable"
+    const val SOUNDS = "notify_sounds"
     const val OFFER = "notify_offer"
     const val OFFER_TURN_ON = "notify_offer_turn_on"
     const val OFFER_NOT_NOW = "notify_offer_not_now"
@@ -122,6 +127,28 @@ fun NotificationFields(settings: NotificationSettings, refused: Boolean, actions
         tag = NotificationTags.UNREACHABLE,
     ) { checked -> actions.editNotifications { it.copy(tellUnreachable = checked) } }
     Text(stringResource(R.string.notify_unreachable_hint), style = MaterialTheme.typography.bodySmall)
+    SoundsLink()
+}
+
+/**
+ * Android keeps the sound, importance and vibration of each kind of notification, and lets the
+ * person set each from its own list of sounds. This is the way there. The kinds are the app's,
+ * not a profile's, so what is set there applies to every profile.
+ */
+@Composable
+private fun SoundsLink() {
+    val context = LocalContext.current
+    OutlinedButton(
+        onClick = {
+            // Until something has been posted there are no channels, and the page would be empty.
+            NotifyChannel.createAll(context)
+            openAppNotificationSettings(context)
+        },
+        modifier = Modifier.testTag(NotificationTags.SOUNDS),
+    ) {
+        Text(stringResource(R.string.notify_sounds))
+    }
+    Text(stringResource(R.string.notify_sounds_hint), style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable

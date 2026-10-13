@@ -2,6 +2,10 @@
 
 package net.pgmac.nagwatch.ui.notify
 
+import android.app.Application
+import android.app.NotificationManager
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,7 +20,9 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import net.pgmac.nagwatch.notify.NotifyChannel
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
@@ -24,6 +30,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /** The "Notifications" section of the profile editor, and the offer, as the person meets them. */
@@ -55,6 +62,27 @@ class NotificationUiTest {
         composeRule.onNodeWithTag(NotificationTags.UNHANDLED_ONLY).assertDoesNotExist()
         composeRule.onNodeWithTag(NotificationTags.UNREACHABLE).assertDoesNotExist()
         composeRule.onNodeWithTag(NotificationTags.interval(PollInterval.FIFTEEN_MINUTES)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `off, there is no way to the sounds, and on there is`() {
+        showFields()
+        composeRule.onNodeWithTag(NotificationTags.SOUNDS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `on, the sounds button makes the channels and sends the person to Android's page for them`() {
+        settings = NotificationSettings(enabled = true)
+        showFields()
+
+        composeRule.onNodeWithTag(NotificationTags.SOUNDS).performClick()
+
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val started = shadowOf(context as Application).nextStartedActivity
+        assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, started.action)
+        assertEquals(context.packageName, started.getStringExtra(Settings.EXTRA_APP_PACKAGE))
+        val made = context.getSystemService(NotificationManager::class.java).notificationChannels.map { it.id }
+        assertEquals(NotifyChannel.entries.map { it.id }.toSet(), made.toSet())
     }
 
     @Test
