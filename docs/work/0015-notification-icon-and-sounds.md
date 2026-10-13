@@ -38,7 +38,7 @@ On a Pixel 8a, Android 17, in the debug build:
 
 ## What this means for #60
 
-On the one phone it was tried on, #60 changes nothing the person can see. It is harmless there and does what it says where the shade draws a small icon. Whether that is worth keeping is the maintainer's call; the alternatives are in the pull request. The status bar was never going to show it, and the title already says the state in words.
+On the one phone it was tried on, #60 changes nothing the person can see. It is harmless there and does what it says where the shade draws a small icon. **Kept as built, by the maintainer's decision** (the alternatives were to drop it from the pull request, or to spike colour in the title text, which Android restricts). The README and the design say where it will not show. The status bar was never going to show it, and the title already says the state in words.
 
 ## Follow-ups
 
