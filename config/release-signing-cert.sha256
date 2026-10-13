@@ -1,0 +1,8 @@
+# SHA-256 of the certificate every Nagwatch release is signed with.
+# Public, and safe to publish: it identifies the key and cannot be used to sign.
+# scripts/sign-release.sh refuses to produce an APK signed with anything else.
+# Do not change it. A different key means no existing install can upgrade
+# (docs/adr/0011).
+#
+# Not yet set: the release key has not been made. Until a fingerprint is on the
+# line below, the release workflow signs nothing.

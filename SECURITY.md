@@ -31,6 +31,10 @@ Please allow up to 90 days from your report before disclosing publicly, or until
 
 Only the latest release receives security fixes. Before the first release, that means the `main` branch.
 
+## Checking a download
+
+Every release is signed with one key. The SHA-256 fingerprint of its certificate is the one line in [`config/release-signing-cert.sha256`](config/release-signing-cert.sha256), and the README's [Install](README.md#install) section says how to check an APK against it and against GitHub's build attestation. An APK called Nagwatch that is signed with any other certificate did not come from this project; please report it.
+
 ## Scope
 
 In scope:

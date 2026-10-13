@@ -15,8 +15,9 @@
 | Everything CI runs | `./gradlew check assembleDebug assembleRelease` then `scripts/foss-self-test.sh` |
 | Auto-format Kotlin | `./gradlew ktlintFormat` |
 | Refresh the lockfile | `./gradlew :app:resolveAndLockAll --write-locks` |
+| The SBOM a release would carry | `./gradlew :app:cyclonedxDirectBom` (output in `app/build/reports/sbom/`) |
 
-The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", so it sits beside a release build. Release builds are minified with R8 and **unsigned** until the release pipeline exists (M7).
+The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", so it sits beside a release build. Release builds are minified with R8 and **unsigned**, here and in CI. Only the release workflow signs one; see [Releasing](#releasing).
 
 ## What `check` enforces
 
@@ -355,7 +356,49 @@ Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI i
 Beside those three, and not required for a merge:
 
 - **CodeQL** (`codeql.yml`) analyses the Kotlin, the workflows and the scripts on every pull request, on `main`, and weekly. Kotlin is analysed by watching a real compilation, so that job builds the app with the daemon and the build cache off: a compilation restored from a cache is one CodeQL never saw. Downloaded libraries and Gradle itself are still read from the cache. It is not a required check because CodeQL's support for a new Kotlin release can lag the release; if the Kotlin job fails after a Kotlin upgrade, that is the first thing to check.
+- **Release** (`release.yml`) runs on a `v*` tag, and by hand as a rehearsal. See [Releasing](#releasing).
 - **The Gradle wrapper is verified** in the `build` job. `gradle-wrapper.jar` is a binary in the repository that runs on every build; it is checked against the checksums Gradle publishes before anything runs it.
+
+## Releasing
+
+A release is a signed APK, its SBOM and a checksum file on a GitHub Release, made by `.github/workflows/release.yml` when a `v*` tag is pushed. The reasoning is [ADR 0011](adr/0011-the-apk-is-signed-outside-the-build.md).
+
+**How the workflow is put together.** Two jobs:
+
+- `build` runs Gradle: the tag check, `check`, `assembleRelease`, the SBOM, the FOSS self-test. It has no secrets. What it hands on is an unsigned APK.
+- `release` waits for the maintainer to approve the `release` environment, which is the only place the key exists. It checks out two files (`scripts/sign-release.sh` and `config/release-signing-cert.sha256`), signs with the Android SDK's `apksigner`, and **stops unless the signed APK's certificate is the one in that file**. Then checksums, a build attestation, a draft Release, and the SBOM to Dependency-Track. No Gradle runs in this job.
+
+**Cutting a release.**
+
+1. A pull request that raises `versionName` and adds one to `versionCode` in `app/build.gradle.kts`. Android refuses an update whose `versionCode` is not higher. Merge it.
+2. On `main`, at that merge: `git tag -s vX.Y.Z -m "Nagwatch X.Y.Z" && git push origin vX.Y.Z`. The tag must be `v` plus `versionName` exactly, and on `main`, or `build` fails before doing anything else.
+3. When `build` is green the run waits. Approve the `release` environment.
+4. The run leaves a **draft** Release. Download its APK and install it on a phone: over the previous release, not onto a clean phone. That it installs as an update is the only real proof it was signed with the right key and a higher `versionCode`. Open a profile.
+5. Edit the notes, then Publish. Obtainium sees it from then.
+
+**When something goes wrong.**
+
+- *The tag check fails.* Nothing was signed. Delete the tag (`git push origin :vX.Y.Z`, `git tag -d vX.Y.Z`), fix, tag again.
+- *"signed with the wrong key".* The keystore in the environment's secrets is not the release key. Nothing was published. Put the right one in; never change the fingerprint file to match.
+- *The draft is bad, or the `release` job has to run again.* Delete the draft first (`gh release delete vX.Y.Z --yes` leaves the tag), then re-run the job. It will not overwrite a release that exists.
+- *The SBOM did not reach Dependency-Track.* The release is unaffected and the run says so in its summary. To send it by hand, with the upload key in `DT_APIKEY`:
+  ```
+  jq -n --arg v X.Y.Z --rawfile bom nagwatch-X.Y.Z.cdx.json \
+    '{projectName: "pgmac-net/nagios-android", projectVersion: $v, autoCreate: true, bom: ($bom | @base64)}' \
+    | curl -sS --fail-with-body -X PUT -H "X-Api-Key: $DT_APIKEY" -H "Content-Type: application/json" \
+        --data-binary @- https://sbom.pgmac.net.au/api/v1/bom
+  ```
+- *A published release is bad.* Do not delete it or move its tag. Release the next version.
+
+**Rehearsing.** `gh workflow run release.yml --ref <branch>` runs `build` only: no approval, no key, nothing published. A pull request that changes `release.yml` gets the same rehearsal by itself. The unsigned APK and the SBOM are artifacts of the run. To try the signing step, make a throwaway keystore and run `scripts/sign-release.sh` with `FINGERPRINT_FILE` pointing at a file holding that keystore's fingerprint; with the real fingerprint file it must fail.
+
+**The key (maintainer only).** One RSA 4096 key in a PKCS12 keystore, made once, kept outside every repository, backed up in two places that do not share a failure. It cannot be replaced: an APK signed with another key will not install over the app, so everyone would have to uninstall and lose their profiles.
+
+- The `release` environment holds `RELEASE_KEYSTORE_B64` (`base64 -w0` of the keystore), `RELEASE_KEYSTORE_PASSWORD` and `RELEASE_KEY_ALIAS`. Nothing else in the repository can read them.
+- The environment itself (the maintainer as required reviewer, `v*` tags only) and the rule on who may push a `v*` tag are in `pgmac-net/terraform-github`. The workflow names the environment; change both together.
+- `DT_HOST` is set on this repository to the public name, `sbom.pgmac.net.au`, over the organisation's value, which is a name only the homelab can reach. `DT_APIKEY` is the organisation's upload-only key.
+
+**What the SBOM is.** The `releaseRuntimeClasspath` and nothing else: what is in the APK. Build tools, test libraries and the fuzzer are not shipped and are not listed. The APK is also built without the dependency block the Android Gradle plugin would otherwise embed (`dependenciesInfo` in `app/build.gradle.kts`): it is encrypted with a key only Google holds, and F-Droid refuses an APK that has one.
 
 ## Layout
 
