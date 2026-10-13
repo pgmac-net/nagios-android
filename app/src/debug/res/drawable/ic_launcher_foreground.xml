@@ -10,10 +10,11 @@
     android:viewportHeight="108">
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M47,62 L36,51 L32,55 L47,70 L77,40 L73,36 Z" />
-    <!-- A "D": stem and bowl, 12 wide and 18 tall, in the lower right of the safe zone. -->
+        android:pathData="M44,59 L33,48 L29,52 L44,67 L74,37 L70,33 Z" />
+    <!-- A "D", 15 wide and 15 tall, at the lower right. Every corner of it, and of the tick, is within 31 of
+         the centre: a round launcher mask keeps a circle of 33 (a square one keeps more), so none is cut. -->
     <path
         android:fillColor="#FFFFFF"
         android:fillType="evenOdd"
-        android:pathData="M60,60 L68,60 C75,60 79,64 79,69 C79,74 75,78 68,78 L60,78 Z M64,64 L64,74 L68,74 C72,74 74,72 74,69 C74,66 72,64 68,64 Z" />
+        android:pathData="M60,62 L66,62 C72,62 75,65.5 75,69.5 C75,73.5 72,77 66,77 L60,77 Z M64,66 L64,73 L66,73 C69,73 71,71.5 71,69.5 C71,67.5 69,66 66,66 Z" />
 </vector>
