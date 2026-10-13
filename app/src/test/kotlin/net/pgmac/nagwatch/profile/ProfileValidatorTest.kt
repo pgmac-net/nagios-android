@@ -168,5 +168,37 @@ class ProfileValidatorTest {
         )
     }
 
+    @Test
+    fun `the graph path may be empty or a plain path on the profile's own server`() {
+        listOf("", "  ", "/cgi-bin/", "/nagiosgraph/cgi-bin").forEach { path ->
+            assertEquals(path, emptySet<ProfileProblem>(), problems(valid.copy(graphs = GraphSettings(path = path))))
+        }
+    }
+
+    @Test
+    fun `a graph path that is a URL, or could name another server, is refused`() {
+        listOf(
+            "https://elsewhere.example/cgi-bin/",
+            "//elsewhere.example/cgi-bin/",
+            "nagiosgraph/cgi-bin",
+            "/cgi-bin/../",
+            "/cgi-bin/?x=1",
+        ).forEach { path ->
+            assertEquals(
+                path,
+                setOf(ProfileProblem.GRAPH_PATH_INVALID),
+                problems(valid.copy(graphs = GraphSettings(path = path))),
+            )
+        }
+    }
+
+    @Test
+    fun `the graph path is checked with graphs off too, so that what is stored can be used when they come back`() {
+        assertEquals(
+            setOf(ProfileProblem.GRAPH_PATH_INVALID),
+            problems(valid.copy(graphs = GraphSettings(enabled = false, path = "https://elsewhere.example/"))),
+        )
+    }
+
     private fun problems(draft: ProfileDraft) = ProfileValidator.validate(draft, stored = null)
 }

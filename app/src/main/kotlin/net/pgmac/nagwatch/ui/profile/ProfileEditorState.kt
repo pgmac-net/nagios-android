@@ -3,6 +3,7 @@
 package net.pgmac.nagwatch.ui.profile
 
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.profile.GraphSettings
 import net.pgmac.nagwatch.profile.HeaderDraft
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.Profile
@@ -63,6 +64,7 @@ data class ProfileEditorState(
     val notifications: NotificationSettings = NotificationSettings(),
     /** Android said no to notifications, so the switch stayed off. The section says so. */
     val notificationsRefused: Boolean = false,
+    val graphs: GraphSettings = GraphSettings(),
 ) {
     val isNew: Boolean get() = profileId == null
 
@@ -80,6 +82,7 @@ data class ProfileEditorState(
         customHeaders = headers.map { HeaderDraft(it.name, it.value.toInput()) },
         allowCleartext = allowCleartext,
         notifications = notifications,
+        graphs = graphs,
     )
 
     companion object {
@@ -95,6 +98,7 @@ data class ProfileEditorState(
             headers = profile.customHeaderNames.map { HeaderField(it, SecretField(stored = true)) },
             allowCleartext = profile.allowCleartext,
             notifications = profile.notifications,
+            graphs = profile.graphs,
         )
     }
 }

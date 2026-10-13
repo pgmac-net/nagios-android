@@ -36,6 +36,15 @@ data class NotificationSettings(
 )
 
 /**
+ * What a profile says about nagiosgraph.
+ *
+ * On unless switched off: a server without nagiosgraph costs one request, after which nothing
+ * more is asked for the rest of the session, and nothing is ever shown about it. [path] is a
+ * path on the profile's own server (see `GraphPath`); blank means where Nagios' CGIs are.
+ */
+data class GraphSettings(val enabled: Boolean = true, val path: String = "")
+
+/**
  * A saved connection to a Nagios instance, as the UI sees it. Carries no
  * secrets: only whether each one is set. Secrets are write-only from the UI's
  * point of view and are never read back for display.
@@ -53,6 +62,7 @@ data class Profile(
     val notifications: NotificationSettings = NotificationSettings(),
     /** The app has offered to switch notifications on for this profile. It offers once. */
     val notificationsOffered: Boolean = false,
+    val graphs: GraphSettings = GraphSettings(),
 ) {
     val isCleartext: Boolean get() = baseUrl.trim().startsWith("http://", ignoreCase = true)
 }
@@ -84,4 +94,5 @@ data class ProfileDraft(
     val customHeaders: List<HeaderDraft>,
     val allowCleartext: Boolean,
     val notifications: NotificationSettings = NotificationSettings(),
+    val graphs: GraphSettings = GraphSettings(),
 )

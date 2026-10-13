@@ -45,6 +45,10 @@ data class ProfileEntity(
     @ColumnInfo(name = "notify_unreachable", defaultValue = "1") val notifyUnreachable: Boolean = true,
     /** The app has offered notifications for this profile, so it does not offer again. */
     @ColumnInfo(name = "notify_offered", defaultValue = "0") val notifyOffered: Boolean = false,
+    /** Whether nagiosgraph's graphs are asked for. On until the person switches it off. */
+    @ColumnInfo(name = "graphs", defaultValue = "1") val graphs: Boolean = true,
+    /** A path on this profile's server, or empty for where Nagios' own CGIs are. Never a URL. */
+    @ColumnInfo(name = "graph_path", defaultValue = "''") val graphPath: String = "",
 ) {
     companion object {
         const val DEFAULT_POLL_MINUTES = 15
@@ -92,7 +96,7 @@ abstract class ProfileDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "profiles.db"
-        const val VERSION = 3
+        const val VERSION = 4
 
         /** Adds the remembered date format. Existing profiles have none, which is the truth. */
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
@@ -115,7 +119,18 @@ abstract class ProfileDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds the graph settings. Existing profiles get graphs on, like new ones, and no path
+         * of their own: the app looks where it already found Nagios' CGIs.
+         */
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN graphs INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE profiles ADD COLUMN graph_path TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         /** Every migration, in order. One list, so the app and the tests cannot open the database differently. */
-        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }

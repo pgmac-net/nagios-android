@@ -86,6 +86,33 @@ class ProfileMigrationTest {
         }
 
     @Test
+    fun `a profile saved by version 3 survives the upgrade, with graphs on and no path of its own`() = runBlocking {
+        createVersion(3) { db -> db.execSQL("UPDATE profiles SET notify = 1, poll_minutes = 30, notify_offered = 1") }
+
+        val profiles = open(*ProfileDatabase.MIGRATIONS.toTypedArray()).profiles()
+
+        val kept = checkNotNull(profiles.get(1))
+        assertEquals("Home", kept.name)
+        assertEquals("encrypted-password", kept.encryptedPassword)
+        assertEquals(
+            "what it chose about notifications is as it was",
+            Triple(true, 30, true),
+            Triple(kept.notify, kept.pollMinutes, kept.notifyOffered),
+        )
+        assertEquals("like a new profile", true, kept.graphs)
+        assertEquals("the app looks where it found Nagios' CGIs", "", kept.graphPath)
+    }
+
+    @Test
+    fun `a version 3 database is refused without its own migration`() {
+        createVersion(3)
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { open(ProfileDatabase.MIGRATION_1_2, ProfileDatabase.MIGRATION_2_3).profiles().get(1) }
+        }
+    }
+
+    @Test
     fun `without the migration the old database is refused, not wiped`() {
         createVersion(1)
 

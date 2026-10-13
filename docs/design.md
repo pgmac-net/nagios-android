@@ -38,7 +38,7 @@ Status: **locked for v1** (2026-10-08; sections 4 and 5 revised 2026-10-09 from 
 | Widget | Jetpack Glance, `SizeMode.Responsive` |
 | Architecture | MVVM, unidirectional state, repository layer, coroutines/Flow |
 | DI | Hilt |
-| Network | OkHttp + kotlinx.serialization; interceptors for basic auth and Access/custom headers; Coil for graph PNGs sharing the OkHttp client |
+| Network | OkHttp + kotlinx.serialization; interceptors for basic auth and Access/custom headers. Graph PNGs come through the same client and are decoded by the platform: no image library (ADR 0010) |
 | Storage | Room (cached status; offline view; widget reads cache), DataStore (settings); secrets encrypted with an Android Keystore key |
 | Background | WorkManager periodic poll feeding notifications and widget |
 | Build | Gradle Kotlin DSL, version catalog, single `:app` module until it hurts |
@@ -54,7 +54,7 @@ A profile holds:
 - Username and password (HTTP basic auth)
 - **Cloudflare Access** section: Client ID, Client Secret. Sent as `CF-Access-Client-Id` and `CF-Access-Client-Secret` on every request
 - **Custom headers**: list of name/value pairs for other proxies
-- nagiosgraph: enabled toggle, base URL template (default `{base}/cgi-bin/`)
+- **Graphs** (nagiosgraph): a switch, on by default, and an optional graph path. Blank means the CGI directory the app found for Nagios; otherwise a path on the same server, such as `/nagiosgraph/cgi-bin/`. Never a URL (ADR 0010)
 - Polling: enabled, interval (15 min default and minimum), unhandled-only filter
 - Private CAs: the app trusts system **and user-installed** CA certificates (network security config), so a private CA installed in Android Settings just works. There is no in-app CA import in v1 and there is never an "ignore TLS errors" switch
 
@@ -269,7 +269,7 @@ How M2 implements them:
 +--------------------------------------+
 ```
 
-Host detail is the same minus the service name, with the host check graph if one exists.
+Host detail is the same minus the service name and without a graph: nagiosgraph has no fixed name for a host's own check (section 9).
 
 How M2 implements the detail screens (graphs are M6, so not here yet; actions are described after this list):
 
@@ -404,9 +404,14 @@ Behaviour for all tiers:
 
 ## 9. nagiosgraph
 
-- Service and host detail fetch `showgraph.cgi?host=H&service=S&period=P` with the profile's credentials and headers, via the shared OkHttp client and Coil. Periods: day, week, month, year.
-- The graph path is a per-profile template with default `{base}/cgi-bin/`, because upstream installs often use `/nagiosgraph/cgi-bin/`.
-- Not every service has performance data. A non-image response or error image collapses the Graph section silently; there is no error spam.
+Why it is built this way is ADR 0010.
+
+- Service detail fetches `showgraph.cgi?host=H&service=S&period=P&geom=WxH` with the profile's credentials and headers, through the app's own client. Periods: day, week, month, year. Nothing else is ever sent, and never `rrdopts`.
+- **Where**: the CGI directory the app found for Nagios, unless the profile gives a graph path, which is a path on the same server and not a URL.
+- **Size**: the plot is asked for in dp, not device pixels, in a few steps of width, and a larger one for the full-screen viewer. rrdtool draws text at a fixed pixel size, so a picture asked for at a phone's resolution has labels that cannot be read.
+- **Whether there is a graph is decided from the picture.** nagiosgraph answers 200 and `image/png` when it has nothing to draw: a small picture of the error text, a blank one, or nothing. A graph is a PNG at least as large as the plot asked for and not much larger. Anything else leaves the Graph section out, silently; there is no error spam.
+- **Remembered for the session, never stored**: the services with no graph, the profiles with no nagiosgraph at all (404, 403, or a 200 that is not a PNG), and a few pictures. A pull to refresh asks again.
+- **Hosts have no graph.** nagiosgraph files a host's own check under whatever name the administrator gave it, so there is nothing to ask for that would be right on more than one server.
 - "Open in browser" opens `show.cgi?host=H&service=S`. It is secondary: the external browser has none of the app's credentials, so it works only where the browser can already reach and authenticate to Nagios.
 
 ## 10. Data model (Room)

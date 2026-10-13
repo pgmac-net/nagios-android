@@ -136,6 +136,22 @@ _Avoid_: Monitored, synced
 Having its notifications on, so that a poll may notify. A widget makes a profile polled; it never makes it announcing.
 _Avoid_: Notifying (that is what Nagios does)
 
+**Graph**:
+A picture of a service's history, drawn by nagiosgraph and shown as it was drawn. Only a service has one.
+_Avoid_: Chart (the app draws nothing itself), performance data (that is what it is drawn from)
+
+**No graph**:
+nagiosgraph answered and has nothing to draw for this service. Not an error, and never shown as one.
+_Avoid_: Graph error, failed graph
+
+**Not there (nagiosgraph)**:
+The profile's server has no nagiosgraph where the app looks. True of every service at once, and settled by one request.
+_Avoid_: Graphs disabled (that is the profile's own switch)
+
+**Graph path**:
+Where nagiosgraph's CGIs are, as a path on the profile's own server. Blank means where Nagios' own CGIs are.
+_Avoid_: Graph URL, template
+
 **Widget tier**:
 One of four responsive widget layouts: Badge, Counts, Short list, Full list.
 _Avoid_: Size, mode
