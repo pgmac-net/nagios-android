@@ -393,6 +393,75 @@ class ProfileScreensTest {
         composeRule.onNodeWithText("cannot be a full URL", substring = true).performScrollTo().assertIsDisplayed()
     }
 
+    @Test
+    fun `Cloudflare Access and custom headers start folded on a new profile`() {
+        showEditor(ProfileEditorState(loading = false))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_TOGGLE).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_SET, useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_TOGGLE).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_FIELDS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `tapping the title opens a section and tapping it again folds it`() {
+        showEditor(ProfileEditorState(loading = false))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_TOGGLE).performScrollTo().performClick()
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertExists()
+        composeRule.onNodeWithText("Client ID").performScrollTo().assertIsDisplayed()
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_TOGGLE).performClick()
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a profile that has Access set opens with it showing`() {
+        showEditor(ProfileEditorState.from(storedProfile.copy(accessClientId = "abc.access", hasAccessClientSecret = true)))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertExists()
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_SET, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a folded section with something in it says Set, and folding changes nothing that is saved`() {
+        val before = ProfileEditorState.from(storedProfile.copy(accessClientId = "abc.access", hasAccessClientSecret = true))
+        showEditor(before)
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_TOGGLE).performScrollTo().performClick()
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_SET, useUnmergedTree = true).assertExists()
+        assertEquals("abc.access", state.accessClientId)
+        assertEquals(before.accessClientSecret, state.accessClientSecret)
+        assertEquals(before.toDraft(), state.toDraft())
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_TOGGLE).performClick()
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertExists()
+    }
+
+    @Test
+    fun `custom headers open when there is one, and say Set when folded`() {
+        showEditor(ProfileEditorState.from(storedProfile).copy(headers = listOf(HeaderField("X-Env", SecretField(stored = true)))))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_FIELDS).assertExists()
+
+        composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_TOGGLE).performScrollTo().performClick()
+
+        composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_SET, useUnmergedTree = true).assertExists()
+        assertEquals(1, state.headers.size)
+    }
+
+    @Test
+    fun `a section with a problem is open, so the error is not out of sight`() {
+        showEditor(ProfileEditorState(loading = false, problems = setOf(ProfileProblem.ACCESS_INCOMPLETE)))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertExists()
+        composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_FIELDS).assertDoesNotExist()
+    }
+
     private fun showEditor(initial: ProfileEditorState) {
         state = initial
         composeRule.setContent { NagwatchTheme(dynamicColor = false) { ProfileEditorContent(state, actions) } }

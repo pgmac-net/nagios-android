@@ -292,6 +292,9 @@
     <string name="profile_secret_saved">%1$s: saved</string>
     <string name="profile_cleartext_warning">This URL is not encrypted. Your username and password are sent in a form anyone on the network path can read. Only use it on a network you trust.</string>
     <string name="profile_allow_cleartext">Allow unencrypted HTTP for this profile</string>
+    <string name="profile_section_show">Show</string>
+    <string name="profile_section_hide">Hide</string>
+    <string name="profile_section_set">Set</string>
     <string name="profile_access_title">Cloudflare Access</string>
     <string name="profile_access_hint">Optional. A service token, for a Nagios behind Cloudflare Access. Requires an https URL.</string>
     <string name="profile_access_client_id">Client ID</string>

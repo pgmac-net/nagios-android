@@ -2,6 +2,8 @@
 
 package net.pgmac.nagwatch.ui.profile
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,6 +70,12 @@ object ProfileEditorTags {
     const val PROBLEMS = "editor_problems"
     const val GRAPHS_SWITCH = "editor_graphs_switch"
     const val GRAPH_PATH = "editor_graph_path"
+    const val ACCESS_TOGGLE = "editor_access_toggle"
+    const val ACCESS_SET = "editor_access_set"
+    const val ACCESS_FIELDS = "editor_access_fields"
+    const val HEADERS_TOGGLE = "editor_headers_toggle"
+    const val HEADERS_SET = "editor_headers_set"
+    const val HEADERS_FIELDS = "editor_headers_fields"
     const val SAVE = "editor_save"
     const val TEST = "editor_test"
 }
@@ -238,24 +247,90 @@ private fun ConnectionFields(state: ProfileEditorState, actions: ProfileEditorAc
     ) { field -> actions.edit { it.copy(password = field) } }
 }
 
+/**
+ * An optional block of the form that can be folded away. Folding only hides: what is in it is
+ * still saved and still sent, so [hasValue] puts "Set" on the title row while it is folded and
+ * a fold can never make something that is in use look absent. It starts open when there is
+ * something in it, and opens by itself when it has a problem, so an error is never out of sight.
+ */
+@Composable
+private fun FoldingSection(
+    @StringRes title: Int,
+    hasValue: Boolean,
+    hasProblem: Boolean,
+    tags: FoldTags,
+    content: @Composable () -> Unit,
+) {
+    var open by rememberSaveable { mutableStateOf(hasValue || hasProblem) }
+    LaunchedEffect(hasProblem) { if (hasProblem) open = true }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { open = !open }.testTag(tags.toggle),
+    ) {
+        Text(
+            text = stringResource(title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        if (hasValue && !open) {
+            Text(
+                text = stringResource(R.string.profile_section_set),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(end = 12.dp).testTag(tags.set),
+            )
+        }
+        Text(
+            text = stringResource(if (open) R.string.profile_section_hide else R.string.profile_section_show),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+    if (open) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.testTag(tags.fields),
+        ) { content() }
+    }
+}
+
+private class FoldTags(val toggle: String, val set: String, val fields: String)
+
 @Composable
 private fun AccessFields(state: ProfileEditorState, actions: ProfileEditorActions) {
-    Text(stringResource(R.string.profile_access_title), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.profile_access_hint), style = MaterialTheme.typography.bodySmall)
     val isError = state.problems.any { it in ACCESS_PROBLEMS }
-    Field(R.string.profile_access_client_id, state.accessClientId, isError = isError) { value ->
-        actions.edit { it.copy(accessClientId = value) }
-    }
-    SecretInputField(R.string.profile_access_client_secret, state.accessClientSecret, isError = isError) { field ->
-        actions.edit { it.copy(accessClientSecret = field) }
+    FoldingSection(
+        title = R.string.profile_access_title,
+        hasValue = state.accessClientId.isNotBlank() || state.accessClientSecret.stored ||
+            state.accessClientSecret.input.isNotEmpty(),
+        hasProblem = isError,
+        tags = FoldTags(ProfileEditorTags.ACCESS_TOGGLE, ProfileEditorTags.ACCESS_SET, ProfileEditorTags.ACCESS_FIELDS),
+    ) {
+        Text(stringResource(R.string.profile_access_hint), style = MaterialTheme.typography.bodySmall)
+        Field(R.string.profile_access_client_id, state.accessClientId, isError = isError) { value ->
+            actions.edit { it.copy(accessClientId = value) }
+        }
+        SecretInputField(R.string.profile_access_client_secret, state.accessClientSecret, isError = isError) { field ->
+            actions.edit { it.copy(accessClientSecret = field) }
+        }
     }
 }
 
 @Composable
 private fun HeaderFields(state: ProfileEditorState, actions: ProfileEditorActions) {
-    Text(stringResource(R.string.profile_headers_title), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.profile_headers_hint), style = MaterialTheme.typography.bodySmall)
     val isError = state.problems.any { it in HEADER_PROBLEMS }
+    FoldingSection(
+        title = R.string.profile_headers_title,
+        hasValue = state.headers.isNotEmpty(),
+        hasProblem = isError,
+        tags = FoldTags(ProfileEditorTags.HEADERS_TOGGLE, ProfileEditorTags.HEADERS_SET, ProfileEditorTags.HEADERS_FIELDS),
+    ) {
+        HeaderRows(state, actions, isError)
+    }
+}
+
+@Composable
+private fun HeaderRows(state: ProfileEditorState, actions: ProfileEditorActions, isError: Boolean) {
+    Text(stringResource(R.string.profile_headers_hint), style = MaterialTheme.typography.bodySmall)
     state.headers.forEachIndexed { index, header ->
         Field(R.string.profile_header_name, header.name, isError = isError) { value ->
             actions.edit { it.copy(headers = it.headers.replaced(index) { h -> h.copy(name = value) }) }
