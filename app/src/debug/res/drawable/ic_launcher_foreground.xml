@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- The release tick, with a "D" at the lower right so the debug build cannot be mistaken for the
+     release one. Overrides app/src/main/res/drawable/ic_launcher_foreground.xml; both are drawn
+     inside the adaptive icon's safe zone (the middle 66 of 108). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M47,62 L36,51 L32,55 L47,70 L77,40 L73,36 Z" />
+    <!-- A "D": stem and bowl, 12 wide and 18 tall, in the lower right of the safe zone. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M60,60 L68,60 C75,60 79,64 79,69 C79,74 75,78 68,78 L60,78 Z M64,64 L64,74 L68,74 C72,74 74,72 74,69 C74,66 72,64 68,64 Z" />
+</vector>
