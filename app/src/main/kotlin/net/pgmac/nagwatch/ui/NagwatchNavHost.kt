@@ -21,6 +21,7 @@ import net.pgmac.nagwatch.notify.NotificationTarget
 import net.pgmac.nagwatch.ui.detail.DetailNavigation
 import net.pgmac.nagwatch.ui.detail.DetailScreen
 import net.pgmac.nagwatch.ui.graph.GraphViewerScreen
+import net.pgmac.nagwatch.ui.graph.rememberScreenTurn
 import net.pgmac.nagwatch.ui.home.HomeNavigation
 import net.pgmac.nagwatch.ui.home.HomeScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
@@ -40,6 +41,8 @@ fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Un
             onTargetOpened()
         }
     }
+    // Here and not in the viewer: the screen is stood up again after the viewer has gone.
+    val screenTurn = rememberScreenTurn()
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) { HomeScreen(homeNavigation(navController)) }
         composable(Routes.PROFILES) {
@@ -65,7 +68,7 @@ fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Un
                 navArgument(Routes.ARG_SERVICE) { type = NavType.StringType },
             ),
         ) {
-            GraphViewerScreen(onBack = { navController.popBackStack() })
+            GraphViewerScreen(screenTurn, onBack = { navController.popBackStack() })
         }
     }
 }

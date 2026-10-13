@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.nagios.graph
 
+import kotlin.math.roundToInt
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import okhttp3.HttpUrl
 
@@ -37,12 +38,21 @@ data class GraphSize(val width: Int, val height: Int) {
         private const val AXIS_WIDTH = 81
 
         /**
-         * A plot whose picture fits in [availableDp], in steps: a few sizes, so that a window
-         * dragged a little wider does not mean another request and another picture to keep.
+         * The picture is asked for this much wider than the room it will be shown in, and
+         * scaled down to fit. At exactly the room's width, on a phone, the plot was 240 across
+         * and rrdtool cut the legend off part-way through its four numbers (seen on a phone:
+         * "Min: -na"). A sixth wider, the legend fits, and the text is smaller but still read.
+         */
+        private const val WIDER_THAN_THE_ROOM = 1.16f
+
+        /**
+         * A plot for a picture to be shown [availableDp] wide, in steps: a few sizes, so that a
+         * window dragged a little wider does not mean another request and another picture to keep.
          */
         fun inline(availableDp: Int): GraphSize {
-            val plot = (availableDp - AXIS_WIDTH).coerceIn(MIN_WIDTH, MAX_WIDTH)
-            return GraphSize(width = plot - plot % STEP, height = INLINE_HEIGHT)
+            val wanted = availableDp * WIDER_THAN_THE_ROOM - AXIS_WIDTH
+            val stepped = (wanted / STEP).roundToInt() * STEP
+            return GraphSize(width = stepped.coerceIn(MIN_WIDTH, MAX_WIDTH), height = INLINE_HEIGHT)
         }
     }
 }

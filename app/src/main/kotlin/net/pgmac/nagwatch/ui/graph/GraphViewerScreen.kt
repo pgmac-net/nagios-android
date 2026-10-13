@@ -2,8 +2,6 @@
 
 package net.pgmac.nagwatch.ui.graph
 
-import android.content.pm.ActivityInfo
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -56,10 +54,15 @@ import net.pgmac.nagwatch.nagios.graph.GraphSize
  * It asks for its own, larger picture; the one on the detail screen magnified would be a blur.
  */
 @Composable
-fun GraphViewerScreen(onBack: () -> Unit, viewModel: GraphViewModel = hiltViewModel()) {
+fun GraphViewerScreen(turn: ScreenTurn, onBack: () -> Unit, viewModel: GraphViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.show(GraphSize.FULL) }
-    LandscapeWhileShown()
+    // On its side while it is up: a graph is three times as wide as it is tall. What happens
+    // when it goes is ScreenTurn's business, and outlives this screen.
+    DisposableEffect(turn) {
+        turn.sideways()
+        onDispose { turn.back() }
+    }
     GraphViewerContent(state, onBack = onBack, onChoose = viewModel::choose)
 }
 
@@ -71,29 +74,42 @@ fun GraphViewerContent(
     onChoose: (GraphPeriod) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier.fillMaxSize().testTag(GraphTags.VIEWER),
-        topBar = {
-            TopAppBar(
-                title = { Text(state.service, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag(GraphTags.VIEWER_BACK)) {
-                        Icon(painterResource(R.drawable.ic_back), stringResource(R.string.action_back))
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
-        val decoded by rememberGraphBitmap(state.graph)
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            // A row of their own, which scrolls. In the bar they pushed the title out and sat on
-            // top of Back whenever the window was narrow: before the screen has turned, or split.
-            PeriodChips(
-                selected = state.period,
-                onChoose = onChoose,
-                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            )
-            ViewerPicture(state, decoded, Modifier.fillMaxWidth().weight(1f).padding(8.dp))
+    BoxWithConstraints(modifier = modifier.fillMaxSize().testTag(GraphTags.VIEWER)) {
+        // On its side a phone is short, and a row for the periods costs a fifth of the picture.
+        // They go in the bar where the bar has room for them and the title both, and only there:
+        // in a narrow bar they pushed the title out and sat on top of Back.
+        val periodsInBar = maxWidth >= PERIODS_IN_BAR_FROM.dp
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = state.title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag(GraphTags.VIEWER_TITLE),
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack, modifier = Modifier.testTag(GraphTags.VIEWER_BACK)) {
+                            Icon(painterResource(R.drawable.ic_back), stringResource(R.string.action_back))
+                        }
+                    },
+                    actions = { if (periodsInBar) PeriodChips(state.period, onChoose, Modifier.padding(end = 16.dp)) },
+                )
+            },
+        ) { innerPadding ->
+            val decoded by rememberGraphBitmap(state.graph)
+            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                if (!periodsInBar) {
+                    PeriodChips(
+                        selected = state.period,
+                        onChoose = onChoose,
+                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    )
+                }
+                ViewerPicture(state, decoded, Modifier.fillMaxWidth().weight(1f).padding(8.dp))
+            }
         }
     }
 }
@@ -113,9 +129,10 @@ private fun ViewerPicture(state: GraphUiState, decoded: DecodedGraph, modifier: 
             // Still on its way: being fetched, or fetched and being decoded.
             state.loading || (state.graph != null && !decoded.failed(state.graph)) -> Loading()
 
-            // Here the person asked for a graph, so here they are told there is none.
+            // Here the person asked for a graph, so here they are told there is none, or that
+            // nobody could be asked.
             else -> Text(
-                text = stringResource(R.string.graph_none),
+                text = stringResource(if (state.unreachable) R.string.graph_unreachable else R.string.graph_none),
                 color = Color.DarkGray,
                 modifier = Modifier.padding(16.dp).testTag(GraphTags.VIEWER_NONE),
             )
@@ -147,12 +164,14 @@ private fun ZoomablePicture(bitmap: ImageBitmap, description: String) {
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(width, height) {
-                    detectTransformGestures { _, pan, zoomBy, _ ->
-                        zoom =
-                            zoom.moved(zoomBy, pan.x, pan.y, width, height)
+                    // About the fingers, not about the middle: what is being looked at stays put.
+                    detectTransformGestures { centroid, pan, zoomBy, _ ->
+                        zoom = zoom.moved(zoomBy, pan.x, pan.y, width, height, centroid.x, centroid.y)
                     }
                 }
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { zoom = zoom.toggled() }) }
+                .pointerInput(width, height) {
+                    detectTapGestures(onDoubleTap = { at -> zoom = zoom.toggled(width, height, at.x, at.y) })
+                }
                 .graphicsLayer {
                     scaleX = zoom.scale
                     scaleY = zoom.scale
@@ -165,20 +184,5 @@ private fun ZoomablePicture(bitmap: ImageBitmap, description: String) {
     }
 }
 
-/**
- * Turns the screen on its side while the viewer is up, and puts it back as it was after: a
- * graph is three times as wide as it is tall.
- *
- * What it was is saved, not read again: turning the screen rebuilds the activity, and a second
- * look would find "landscape" and restore that for ever. For the same reason nothing is put
- * back when the viewer goes only because the activity is being rebuilt.
- */
-@Composable
-private fun LandscapeWhileShown() {
-    val activity = LocalActivity.current ?: return
-    val before = rememberSaveable { activity.requestedOrientation }
-    DisposableEffect(activity) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        onDispose { if (!activity.isChangingConfigurations) activity.requestedOrientation = before }
-    }
-}
+/** Four chips are about 330dp, and a title wants about as much again. */
+private const val PERIODS_IN_BAR_FROM = 700

@@ -330,6 +330,7 @@
     <string name="graph_loading">Loading the graph</string>
     <string name="graph_open_browser">Open graphs in browser</string>
     <string name="graph_none">There is no graph for this period.</string>
+    <string name="graph_unreachable">The graph could not be fetched just now.</string>
     <string name="graphs_title">Graphs</string>
     <string name="graphs_switch">Show nagiosgraph graphs</string>
     <string name="graphs_hint">A service\u2019s history as nagiosgraph draws it, where the server has nagiosgraph and the service has performance data. Where it has not, nothing is shown.</string>

@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.status
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.ConnectionSettings
@@ -227,7 +228,7 @@ class GraphRepositoryTest {
             answer = { GraphAnswer.Unavailable(NagiosError.Http(500)) }
 
             // Asking again lifts the ruling; the failure would fall back on an older picture if one were left.
-            assertEquals(GraphState.None, graph(id, disk, GraphPeriod.WEEK, refresh = true))
+            assertEquals(GraphState.Unavailable, graph(id, disk, GraphPeriod.WEEK, refresh = true))
         }
 
     // ---------------------------------------------------------------- a failure that may pass
@@ -237,7 +238,7 @@ class GraphRepositoryTest {
         val id = profiles.saveTestProfile()
         answer = { GraphAnswer.Unavailable(NagiosError.Http(500)) }
 
-        assertEquals(GraphState.None, graph(id, disk))
+        assertEquals("not 'there is none': nobody could be asked", GraphState.Unavailable, graph(id, disk))
         answer = { picture() }
 
         assertTrue(graph(id, disk) is GraphState.Shown)
@@ -372,14 +373,14 @@ class GraphRepositoryTest {
     fun `the period last chosen is remembered for its profile, until the profile goes`() = runBlocking {
         val id = profiles.saveTestProfile()
         val other = profiles.saveTestProfile("Other")
-        assertEquals(GraphPeriod.DAY, repository.period(id))
+        assertEquals(GraphPeriod.DAY, repository.period(id).first())
 
         repository.choose(id, GraphPeriod.YEAR)
 
-        assertEquals(GraphPeriod.YEAR, repository.period(id))
-        assertEquals(GraphPeriod.DAY, repository.period(other))
+        assertEquals(GraphPeriod.YEAR, repository.period(id).first())
+        assertEquals(GraphPeriod.DAY, repository.period(other).first())
         profiles.delete(id)
-        assertEquals(GraphPeriod.DAY, repository.period(id))
+        assertEquals(GraphPeriod.DAY, repository.period(id).first())
     }
 
     @Test
@@ -391,7 +392,7 @@ class GraphRepositoryTest {
         profiles.save(draft(id = id, baseUrl = "https://other.example.org/nagios"))
         graph(id, disk)
 
-        assertEquals(GraphPeriod.MONTH, repository.period(id))
+        assertEquals(GraphPeriod.MONTH, repository.period(id).first())
     }
 
     private suspend fun graph(

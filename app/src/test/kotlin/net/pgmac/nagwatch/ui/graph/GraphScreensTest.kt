@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -49,7 +50,7 @@ class GraphScreensTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private var state by mutableStateOf(GraphUiState(service = "Disk /"))
+    private var state by mutableStateOf(GraphUiState(service = "Disk /", hostName = "web01"))
     private val calls = mutableListOf<String>()
     private val actions = object : GraphActions {
         override fun show(size: GraphSize) {
@@ -105,8 +106,8 @@ class GraphScreensTest {
 
         composeRule.onNodeWithTag(GraphTags.SECTION).assertDoesNotExist()
         composeRule.onNodeWithText("Graph").assertDoesNotExist()
-        // 411 less the screen's 16 on each side is 379: room for a 240 plot and its axis.
-        assertEquals(listOf("show 240x120"), calls)
+        // 411 less the screen's 16 on each side is 379, and the plot asked for is a little wider than that.
+        assertEquals(listOf("show 360x120"), calls)
     }
 
     @Test
@@ -224,7 +225,7 @@ class GraphScreensTest {
         showViewer()
         awaitTag(GraphTags.VIEWER_PICTURE)
 
-        composeRule.onNodeWithText("Disk /").assertIsDisplayed()
+        composeRule.onNodeWithTag(GraphTags.VIEWER_TITLE).assertIsDisplayed().assertTextEquals("web01 / Disk /")
         composeRule.onNodeWithTag(GraphTags.VIEWER_PICTURE).assertIsDisplayed().assert(
             described("Graph of Disk / over the last year, drawn by nagiosgraph. Pinch to zoom, double-tap to reset."),
         )
@@ -239,6 +240,15 @@ class GraphScreensTest {
         composeRule.onNodeWithTag(GraphTags.VIEWER_NONE).assertIsDisplayed()
         composeRule.onNodeWithText("There is no graph for this period.").assertIsDisplayed()
         composeRule.onNodeWithTag(GraphTags.LOADING).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the viewer says the graph could not be fetched when that is what happened, not that there is none`() {
+        state = state.copy(unreachable = true)
+        showViewer()
+
+        composeRule.onNodeWithText("The graph could not be fetched just now.").assertIsDisplayed()
+        composeRule.onNodeWithText("There is no graph for this period.").assertDoesNotExist()
     }
 
     @Test
@@ -259,6 +269,46 @@ class GraphScreensTest {
         composeRule.onNodeWithTag(GraphTags.VIEWER_BACK).performClick()
 
         assertEquals(listOf("choose WEEK", "back"), calls)
+    }
+
+    @Test
+    @Config(qualifiers = "w914dp-h411dp-land-xhdpi")
+    fun `on its side the viewer's periods are in the bar, beside a title and a Back that still work`() {
+        state = state.copy(graph = shown("graph_year_700x240.png", 781, 295, GraphPeriod.YEAR))
+        showViewer()
+        awaitTag(GraphTags.VIEWER_PICTURE)
+
+        val bar = composeRule.onNodeWithTag(
+            GraphTags.VIEWER_TITLE,
+        ).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val chips = GraphPeriod.entries.map {
+            composeRule.onNodeWithTag(GraphTags.period(it)).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        }
+        val back = composeRule.onNodeWithTag(GraphTags.VIEWER_BACK).fetchSemanticsNode().boundsInRoot
+        val picture = composeRule.onNodeWithTag(GraphTags.VIEWER_PICTURE).fetchSemanticsNode().boundsInRoot
+        assertTrue("the periods are level with the title, not in a row of their own", chips.all { it.top < bar.bottom })
+        assertTrue("and to the right of it", chips.all { it.left >= bar.right })
+        assertTrue("and clear of Back", chips.all { it.left > back.right })
+        assertTrue("so the picture starts where the bar ends", picture.top < bar.bottom + BAR_SLACK)
+
+        composeRule.onNodeWithTag(GraphTags.period(GraphPeriod.MONTH)).performClick()
+        composeRule.onNodeWithTag(GraphTags.VIEWER_BACK).performClick()
+        assertEquals(listOf("choose MONTH", "back"), calls)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-xhdpi")
+    fun `upright the viewer's periods have a row of their own, under a title that is all there`() {
+        state = state.copy(graph = day)
+        showViewer()
+
+        val title = composeRule.onNodeWithTag(
+            GraphTags.VIEWER_TITLE,
+        ).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val chips = GraphPeriod.entries.map {
+            composeRule.onNodeWithTag(GraphTags.period(it)).fetchSemanticsNode().boundsInRoot
+        }
+        assertTrue(chips.all { it.top >= title.bottom })
     }
 
     @Test
@@ -299,5 +349,8 @@ class GraphScreensTest {
 
     private companion object {
         const val TIMEOUT_MS = 5_000L
+
+        /** The bar's own padding below its title, and the picture's above it, in pixels at this density. */
+        const val BAR_SLACK = 80f
     }
 }

@@ -15,22 +15,48 @@ data class Zoom(val scale: Float = 1f, val offsetX: Float = 0f, val offsetY: Flo
 
     /**
      * After a pinch by [zoomBy] and a drag of [panX], [panY], in a frame of [width] by [height].
-     * A number that is not one (a gesture can report them) changes nothing.
+     *
+     * [focusX], [focusY] is where the fingers are, measured from the frame's top left: the part
+     * of the picture under them stays under them, as far as the edges allow. Without it the
+     * picture grows from its middle, and whatever was being looked at slides away. A number
+     * that is not one (a gesture can report them) changes nothing.
      */
-    fun moved(zoomBy: Float, panX: Float, panY: Float, width: Float, height: Float): Zoom {
+    @Suppress("LongParameterList") // A gesture is this many numbers.
+    fun moved(
+        zoomBy: Float,
+        panX: Float,
+        panY: Float,
+        width: Float,
+        height: Float,
+        focusX: Float = width / 2f,
+        focusY: Float = height / 2f,
+    ): Zoom {
         val factor = if (zoomBy.isFinite() && zoomBy > 0f) zoomBy else 1f
         val next = (scale * factor).coerceIn(1f, MAX)
-        val limitX = limit(width, next)
-        val limitY = limit(height, next)
+        // What the picture actually grew by, which is less than was asked for at either limit.
+        val grew = next / scale
         return Zoom(
             scale = next,
-            offsetX = within(offsetX + finite(panX), limitX),
-            offsetY = within(offsetY + finite(panY), limitY),
+            offsetX = within(about(focusX, width, offsetX, grew) + finite(panX), limit(width, next)),
+            offsetY = within(about(focusY, height, offsetY, grew) + finite(panY), limit(height, next)),
         )
     }
 
-    /** A double tap: all the way in if it is not, and back out if it is. */
-    fun toggled(): Zoom = if (isZoomed) Zoom() else Zoom(scale = DOUBLE_TAP)
+    /**
+     * A double tap at [focusX], [focusY]: in on that spot if the picture is fitted, and back
+     * out to fitted if it is not.
+     */
+    fun toggled(width: Float, height: Float, focusX: Float = width / 2f, focusY: Float = height / 2f): Zoom =
+        if (isZoomed) Zoom() else Zoom().moved(DOUBLE_TAP, 0f, 0f, width, height, focusX, focusY)
+
+    /**
+     * Where the picture has to sit, along one axis, for the point under [focus] to stay there
+     * while it grows by [grew]. The offset is measured from the frame's middle, so the focus is too.
+     */
+    private fun about(focus: Float, extent: Float, offset: Float, grew: Float): Float {
+        val fromMiddle = if (focus.isFinite() && extent.isFinite()) focus - extent / 2f else 0f
+        return fromMiddle - (fromMiddle - offset) * grew
+    }
 
     private fun limit(extent: Float, scale: Float): Float =
         if (extent.isFinite() && extent > 0f) extent * (scale - 1f) / 2f else 0f

@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.graph.GraphAnswer
 import net.pgmac.nagwatch.nagios.graph.GraphClient
 import net.pgmac.nagwatch.nagios.graph.GraphPeriod
@@ -196,6 +197,51 @@ class GraphViewModelTest {
     }
 
     @Test
+    fun `a period chosen on one screen is the period on another showing the same profile, which asks for it`() {
+        val id = saveProfile()
+        val detail = service(id)
+        detail.show(inline)
+        detail.awaitState { it.graph != null }
+        val viewer = service(id)
+        viewer.show(GraphSize.FULL)
+        viewer.awaitState { it.graph != null }
+        asked.clear()
+
+        viewer.choose(GraphPeriod.WEEK)
+
+        // Found on a phone: the detail screen under the viewer kept, and went on asking for, its own.
+        assertEquals(GraphPeriod.WEEK, detail.awaitState { it.graph?.period == GraphPeriod.WEEK }.period)
+        viewer.awaitState { it.graph?.period == GraphPeriod.WEEK }
+        assertEquals(
+            setOf(
+                GraphRequest("web01", "Disk /", GraphPeriod.WEEK, inline),
+                GraphRequest("web01", "Disk /", GraphPeriod.WEEK, GraphSize.FULL),
+            ),
+            asked.toSet(),
+        )
+    }
+
+    @Test
+    fun `a period chosen for one profile leaves a screen showing another alone`() {
+        val one = service(saveProfile())
+        one.show(inline)
+        one.awaitState { it.graph != null }
+        val other = service(saveProfile("Other"))
+
+        val seen = watching(one) { other.choose(GraphPeriod.YEAR) }
+
+        assertEquals(GraphPeriod.DAY, one.state.value.period)
+        assertFalse(seen.any { it.loading })
+        assertEquals(1, asked.size)
+    }
+
+    @Test
+    fun `it is called what its detail screen is called`() {
+        assertEquals("web01 / Disk /", service(saveProfile()).state.value.title)
+        assertEquals("web01", host(saveProfile("Two")).state.value.title)
+    }
+
+    @Test
     fun `a service with no graph has no place on the screen, and the next visit does not even leave room`() {
         answer = { GraphAnswer.NoGraph }
         val id = saveProfile()
@@ -258,6 +304,58 @@ class GraphViewModelTest {
         model.refresh()
 
         assertFalse(model.awaitState { !it.loading && it.graph == null }.visible)
+    }
+
+    @Test
+    fun `a period that cannot be fetched just now leaves the graph on screen, and the chips on its period`() {
+        val model = service(saveProfile())
+        model.show(inline)
+        val day = model.awaitState { it.graph != null }.graph
+        answer = { GraphAnswer.Unavailable(NagiosError.Http(500)) }
+
+        val seen = watching(model) {
+            model.choose(GraphPeriod.YEAR)
+            awaitAsked(2)
+        }
+        val after = model.awaitState { !it.loading && it.period == GraphPeriod.DAY }
+
+        assertTrue("the picture never left the screen, not even for a moment", seen.all { it.graph === day })
+
+        // Found on a phone with the server stopped: the whole section went, chips and all.
+        assertSame(day, after.graph)
+        assertTrue(after.visible)
+        assertFalse("there is something to show, so nothing to say", after.unreachable)
+        assertEquals(
+            "the next graph opens on a period that can be shown",
+            GraphPeriod.DAY,
+            service(1, "Load").state.value.period,
+        )
+    }
+
+    @Test
+    fun `with nothing to show and nobody to ask, it says so and takes no room`() {
+        answer = { GraphAnswer.Unavailable(NagiosError.Http(500)) }
+        val model = service(saveProfile())
+
+        model.show(inline)
+        awaitAsked(1)
+        val state = model.awaitState { !it.loading && it.unreachable }
+
+        assertFalse(state.visible)
+        answer = { picture() }
+        model.refresh()
+        assertFalse("and stops saying so once there is a graph", model.awaitState { it.graph != null }.unreachable)
+    }
+
+    @Test
+    fun `no graph is not the same as nobody to ask`() {
+        answer = { GraphAnswer.NoGraph }
+        val model = service(saveProfile())
+
+        model.show(inline)
+        awaitAsked(1)
+
+        assertFalse(model.awaitState { !it.loading }.unreachable)
     }
 
     @Test

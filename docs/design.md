@@ -408,7 +408,7 @@ Why it is built this way is ADR 0010.
 
 - Service detail fetches `showgraph.cgi?host=H&service=S&period=P&geom=WxH` with the profile's credentials and headers, through the app's own client. Periods: day, week, month, year. Nothing else is ever sent, and never `rrdopts`.
 - **Where**: the CGI directory the app found for Nagios, unless the profile gives a graph path, which is a path on the same server and not a URL.
-- **Size**: the plot is asked for in dp, not device pixels, in a few steps of width, and a larger one for the full-screen viewer. rrdtool draws text at a fixed pixel size, so a picture asked for at a phone's resolution has labels that cannot be read.
+- **Size**: the plot is asked for in dp, not device pixels, a little wider than the room it will be shown in (so that a legend with four numbers fits on a phone), in a few steps of width, and a larger one for the full-screen viewer. rrdtool draws text at a fixed pixel size, so a picture asked for at a phone's resolution has labels that cannot be read.
 - **Whether there is a graph is decided from the picture.** nagiosgraph answers 200 and `image/png` when it has nothing to draw: a small picture of the error text, a blank one, or nothing. A graph is a PNG at least as large as the plot asked for and not much larger. Anything else leaves the Graph section out, silently; there is no error spam.
 - **Remembered for the session, never stored**: the services with no graph, the profiles with no nagiosgraph at all (404, 403, or a 200 that is not a PNG), and a few pictures. A pull to refresh asks again.
 - **Hosts have no graph.** nagiosgraph files a host's own check under whatever name the administrator gave it, so there is nothing to ask for that would be right on more than one server.

@@ -50,6 +50,7 @@ object GraphTags {
     const val VIEWER_PICTURE = "graph_viewer_picture"
     const val VIEWER_NONE = "graph_viewer_none"
     const val VIEWER_BACK = "graph_viewer_back"
+    const val VIEWER_TITLE = "graph_viewer_title"
 
     fun period(period: GraphPeriod) = "graph_period_${period.name}"
 }

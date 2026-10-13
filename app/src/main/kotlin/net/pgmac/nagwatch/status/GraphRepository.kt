@@ -7,6 +7,13 @@ import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosClientFactory
 import net.pgmac.nagwatch.nagios.graph.GraphAnswer
@@ -28,7 +35,10 @@ class FactoryGraphClientProvider @Inject constructor(private val factory: Nagios
     override fun create(settings: ConnectionSettings): GraphClient = factory.createGraphs(settings)
 }
 
-/** A graph to show, or nothing. There is no third thing: a graph that cannot be had is not an error. */
+/**
+ * A graph to show, or the reason there is none to show. Neither reason is an error to put in
+ * front of anyone; they differ in what should happen to a graph that is already on the screen.
+ */
 sealed interface GraphState {
     /**
      * [png] is a PNG of [width] by [height], checked. [pageUrl] is nagiosgraph's own page for
@@ -43,7 +53,14 @@ sealed interface GraphState {
         val pageUrl: String?,
     ) : GraphState
 
+    /** There is no graph: off, a host, no nagiosgraph, nothing drawn for this service. */
     data object None : GraphState
+
+    /**
+     * It could not be asked, or was not answered, this time, and nothing older is held. This
+     * says nothing about whether there is a graph, so it is no reason to take one away.
+     */
+    data object Unavailable : GraphState
 }
 
 /**
@@ -64,16 +81,16 @@ class GraphMemory @Inject constructor() : ProfileCleanup {
     private val noGraph = LinkedHashSet<Service>()
     private val notThere = HashSet<Long>()
     private val scopes = HashMap<Long, String>()
-    private val periods = HashMap<Long, GraphPeriod>()
+    private val periods = MutableStateFlow<Map<Long, GraphPeriod>>(emptyMap())
 
-    /** The period last chosen for this profile, so that the next graph opens on it. */
-    @Synchronized
-    fun period(profileId: Long): GraphPeriod = periods[profileId] ?: GraphPeriod.DAY
+    /**
+     * The period last chosen for each profile, so that the next graph opens on it, and so that
+     * a graph already on a screen follows a choice made on another: the viewer and the detail
+     * screen under it are two screens showing one thing.
+     */
+    val chosen: StateFlow<Map<Long, GraphPeriod>> = periods.asStateFlow()
 
-    @Synchronized
-    fun choose(profileId: Long, period: GraphPeriod) {
-        periods[profileId] = period
-    }
+    fun choose(profileId: Long, period: GraphPeriod) = periods.update { it + (profileId to period) }
 
     /**
      * Says what the profile's graphs are being asked of. When that has changed (another server,
@@ -127,7 +144,7 @@ class GraphMemory @Inject constructor() : ProfileCleanup {
         notThere -= profileId
         if (!keepScope) {
             scopes -= profileId
-            periods -= profileId
+            periods.update { it - profileId }
         }
     }
 
@@ -146,9 +163,10 @@ class GraphMemory @Inject constructor() : ProfileCleanup {
 /**
  * A service's graph, from memory if it is there and fresh, and otherwise from nagiosgraph.
  *
- * Every way of not having one comes out as [GraphState.None]: graphs switched off, a host, no
- * nagiosgraph, nothing drawn for this service, a server that did not answer. The screen has one
- * thing to do about all of them, which is to leave the graph out.
+ * Every way of there being none comes out as [GraphState.None]: graphs switched off, a host, no
+ * nagiosgraph, nothing drawn for this service. A server that did not answer is
+ * [GraphState.Unavailable], which is not the same thing: it is no reason to remove a graph
+ * that is being shown.
  */
 @Singleton
 class GraphRepository @Inject constructor(
@@ -157,8 +175,12 @@ class GraphRepository @Inject constructor(
     private val memory: GraphMemory,
     private val clock: Clock,
 ) {
-    /** The period a graph for this profile opens on: the one last chosen, while the app runs. */
-    fun period(profileId: Long): GraphPeriod = memory.period(profileId)
+    /**
+     * The period a graph for this profile shows: the one last chosen, while the app runs. It
+     * says so again whenever that changes, whichever screen changed it.
+     */
+    fun period(profileId: Long): Flow<GraphPeriod> =
+        memory.chosen.map { it[profileId] ?: GraphPeriod.DAY }.distinctUntilChanged()
 
     fun choose(profileId: Long, period: GraphPeriod) = memory.choose(profileId, period)
 
@@ -227,6 +249,6 @@ class GraphRepository @Inject constructor(
         GraphAnswer.NotThere -> GraphState.None.also { memory.ruleOutProfile(profileId) }
 
         // Not learned from: the next visit asks again. An older picture is better than none.
-        is GraphAnswer.Unavailable -> kept ?: GraphState.None
+        is GraphAnswer.Unavailable -> kept ?: GraphState.Unavailable
     }
 }

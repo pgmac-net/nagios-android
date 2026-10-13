@@ -68,10 +68,70 @@ class ZoomTest {
 
     @Test
     fun `a double tap magnifies a fitted picture and fits a magnified one, wherever it was dragged`() {
-        assertEquals(Zoom(Zoom.DOUBLE_TAP, 0f, 0f), fitted.toggled())
-        assertTrue(fitted.toggled().isZoomed)
-        assertEquals(fitted, fitted.toggled().toggled())
-        assertEquals(fitted, fitted.moved(3f, 0f, 0f, W, H).moved(1f, 200f, 100f, W, H).toggled())
+        assertEquals(
+            "in the middle, the picture grows from the middle",
+            Zoom(Zoom.DOUBLE_TAP, 0f, 0f),
+            fitted.toggled(W, H),
+        )
+        assertTrue(fitted.toggled(W, H).isZoomed)
+        assertEquals(fitted, fitted.toggled(W, H).toggled(W, H))
+        assertEquals(fitted, fitted.moved(3f, 0f, 0f, W, H).moved(1f, 200f, 100f, W, H).toggled(W, H, 10f, 10f))
+    }
+
+    @Test
+    fun `a double tap zooms in on the spot that was tapped, not on the middle`() {
+        // Three quarters of the way across, half way down: that spot stays under the finger.
+        val zoomed = fitted.toggled(W, H, focusX = W * 0.75f, focusY = H / 2)
+
+        assertEquals(Zoom(2f, -W / 4, 0f), zoomed)
+        assertEquals(
+            "the same part of the picture is under the finger",
+            under(fitted, W * 0.75f, H / 2),
+            under(
+                zoomed,
+                W * 0.75f,
+                H / 2,
+            ),
+        )
+    }
+
+    @Test
+    fun `a double tap in a corner brings that corner of the picture into the corner of the frame`() {
+        assertEquals(Zoom(2f, W / 2, H / 2), fitted.toggled(W, H, 0f, 0f))
+        assertEquals(Zoom(2f, -W / 2, -H / 2), fitted.toggled(W, H, W, H))
+    }
+
+    @Test
+    fun `a pinch grows the picture about the fingers, and keeps doing so as it goes on`() {
+        val focus = W * 0.2f to H * 0.7f
+        val before = under(fitted, focus.first, focus.second)
+
+        val once = fitted.moved(1.5f, 0f, 0f, W, H, focus.first, focus.second)
+        val twice = once.moved(1.5f, 0f, 0f, W, H, focus.first, focus.second)
+
+        assertNear(before, under(once, focus.first, focus.second))
+        assertNear(before, under(twice, focus.first, focus.second))
+        assertEquals(2.25f, twice.scale, 0.001f)
+    }
+
+    @Test
+    fun `at the limit a pinch moves nothing, because the picture did not grow`() {
+        val atMost = fitted.moved(Zoom.MAX, 0f, 0f, W, H)
+
+        assertEquals(atMost, atMost.moved(3f, 0f, 0f, W, H, 10f, 10f))
+        assertEquals(fitted, fitted.moved(0.2f, 0f, 0f, W, H, 10f, 10f))
+    }
+
+    @Test
+    fun `fingers outside the picture's reach cannot pull it off its frame`() {
+        val pulled = fitted.moved(4f, 0f, 0f, W, H, focusX = -5_000f, focusY = 9_000f)
+
+        assertEquals(Zoom(4f, W * 1.5f, -H * 1.5f), pulled)
+    }
+
+    @Test
+    fun `a focus that is not a number is the middle`() {
+        assertEquals(Zoom(2f, 0f, 0f), fitted.moved(2f, 0f, 0f, W, H, Float.NaN, Float.POSITIVE_INFINITY))
     }
 
     @Test
@@ -89,6 +149,15 @@ class ZoomTest {
         val moved = fitted.moved(2f, 500f, 500f, 0f, Float.NaN)
 
         assertEquals(Zoom(2f, 0f, 0f), moved)
+    }
+
+    /** Which point of the picture, measured from its middle in its own units, is under a point of the frame. */
+    private fun under(zoom: Zoom, x: Float, y: Float): Pair<Float, Float> =
+        (x - W / 2 - zoom.offsetX) / zoom.scale to (y - H / 2 - zoom.offsetY) / zoom.scale
+
+    private fun assertNear(expected: Pair<Float, Float>, actual: Pair<Float, Float>) {
+        assertEquals(expected.first, actual.first, 0.01f)
+        assertEquals(expected.second, actual.second, 0.01f)
     }
 
     private companion object {

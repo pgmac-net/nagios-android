@@ -30,12 +30,21 @@ import net.pgmac.nagwatch.ui.detail.DetailViewModel
 data class GraphUiState(
     /** The service's name, for the picture's description. Empty for a host, which has no graph. */
     val service: String = "",
+    val hostName: String = "",
     val period: GraphPeriod = GraphPeriod.DAY,
     /** Being fetched, and there is reason to think it will come: room is left for it. */
     val loading: Boolean = false,
     /** While another period loads, the one already on screen stays. */
     val graph: GraphState.Shown? = null,
+    /**
+     * The last time of asking got no answer, and there is nothing to show. Only the viewer says
+     * so, where a graph was asked for; the detail screen already says the server did not answer.
+     */
+    val unreachable: Boolean = false,
 ) {
+    /** What the graph is of, as the detail screen names it. */
+    val title: String get() = if (service.isEmpty()) hostName else "$hostName / $service"
+
     /** Whether the graph has any place on the screen at all. */
     val visible: Boolean get() = loading || graph != null
 }
@@ -55,11 +64,24 @@ class GraphViewModel @Inject constructor(savedState: SavedStateHandle, private v
     )
 
     private val mutableState =
-        MutableStateFlow(GraphUiState(service = ref.description.orEmpty(), period = graphs.period(profileId)))
+        MutableStateFlow(GraphUiState(service = ref.description.orEmpty(), hostName = ref.hostName))
     val state: StateFlow<GraphUiState> = mutableState.asStateFlow()
 
     private var size: GraphSize? = null
     private var loading: Job? = null
+
+    init {
+        // The period is the profile's, not this screen's. Chosen in the viewer, it is the detail
+        // screen's too when the viewer closes; on a phone it was not, and the detail screen went
+        // back to showing, and asking for, the period it had been left on.
+        viewModelScope.launch {
+            graphs.period(profileId).collect { period ->
+                val changed = period != mutableState.value.period
+                mutableState.update { it.copy(period = period) }
+                if (changed) load(refresh = false)
+            }
+        }
+    }
 
     /**
      * The screen knows how much room it has, and so what size to ask for. Called on every
@@ -71,13 +93,11 @@ class GraphViewModel @Inject constructor(savedState: SavedStateHandle, private v
         load(refresh = false)
     }
 
-    /** Remembered for the profile while the app runs, so the next graph opens on the same period. */
-    fun choose(period: GraphPeriod) {
-        if (period == mutableState.value.period) return
-        graphs.choose(profileId, period)
-        mutableState.update { it.copy(period = period) }
-        load(refresh = false)
-    }
+    /**
+     * Remembered for the profile while the app runs. This view model hears of it the way every
+     * other one showing this profile does, and loads the graph then.
+     */
+    fun choose(period: GraphPeriod) = graphs.choose(profileId, period)
 
     /** The person asked again. Nothing remembered is trusted, including "there is no graph". */
     fun refresh() = load(refresh = true)
@@ -91,10 +111,27 @@ class GraphViewModel @Inject constructor(savedState: SavedStateHandle, private v
             val expected = graphs.expects(profileId, ref)
             if (expected || refresh) {
                 mutableState.update { it.copy(loading = expected) }
-                val answer = graphs.graph(profileId, ref, period, size, refresh)
-                mutableState.update { it.copy(loading = false, graph = answer as? GraphState.Shown) }
+                settle(graphs.graph(profileId, ref, period, size, refresh))
             } else {
-                mutableState.update { it.copy(loading = false, graph = null) }
+                settle(GraphState.None)
+            }
+        }
+    }
+
+    private fun settle(answer: GraphState) {
+        when (answer) {
+            is GraphState.Shown -> mutableState.update { it.copy(loading = false, graph = answer, unreachable = false) }
+
+            GraphState.None -> mutableState.update { it.copy(loading = false, graph = null, unreachable = false) }
+
+            GraphState.Unavailable -> {
+                // A failure that may pass takes nothing away. On a phone, with the server down, a
+                // period not yet fetched emptied the whole section, chips and all, and left the
+                // profile on a period it could not show.
+                val shown = mutableState.value.graph
+                mutableState.update { it.copy(loading = false, unreachable = shown == null) }
+                // Back to the period the picture is of, so the chips say what is on screen.
+                if (shown != null) graphs.choose(profileId, shown.period)
             }
         }
     }
