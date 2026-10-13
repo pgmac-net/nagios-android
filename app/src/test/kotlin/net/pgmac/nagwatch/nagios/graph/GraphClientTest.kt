@@ -176,6 +176,31 @@ class GraphClientTest {
         )
     }
 
+    @Test
+    fun `a password typed into the profile's address is in no link, wherever nagiosgraph is`() {
+        val typed = server.url("/nagios").newBuilder().username("someone").password("hunter2").build()
+        listOf("", "/nagiosgraph/cgi-bin/").forEach { path ->
+            val client = testFactory().createGraphs(
+                ConnectionSettings(
+                    baseUrl = typed,
+                    username = "nagwatch",
+                    password = "s3cr3t-p4ss",
+                    allowCleartext = true,
+                    // As the app finds it: from the address as typed, user and password and all.
+                    cgiBase = typed.newBuilder().encodedPath("/nagios/cgi-bin/").build(),
+                    graphPath = path,
+                ),
+            )
+
+            val page = checkNotNull(runBlocking { client.pageUrl(ObjectRef("web01", "Load")) })
+
+            listOf("someone", "hunter2", "s3cr3t-p4ss", "@").forEach { part ->
+                assertEquals("$part is in $page", false, part in page)
+            }
+            assertTrue(page, page.endsWith("show.cgi?host=web01&service=Load"))
+        }
+    }
+
     private fun fetch(graphPath: String = "", allowCleartext: Boolean = true): GraphAnswer =
         runBlocking { client(graphPath, allowCleartext).fetch(day) }
 

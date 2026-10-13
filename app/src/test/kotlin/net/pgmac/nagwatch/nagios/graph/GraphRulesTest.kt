@@ -163,6 +163,18 @@ class GraphRulesTest {
         )
     }
 
+    @Test
+    fun `the page handed to a browser never carries a user or password, or anything but the address`() {
+        val typed = "https://someone:hunter2@nagios.example.org/nagios/cgi-bin/?token=abc#frag".toHttpUrl()
+
+        val page = checkNotNull(GraphRequest.pageUrl(typed, ObjectRef("web01", "Load")))
+
+        assertEquals("https://nagios.example.org/nagios/cgi-bin/show.cgi?host=web01&service=Load", page)
+        listOf("someone", "hunter2", "token", "abc", "frag", "@").forEach { part ->
+            assertEquals("$part is in $page", false, part in page)
+        }
+    }
+
     private companion object {
         val BASE = "https://nagios.example.org/nagios/cgi-bin/".toHttpUrl()
     }

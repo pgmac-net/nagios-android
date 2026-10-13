@@ -66,9 +66,19 @@ data class GraphRequest(val hostName: String, val service: String, val period: G
         fun of(ref: ObjectRef, period: GraphPeriod, size: GraphSize): GraphRequest? =
             ref.description?.let { GraphRequest(ref.hostName, it, period, size) }
 
-        /** nagiosgraph's own page for a service, for a browser. Null for a host. */
+        /**
+         * nagiosgraph's own page for a service, for a browser. Null for a host.
+         *
+         * Built from the server's address and nothing else. A profile's address can be typed
+         * with a user and password in it (`https://user:secret@host/`), and this URL is handed
+         * to another app: they are taken out, as they are from the link to Nagios' own page.
+         */
         fun pageUrl(base: HttpUrl, ref: ObjectRef): String? = ref.description?.let { service ->
             base.newBuilder()
+                .username("")
+                .password("")
+                .query(null)
+                .fragment(null)
                 .addPathSegment(PAGE_CGI)
                 .addQueryParameter("host", ref.hostName)
                 .addQueryParameter("service", service)

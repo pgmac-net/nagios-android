@@ -43,6 +43,16 @@ class GraphPathTest {
     }
 
     @Test
+    fun `a user and password typed into the profile's address are not carried into it`() {
+        val typed = "https://someone:hunter2@nagios.example.org/nagios".toHttpUrl()
+
+        val resolved = checkNotNull(GraphPath.resolve(typed, "/nagiosgraph/cgi-bin/"))
+
+        assertEquals("https://nagios.example.org/nagiosgraph/cgi-bin/", resolved.toString())
+        assertEquals("" to "", resolved.username to resolved.password)
+    }
+
+    @Test
     fun `anything that could name another server is refused`() {
         listOf(
             "https://elsewhere.example/cgi-bin/",

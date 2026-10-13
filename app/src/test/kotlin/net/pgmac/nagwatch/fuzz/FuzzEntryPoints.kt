@@ -41,7 +41,7 @@ object FuzzEntryPoints {
     private val json = Json { ignoreUnknownKeys = true }
     private const val BYTE = 0xFFL
 
-    private val GRAPH_BASE = "https://nagios.example.org:8443/nagios/".toHttpUrl()
+    private val GRAPH_BASE = "https://someone:made-up@nagios.example.org:8443/nagios/?q=1".toHttpUrl()
     private val GRAPH_SIZES = (0..800 step 60).map(GraphSize::inline).distinct() + GraphSize.FULL
     private val GRAPH_MAX_PIXELS =
         (GraphSize.FULL.width + GraphRules.MAX_EXTRA_WIDTH).toLong() *
@@ -97,6 +97,7 @@ object FuzzEntryPoints {
                 "a graph path left the profile's own server: $resolved"
             }
             check(resolved.encodedPath == path) { "the path used is not the path stored" }
+            check(resolved.username.isEmpty() && resolved.password.isEmpty()) { "credentials in a URL: $resolved" }
             check(resolved.query == null && resolved.fragment == null && ".." !in resolved.pathSegments) {
                 "more than a path: $resolved"
             }

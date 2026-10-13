@@ -49,8 +49,12 @@ object GraphPath {
         }
     }
 
-    /** The CGI directory at [path] on [baseUrl]'s own scheme, host and port. Null for blank or invalid. */
+    /**
+     * The CGI directory at [path] on [baseUrl]'s own scheme, host and port, and nothing else of
+     * it: not its query, and not a user and password typed into it. Credentials travel in a
+     * header the interceptor adds, never in a URL. Null for blank or invalid.
+     */
     fun resolve(baseUrl: HttpUrl, path: String): HttpUrl? = normalise(path)?.takeIf { it.isNotEmpty() }?.let {
-        baseUrl.newBuilder().encodedPath(it).query(null).fragment(null).build()
+        baseUrl.newBuilder().username("").password("").encodedPath(it).query(null).fragment(null).build()
     }
 }
