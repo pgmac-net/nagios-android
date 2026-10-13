@@ -3,6 +3,4 @@
 # scripts/sign-release.sh refuses to produce an APK signed with anything else.
 # Do not change it. A different key means no existing install can upgrade
 # (docs/adr/0011).
-#
-# Not yet set: the release key has not been made. Until a fingerprint is on the
-# line below, the release workflow signs nothing.
+fe56b4f778727d9c1919ce76188c8bafed210a7854c4f7f27c23e5671cdad95d

@@ -53,10 +53,10 @@ Android 8.0 or later. Every release is signed with the same key, so a new versio
 **Checking what you downloaded.** You do not have to, but you can. Every release is signed with the certificate whose SHA-256 fingerprint is:
 
 ```
-not yet set: the release key has not been made
+FE:56:B4:F7:78:72:7D:9C:19:19:CE:76:18:8C:8B:AF:ED:21:0A:78:54:C4:F7:F2:7C:23:E5:67:1C:DA:D9:5D
 ```
 
-That is the one line in [`config/release-signing-cert.sha256`](config/release-signing-cert.sha256), and the release workflow refuses to publish an APK signed with anything else. Obtainium and [AppVerifier](https://github.com/soupslurpr/AppVerifier) can check it for you on the phone. On a computer:
+`apksigner` prints the same thing without the colons, in lower case: `fe56b4f778727d9c1919ce76188c8bafed210a7854c4f7f27c23e5671cdad95d`. That is the one line in [`config/release-signing-cert.sha256`](config/release-signing-cert.sha256), and the release workflow refuses to publish an APK signed with anything else. Obtainium and [AppVerifier](https://github.com/soupslurpr/AppVerifier) can check it for you on the phone. On a computer:
 
 ```
 apksigner verify --print-certs nagwatch-X.Y.Z.apk        # the fingerprint above

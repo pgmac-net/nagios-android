@@ -47,5 +47,4 @@ Also not known: whether any library the CycloneDX plugin brings to the build cla
 ## Follow-ups
 
 - pgmac-net/terraform-github#25, which blocks the first tag.
-- The release key's fingerprint, into `config/release-signing-cert.sha256` and the README, before #56 leaves draft.
 - `v0.1.0`: tag, approve, install the draft, publish.
