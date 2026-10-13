@@ -152,7 +152,7 @@ class QuickActionsViewModelTest {
         viewModel.run(id, QuickAction.ACKNOWLEDGE, disk)
         viewModel.awaitState { it.progress is ActionProgress.Confirmed }
 
-        viewModel.undo(id)
+        viewModel.undo()
 
         viewModel.awaitState { (it.progress as? ActionProgress.Confirmed)?.command is Command.RemoveAcknowledgement }
         assertEquals(Command.RemoveAcknowledgement(disk), sender.sent.last())
@@ -164,10 +164,10 @@ class QuickActionsViewModelTest {
         val id = saveProfile()
         val viewModel = viewModel()
 
-        viewModel.undo(id)
+        viewModel.undo()
         viewModel.run(id, QuickAction.RECHECK, disk)
         viewModel.awaitState { it.progress?.inFlight == false }
-        viewModel.undo(id)
+        viewModel.undo()
 
         assertEquals(listOf<Command>(Command.ForceCheck(disk)), sender.sent)
     }
@@ -197,7 +197,7 @@ class QuickActionsViewModelTest {
 
         viewModel.run(id, QuickAction.RECHECK, disk)
         runBlocking { begun.await() }
-        val enabledMeanwhile = viewModel.state.value.enabled
+        val enabledMeanwhile = viewModel.state.value.forProfile(id).enabled
         viewModel.run(id, QuickAction.ACKNOWLEDGE, disk)
         runBlocking { withTimeoutOrNull(SETTLE_MS) { while (held.sends < 2) delay(POLL_MS) } }
         release.complete(Unit)
@@ -212,11 +212,11 @@ class QuickActionsViewModelTest {
         val id = saveProfile()
         sender.mayCommandResult = NagiosResult.Success(false)
         val viewModel = viewModel()
-        assertTrue("until it is known, nothing is held back", viewModel.state.value.enabled)
+        assertTrue("until it is known, nothing is held back", viewModel.state.value.forProfile(id).enabled)
 
         viewModel.opened(id)
 
-        val state = viewModel.awaitState { it.permission != CommandPermission.UNKNOWN }
+        val state = viewModel.awaitState { it.forProfile(id).permission != CommandPermission.UNKNOWN }.forProfile(id)
         assertTrue(state.readOnly)
         assertFalse(state.enabled)
     }
@@ -230,7 +230,41 @@ class QuickActionsViewModelTest {
         viewModel.run(id, QuickAction.RECHECK, disk)
 
         val state = viewModel.awaitState { it.progress is ActionProgress.Refused }
-        assertTrue(state.readOnly)
+        assertTrue(state.forProfile(id).readOnly)
+    }
+
+    @Test
+    fun `what one Nagios says its user may do says nothing about another`() {
+        val home = saveProfile()
+        val office = runBlocking { profiles.saveTestProfile("Office") }
+        sender.outcome = { CommandOutcome.Refused(Refusal.READ_ONLY) }
+        val viewModel = viewModel()
+
+        viewModel.run(home, QuickAction.RECHECK, disk)
+
+        val state = viewModel.awaitState { it.progress is ActionProgress.Refused }
+        assertTrue(state.forProfile(home).readOnly)
+        assertFalse("read-only on Home is not read-only on Office", state.forProfile(office).readOnly)
+        assertEquals(CommandPermission.UNKNOWN, state.forProfile(office).permission)
+    }
+
+    @Test
+    fun `an undo goes to the Nagios the acknowledgement went to, whatever profile is on screen by then`() {
+        val home = saveProfile()
+        runBlocking { profiles.saveTestProfile("Office") }
+        val viewModel = viewModel()
+        viewModel.run(home, QuickAction.ACKNOWLEDGE, disk)
+        val confirmed = viewModel.awaitState { it.progress is ActionProgress.Confirmed }
+        assertEquals(home, confirmed.sentTo)
+
+        // The person has switched to Office meanwhile. Nothing here is told that, and nothing needs to be.
+        viewModel.undo()
+
+        val undone = viewModel.awaitState {
+            (it.progress as? ActionProgress.Confirmed)?.command is Command.RemoveAcknowledgement
+        }
+        assertEquals("the undo is about Home too", home, undone.sentTo)
+        assertEquals(Command.RemoveAcknowledgement(disk), sender.sent.last())
     }
 
     @Test
@@ -258,7 +292,7 @@ class QuickActionsViewModelTest {
     private fun viewModel(sending: CommandRepository = commands) =
         QuickActionsViewModel(sending, profiles, statuses).also(created::add)
 
-    private fun QuickActionsViewModel.awaitState(predicate: (QuickUiState) -> Boolean): QuickUiState =
+    private fun QuickActionsViewModel.awaitState(predicate: (QuickState) -> Boolean): QuickState =
         runBlocking { withTimeout(TIMEOUT_MS) { state.first(predicate) } }
 
     private fun saveProfile(): Long = runBlocking { profiles.saveTestProfile() }

@@ -43,6 +43,24 @@ data class QuickUiState(
     val readOnly: Boolean get() = permission == CommandPermission.READ_ONLY
 }
 
+/**
+ * Everything the quick actions know, across profiles. A list is shown one profile's view of it
+ * ([forProfile]): what one Nagios says its user may do says nothing about another, and the
+ * profile on screen can change while a command sent to the last one is still on its way.
+ */
+data class QuickState(
+    val permissions: Map<Long, CommandPermission> = emptyMap(),
+    val progress: ActionProgress? = null,
+    /** The profile [progress] is about. It is what an undo is sent to, whatever is on screen by then. */
+    val sentTo: Long? = null,
+) {
+    /**
+     * The news is shown whichever profile is on screen: it is still true, and one command at a
+     * time holds across profiles. The permission is that profile's alone.
+     */
+    fun forProfile(profileId: Long) = QuickUiState(permissions[profileId] ?: CommandPermission.UNKNOWN, progress)
+}
+
 /** What a list can ask for. The profile is the one on screen; whoever implements this knows it. */
 interface QuickActions {
     /** A menu has been opened: find out, if it is not known yet, whether this user may send commands. */

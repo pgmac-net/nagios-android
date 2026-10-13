@@ -169,13 +169,14 @@ fun HomeScreen(
     // Quick actions are about the profile on screen. With none there is nothing to act on.
     val quick = state.selected?.id?.let { profileId ->
         QuickMenu(
-            quickState,
+            quickState.forProfile(profileId),
             object : QuickActions {
                 override fun opened() = quickViewModel.opened(profileId)
 
                 override fun run(action: QuickAction, target: ObjectRef) = quickViewModel.run(profileId, action, target)
 
-                override fun undo() = quickViewModel.undo(profileId)
+                // Not this profile's to say: an undo goes to where the acknowledgement went.
+                override fun undo() = quickViewModel.undo()
 
                 override fun dismiss(progress: ActionProgress) = quickViewModel.dismiss(progress)
             },

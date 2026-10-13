@@ -34,14 +34,14 @@ class QuickActionsViewModel @Inject constructor(
     private val profiles: ProfileRepository,
     private val statuses: StatusRepository,
 ) : ViewModel() {
-    private val current = MutableStateFlow(QuickUiState())
-    val state: StateFlow<QuickUiState> = current.asStateFlow()
+    private val current = MutableStateFlow(QuickState())
+    val state: StateFlow<QuickState> = current.asStateFlow()
 
     /** Asked once per profile and remembered by the repository, so opening a menu costs nothing after the first. */
     fun opened(profileId: Long) {
         viewModelScope.launch {
             val permission = commands.permission(profileId)
-            current.update { it.copy(permission = permission) }
+            current.update { it.copy(permissions = it.permissions + (profileId to permission)) }
         }
     }
 
@@ -58,16 +58,26 @@ class QuickActionsViewModel @Inject constructor(
         }
     }
 
-    /** Only an acknowledgement that has just been confirmed can be taken back this way. */
-    fun undo(profileId: Long) {
-        val confirmed = current.value.progress as? ActionProgress.Confirmed ?: return
+    /**
+     * Takes back the acknowledgement that was just confirmed, on the Nagios it was sent to.
+     *
+     * It takes no profile, on purpose. The profile on screen can change while the news is still
+     * showing, and two Nagios servers can each have a `web01`: an undo that went to whichever
+     * profile was showing could remove somebody else's acknowledgement on the wrong server.
+     */
+    fun undo() {
+        val held = current.value
+        val confirmed = held.progress as? ActionProgress.Confirmed ?: return
+        val sentTo = held.sentTo ?: return
         if (confirmed.command !is Command.Acknowledge) return
-        run(profileId, QuickAction.REMOVE_ACKNOWLEDGEMENT, confirmed.command.target)
+        run(sentTo, QuickAction.REMOVE_ACKNOWLEDGEMENT, confirmed.command.target)
     }
 
     /** Only if it is still the news on show: a later command's must not be thrown away with it. */
     fun dismiss(progress: ActionProgress) {
-        current.update { if (it.progress === progress && !progress.inFlight) it.copy(progress = null) else it }
+        current.update {
+            if (it.progress === progress && !progress.inFlight) it.copy(progress = null, sentTo = null) else it
+        }
     }
 
     /** The profile's own words, or the app's. The form's flags: not sticky, notify, not persistent. */
@@ -75,19 +85,20 @@ class QuickActionsViewModel @Inject constructor(
         profiles.get(profileId)?.quickAckComment ?: DEFAULT_ACK_COMMENT
 
     private suspend fun send(profileId: Long, command: Command) {
-        current.update { it.copy(progress = ActionProgress.Sending(command)) }
+        current.update { it.copy(progress = ActionProgress.Sending(command), sentTo = profileId) }
         commands.run(profileId, command).collect { progress ->
-            // In one step: nobody should see the refusal without what it taught.
-            current.update { it.copy(progress = progress, permission = it.permission.after(progress)) }
+            // In one step: nobody should see the refusal without what it taught, or the news
+            // without which Nagios it is about.
+            current.update { it.copy(progress = progress, sentTo = profileId).learning(profileId, progress) }
             // Whether or not the effect was seen, the lists should show what Nagios says now.
             if (progress.changedSomething) statuses.refresh(profileId)
         }
     }
 
-    /** A refusal for being read-only is learned the hard way, but learned. */
-    private fun CommandPermission.after(progress: ActionProgress): CommandPermission =
+    /** A refusal for being read-only is learned the hard way, but learned: about that profile, and no other. */
+    private fun QuickState.learning(profileId: Long, progress: ActionProgress): QuickState =
         if (progress is ActionProgress.Refused && progress.reason == Refusal.READ_ONLY) {
-            CommandPermission.READ_ONLY
+            copy(permissions = permissions + (profileId to CommandPermission.READ_ONLY))
         } else {
             this
         }
