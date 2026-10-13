@@ -64,6 +64,16 @@ class GraphMemory @Inject constructor() : ProfileCleanup {
     private val noGraph = LinkedHashSet<Service>()
     private val notThere = HashSet<Long>()
     private val scopes = HashMap<Long, String>()
+    private val periods = HashMap<Long, GraphPeriod>()
+
+    /** The period last chosen for this profile, so that the next graph opens on it. */
+    @Synchronized
+    fun period(profileId: Long): GraphPeriod = periods[profileId] ?: GraphPeriod.DAY
+
+    @Synchronized
+    fun choose(profileId: Long, period: GraphPeriod) {
+        periods[profileId] = period
+    }
 
     /**
      * Says what the profile's graphs are being asked of. When that has changed (another server,
@@ -74,9 +84,10 @@ class GraphMemory @Inject constructor() : ProfileCleanup {
         if (scopes.put(profileId, scope) != scope) forget(profileId, keepScope = true)
     }
 
+    /** Nothing is to be had for this service: it has no graph, or its profile has no nagiosgraph. */
     @Synchronized
-    fun isRuledOut(profileId: Long, request: GraphRequest): Boolean =
-        profileId in notThere || request.service(profileId) in noGraph
+    fun isRuledOut(profileId: Long, hostName: String, service: String): Boolean =
+        profileId in notThere || Service(profileId, hostName, service) in noGraph
 
     @Synchronized
     fun picture(profileId: Long, request: GraphRequest): GraphState.Shown? = pictures[request.key(profileId)]
@@ -114,7 +125,10 @@ class GraphMemory @Inject constructor() : ProfileCleanup {
         pictures.keys.removeAll { it.service.profileId == profileId }
         noGraph.removeAll { it.profileId == profileId }
         notThere -= profileId
-        if (!keepScope) scopes -= profileId
+        if (!keepScope) {
+            scopes -= profileId
+            periods -= profileId
+        }
     }
 
     private fun GraphRequest.service(profileId: Long) = Service(profileId, hostName, service)
@@ -143,6 +157,20 @@ class GraphRepository @Inject constructor(
     private val memory: GraphMemory,
     private val clock: Clock,
 ) {
+    /** The period a graph for this profile opens on: the one last chosen, while the app runs. */
+    fun period(profileId: Long): GraphPeriod = memory.period(profileId)
+
+    fun choose(profileId: Long, period: GraphPeriod) = memory.choose(profileId, period)
+
+    /**
+     * Whether asking for [ref]'s graph could come to anything, answered without asking: a
+     * service, on a profile with graphs on, that nothing has ruled out. It is what says whether
+     * to leave room for a graph while it loads, so that a screen with none does not flicker.
+     */
+    suspend fun expects(profileId: Long, ref: ObjectRef): Boolean =
+        !ref.isHost && profiles.get(profileId)?.graphs?.enabled == true &&
+            !memory.isRuledOut(profileId, ref.hostName, ref.description.orEmpty())
+
     /** @param refresh the person asked: nothing remembered is trusted, and it is fetched again. */
     suspend fun graph(
         profileId: Long,
@@ -173,7 +201,7 @@ class GraphRepository @Inject constructor(
         val kept = memory.picture(profileId, request)
         val fresh = kept?.takeIf { !refresh && Duration.between(it.fetchedAt, clock.instant()) < source.freshFor }
         return when {
-            memory.isRuledOut(profileId, request) -> GraphState.None
+            memory.isRuledOut(profileId, request.hostName, request.service) -> GraphState.None
             fresh != null -> fresh
             else -> fetch(profileId, request, clients.create(settings), kept)
         }

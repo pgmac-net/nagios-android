@@ -20,6 +20,7 @@ import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.notify.NotificationTarget
 import net.pgmac.nagwatch.ui.detail.DetailNavigation
 import net.pgmac.nagwatch.ui.detail.DetailScreen
+import net.pgmac.nagwatch.ui.graph.GraphViewerScreen
 import net.pgmac.nagwatch.ui.home.HomeNavigation
 import net.pgmac.nagwatch.ui.home.HomeScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
@@ -55,6 +56,17 @@ fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Un
         }
         // The view model reads the same arguments itself; the screen needs nothing passed in.
         detailDestinations { _, _ -> DetailScreen(detailNavigation(navController) { openInBrowser(context, it) }) }
+        // A service's graph with the screen to itself. Its view model reads the same arguments.
+        composable(
+            route = Routes.GRAPH,
+            arguments = listOf(
+                navArgument(Routes.ARG_PROFILE) { type = NavType.LongType },
+                navArgument(Routes.ARG_HOST) { type = NavType.StringType },
+                navArgument(Routes.ARG_SERVICE) { type = NavType.StringType },
+            ),
+        ) {
+            GraphViewerScreen(onBack = { navController.popBackStack() })
+        }
     }
 }
 
@@ -117,6 +129,9 @@ private fun detailNavigation(navController: NavHostController, openUrl: (String)
         navController.navigate(Routes.service(profileId, hostName, description))
 
     override fun openInBrowser(url: String) = openUrl(url)
+
+    override fun openGraph(profileId: Long, hostName: String, description: String) =
+        navController.navigate(Routes.graph(profileId, hostName, description)) { launchSingleTop = true }
 }
 
 /**

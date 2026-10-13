@@ -2,9 +2,12 @@
 
 package net.pgmac.nagwatch.ui.detail
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -71,6 +74,22 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(AndroidJUnit4::class)
 @Config(application = android.app.Application::class, qualifiers = "w360dp-h3000dp")
 class DetailScreenTest : DetailScreenFixture() {
+    @Test
+    fun `the graph has its place on the screen, between the actions and the output`() {
+        state = service(hard)
+        composeRule.setContent {
+            NagwatchTheme(dynamicColor = false) {
+                DetailContent(state, actions) { Text("the graph goes here", Modifier.testTag("graph_slot")) }
+            }
+        }
+
+        val graph = composeRule.onNodeWithTag("graph_slot").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val actionsBottom = composeRule.onNodeWithText("Recheck").fetchSemanticsNode().boundsInRoot.bottom
+        val outputTop = composeRule.onNodeWithText("Output").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("below the actions", graph.top >= actionsBottom)
+        assertTrue("above the output", graph.bottom <= outputTop)
+    }
+
     @Test
     fun `the title names the service with its host, and back goes back`() {
         show(service(hard))

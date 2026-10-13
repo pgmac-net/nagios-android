@@ -46,6 +46,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Duration
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
+import net.pgmac.nagwatch.nagios.graph.GraphPeriod
+import net.pgmac.nagwatch.nagios.graph.GraphSize
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
@@ -59,6 +61,9 @@ import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.ui.browse.BrowseRow
 import net.pgmac.nagwatch.ui.browse.HostStyle
 import net.pgmac.nagwatch.ui.browse.ServiceStyle
+import net.pgmac.nagwatch.ui.graph.GraphActions
+import net.pgmac.nagwatch.ui.graph.GraphSection
+import net.pgmac.nagwatch.ui.graph.GraphViewModel
 import net.pgmac.nagwatch.ui.home.Banner
 import net.pgmac.nagwatch.ui.home.StateBadge
 import net.pgmac.nagwatch.ui.home.checkNotes
@@ -111,15 +116,27 @@ interface DetailNavigation {
     fun openService(profileId: Long, hostName: String, description: String)
 
     fun openInBrowser(url: String)
+
+    /** The service's graph with the screen to itself. */
+    fun openGraph(profileId: Long, hostName: String, description: String)
 }
 
 @Composable
-fun DetailScreen(navigation: DetailNavigation, viewModel: DetailViewModel = hiltViewModel()) {
+fun DetailScreen(
+    navigation: DetailNavigation,
+    viewModel: DetailViewModel = hiltViewModel(),
+    graphs: GraphViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val graph by graphs.state.collectAsStateWithLifecycle()
     val actions = object : DetailActions {
         override fun back() = navigation.back()
 
-        override fun refresh() = viewModel.refresh()
+        // The graph is asked for again too, including one that was ruled out: a server can be fixed.
+        override fun refresh() {
+            viewModel.refresh()
+            graphs.refresh()
+        }
 
         override fun openHost(hostName: String) = navigation.openHost(viewModel.profileId, hostName)
 
@@ -149,12 +166,28 @@ fun DetailScreen(navigation: DetailNavigation, viewModel: DetailViewModel = hilt
 
         override fun loadServerClock() = viewModel.loadServerClock()
     }
-    DetailContent(state, actions)
+    val graphActions = object : GraphActions {
+        override fun show(size: GraphSize) = graphs.show(size)
+
+        override fun choose(period: GraphPeriod) = graphs.choose(period)
+
+        override fun open() {
+            viewModel.ref.description?.let { navigation.openGraph(viewModel.profileId, viewModel.ref.hostName, it) }
+        }
+
+        override fun openInBrowser(url: String) = navigation.openInBrowser(url)
+    }
+    DetailContent(state, actions) { GraphSection(graph, graphActions) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailContent(state: DetailUiState, actions: DetailActions, modifier: Modifier = Modifier) {
+fun DetailContent(
+    state: DetailUiState,
+    actions: DetailActions,
+    modifier: Modifier = Modifier,
+    graph: @Composable () -> Unit = {},
+) {
     var allComments by rememberSaveable { mutableStateOf(false) }
     // The id of the downtime being asked about, while "Cancel this downtime?" is up.
     var cancelling by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -187,6 +220,8 @@ fun DetailContent(state: DetailUiState, actions: DetailActions, modifier: Modifi
                 item { Header(state) }
                 item { Freshness(state, actions) }
                 if (state.actionsOffered) item { Actions(state, actions) }
+                // Draws nothing at all when there is no graph, which is most of the time for most services.
+                item { graph() }
                 val check = state.check
                 if (check != null && check.detailsAvailable) {
                     item { Output(check) }

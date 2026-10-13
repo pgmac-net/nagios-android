@@ -338,11 +338,60 @@ class GraphRepositoryTest {
         profiles.delete(id)
 
         assertEquals(null, memory.picture(id, GraphRequest("web01", "Disk /", GraphPeriod.DAY, size)))
-        assertEquals(false, memory.isRuledOut(id, GraphRequest("web01", "Load", GraphPeriod.DAY, size)))
+        assertEquals(false, memory.isRuledOut(id, "web01", "Load"))
         assertTrue(
             "the other profile's are untouched",
             memory.picture(other, GraphRequest("web01", "Disk /", GraphPeriod.DAY, size)) != null,
         )
+    }
+
+    // ---------------------------------------------------------------- what a screen is told without asking
+
+    @Test
+    fun `a graph is expected of a service on a profile with graphs on, until something rules it out`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val off = profiles.saveTestProfile("Off", graphs = GraphSettings(enabled = false))
+
+        assertTrue(repository.expects(id, disk))
+        assertEquals("a host", false, repository.expects(id, ObjectRef("web01")))
+        assertEquals("graphs off", false, repository.expects(off, disk))
+        assertEquals("no such profile", false, repository.expects(99, disk))
+        assertTrue("answered without a request", asked.isEmpty() && created.isEmpty())
+
+        answer = { GraphAnswer.NoGraph }
+        graph(id, disk)
+        assertEquals("ruled out", false, repository.expects(id, disk))
+        assertTrue("another service is not", repository.expects(id, load))
+
+        answer = { GraphAnswer.NotThere }
+        graph(id, load)
+        assertEquals("the whole profile is", false, repository.expects(id, ObjectRef("db01", "Replication")))
+    }
+
+    @Test
+    fun `the period last chosen is remembered for its profile, until the profile goes`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val other = profiles.saveTestProfile("Other")
+        assertEquals(GraphPeriod.DAY, repository.period(id))
+
+        repository.choose(id, GraphPeriod.YEAR)
+
+        assertEquals(GraphPeriod.YEAR, repository.period(id))
+        assertEquals(GraphPeriod.DAY, repository.period(other))
+        profiles.delete(id)
+        assertEquals(GraphPeriod.DAY, repository.period(id))
+    }
+
+    @Test
+    fun `a new address forgets what was ruled out but not which period was chosen`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        repository.choose(id, GraphPeriod.MONTH)
+        graph(id, disk)
+
+        profiles.save(draft(id = id, baseUrl = "https://other.example.org/nagios"))
+        graph(id, disk)
+
+        assertEquals(GraphPeriod.MONTH, repository.period(id))
     }
 
     private suspend fun graph(
