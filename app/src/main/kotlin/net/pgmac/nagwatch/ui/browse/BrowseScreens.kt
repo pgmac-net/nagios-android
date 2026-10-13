@@ -229,7 +229,11 @@ internal fun <S : Enum<S>> BrowseList(
             if (view.rows.isEmpty()) {
                 // Hiding handled problems is the default, so when that is all that stands between
                 // the person and a row, the list has to say so.
-                val hiddenHandled = if (showHandled) 0 else BrowseFilter(query, states, showHandled = true).apply(rows).rows.size
+                val hiddenHandled = if (showHandled) {
+                    0
+                } else {
+                    BrowseFilter(query, states, showHandled = true).apply(rows).rows.size
+                }
                 if (hiddenHandled > 0) {
                     item { EmptyHandledHidden(hiddenHandled) }
                 } else {

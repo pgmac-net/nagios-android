@@ -36,8 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -303,7 +303,11 @@ private fun AccessFields(state: ProfileEditorState, actions: ProfileEditorAction
         hasValue = state.accessClientId.isNotBlank() || state.accessClientSecret.stored ||
             state.accessClientSecret.input.isNotEmpty(),
         hasProblem = isError,
-        tags = FoldTags(ProfileEditorTags.ACCESS_TOGGLE, ProfileEditorTags.ACCESS_SET, ProfileEditorTags.ACCESS_FIELDS),
+        tags = FoldTags(
+            ProfileEditorTags.ACCESS_TOGGLE,
+            ProfileEditorTags.ACCESS_SET,
+            ProfileEditorTags.ACCESS_FIELDS,
+        ),
     ) {
         Text(stringResource(R.string.profile_access_hint), style = MaterialTheme.typography.bodySmall)
         Field(R.string.profile_access_client_id, state.accessClientId, isError = isError) { value ->
@@ -322,7 +326,11 @@ private fun HeaderFields(state: ProfileEditorState, actions: ProfileEditorAction
         title = R.string.profile_headers_title,
         hasValue = state.headers.isNotEmpty(),
         hasProblem = isError,
-        tags = FoldTags(ProfileEditorTags.HEADERS_TOGGLE, ProfileEditorTags.HEADERS_SET, ProfileEditorTags.HEADERS_FIELDS),
+        tags = FoldTags(
+            ProfileEditorTags.HEADERS_TOGGLE,
+            ProfileEditorTags.HEADERS_SET,
+            ProfileEditorTags.HEADERS_FIELDS,
+        ),
     ) {
         HeaderRows(state, actions, isError)
     }

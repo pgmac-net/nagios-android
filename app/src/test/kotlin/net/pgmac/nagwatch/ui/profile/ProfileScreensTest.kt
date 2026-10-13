@@ -418,7 +418,7 @@ class ProfileScreensTest {
 
     @Test
     fun `a profile that has Access set opens with it showing`() {
-        showEditor(ProfileEditorState.from(storedProfile.copy(accessClientId = "abc.access", hasAccessClientSecret = true)))
+        showEditor(ProfileEditorState.from(withAccess))
 
         composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_FIELDS).assertExists()
         composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_SET, useUnmergedTree = true).assertDoesNotExist()
@@ -426,7 +426,7 @@ class ProfileScreensTest {
 
     @Test
     fun `a folded section with something in it says Set, and folding changes nothing that is saved`() {
-        val before = ProfileEditorState.from(storedProfile.copy(accessClientId = "abc.access", hasAccessClientSecret = true))
+        val before = ProfileEditorState.from(withAccess)
         showEditor(before)
 
         composeRule.onNodeWithTag(ProfileEditorTags.ACCESS_TOGGLE).performScrollTo().performClick()
@@ -444,7 +444,8 @@ class ProfileScreensTest {
 
     @Test
     fun `custom headers open when there is one, and say Set when folded`() {
-        showEditor(ProfileEditorState.from(storedProfile).copy(headers = listOf(HeaderField("X-Env", SecretField(stored = true)))))
+        val header = HeaderField("X-Env", SecretField(stored = true))
+        showEditor(ProfileEditorState.from(storedProfile).copy(headers = listOf(header)))
 
         composeRule.onNodeWithTag(ProfileEditorTags.HEADERS_FIELDS).assertExists()
 
@@ -481,6 +482,8 @@ class ProfileScreensTest {
             customHeaderNames = emptyList(),
             allowCleartext = false,
         )
+
+        val withAccess = storedProfile.copy(accessClientId = "abc.access", hasAccessClientSecret = true)
 
         /** One of every error class, and of every reason within Unreachable. */
         val SAMPLE_ERRORS = listOf(
