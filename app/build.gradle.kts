@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.licensee)
+    alias(libs.plugins.cyclonedx)
     id("nagwatch.foss-check")
 }
 
@@ -33,11 +34,20 @@ android {
             applicationIdSuffix = ".debug"
         }
         release {
-            // Unsigned until the release pipeline exists (M7).
+            // Unsigned here on purpose. The release workflow signs what this build produces, in a
+            // job of its own, so the key is never present while Gradle runs. See docs/adr/0011.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+    }
+
+    dependenciesInfo {
+        // Otherwise the APK carries a list of its dependencies encrypted with a key only Google
+        // holds: nobody else can read it, and F-Droid refuses an APK that has one. The readable
+        // list is the SBOM attached to each release.
+        includeInApk = false
+        includeInBundle = false
     }
 
     compileOptions {
@@ -202,6 +212,27 @@ tasks.register("resolveAndLockAll") {
         // artifact attributes that many AGP configurations only get from their tasks.
         configurations.filter { it.isCanBeResolved }.forEach { it.incoming.resolutionResult.root }
     }
+}
+
+// The SBOM attached to a release (docs/development.md, "Releasing"): what is in the APK and
+// nothing else. Build tools, test libraries and the fuzzer are not shipped, so they are not listed.
+tasks.cyclonedxDirectBom {
+    includeConfigs = listOf("releaseRuntimeClasspath")
+    componentGroup = "net.pgmac"
+    componentName = "nagwatch"
+    componentVersion = android.defaultConfig.versionName
+    projectType = org.cyclonedx.model.Component.Type.APPLICATION
+    includeBuildSystem = false
+    jsonOutput = layout.buildDirectory.file("reports/sbom/nagwatch.cdx.json")
+    xmlOutput.unsetConvention()
+}
+
+// The release workflow refuses a tag that does not say what this prints.
+tasks.register("printVersionName") {
+    group = "help"
+    description = "Prints versionName and nothing else."
+    val versionName = android.defaultConfig.versionName
+    doLast { println(versionName) }
 }
 
 ksp {

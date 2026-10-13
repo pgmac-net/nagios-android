@@ -1,0 +1,246 @@
+# Builds, signs and drafts a release when a v* tag is pushed. See "Releasing" in
+# docs/development.md for how to cut one, and docs/adr/0011 for why it is shaped like this.
+#
+# Two jobs, and the line between them is the point:
+#
+#   build    runs Gradle, and so runs every plugin and annotation processor the project
+#            uses. It has no secrets and no environment. It produces an UNSIGNED APK.
+#   release  holds the signing key. It runs after the maintainer approves the "release"
+#            environment, and runs only the Android SDK's own apksigner, gh and curl.
+#            No Gradle, and nothing the app depends on, runs while the key can be read.
+#
+# The "release" environment (required reviewer, v* tags only) and the rule on who may
+# push a v* tag are configured in pgmac-net/terraform-github. Renaming the environment
+# here without changing that first leaves the release job with no secrets.
+#
+# GitHub-hosted runners only. This is a public repo.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # A rehearsal: runs the build job only, from any branch. Nothing is signed or published.
+  workflow_dispatch:
+  # The same rehearsal, for a pull request that changes this file: a workflow that only
+  # runs on a tag would otherwise first be tried on a real release.
+  pull_request:
+    paths: [".github/workflows/release.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  # A release is never cut short by another run. A rehearsal on a pull request can be.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: build (unsigned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history, to tell whether the tag is on main.
+          fetch-depth: 0
+
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          # Must match jvmToolchain() in app/build.gradle.kts. Renovate does not
+          # raise major bumps for this on its own (see renovate.json).
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          # A release is built from the checkout and from libraries verified against the
+          # lockfile, never from something another run left in a cache.
+          cache-disabled: true
+
+      - name: Read the version
+        id: version
+        run: |
+          version="$(./gradlew --console=plain -q :app:printVersionName)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::versionName is not X.Y.Z: $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: The tag must say what the source says, and be on main
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [[ "$TAG" != "v$VERSION" ]]; then
+            echo "::error::Tag $TAG does not match versionName $VERSION in app/build.gradle.kts. Delete the tag, merge the version bump, tag again."
+            exit 1
+          fi
+          # Only what has been through review and the required checks is released.
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Tag $TAG points at a commit that is not on main."
+            exit 1
+          fi
+
+      - name: Everything CI checks
+        run: ./gradlew --console=plain check
+
+      # Apart from check: together, lint can read a generated file while the release
+      # build is rewriting it (docs/development.md).
+      - name: Build the unsigned release APK and its SBOM
+        run: ./gradlew --console=plain :app:assembleRelease :app:cyclonedxDirectBom
+
+      - name: Self-test (the FOSS checks must reject a banned dependency)
+        run: scripts/foss-self-test.sh
+
+      - name: Collect what the release job needs
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir dist
+          cp app/build/outputs/apk/release/app-release-unsigned.apk "dist/nagwatch-$VERSION-unsigned.apk"
+          cp app/build/reports/sbom/nagwatch.cdx.json "dist/nagwatch-$VERSION.cdx.json"
+          ls -l dist
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-unsigned
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: sign and draft the release
+    needs: build
+    # Never on a rehearsal, and never for anything but a v* tag.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Waits here for the maintainer's approval. The signing secrets exist only in this environment.
+    environment: release
+    permissions:
+      contents: write # create the draft release
+      id-token: write # sign the attestation
+      attestations: write # store it
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      # Two files and nothing else: the signing script and the fingerprint it checks
+      # against. No build script is checked out in this job, and none is run.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/sign-release.sh
+            config/release-signing-cert.sha256
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-unsigned
+          path: dist
+
+      # The build job said which version it built. That job ran Gradle, so its word is
+      # checked against the tag, which it could not have chosen.
+      - name: The version must be the tag's
+        run: |
+          [[ "$TAG" == "v$VERSION" ]] || { echo "::error::Build reported version '$VERSION' for tag $TAG."; exit 1; }
+          ls -l dist
+          [[ -f "dist/nagwatch-$VERSION-unsigned.apk" && -f "dist/nagwatch-$VERSION.cdx.json" ]]
+
+      - name: Sign, and check it was the right key
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        run: |
+          if [[ -z "$RELEASE_KEYSTORE_B64" ]]; then
+            echo "::error::RELEASE_KEYSTORE_B64 is empty. The signing secrets belong on the 'release' environment."
+            exit 1
+          fi
+          umask 077
+          export KEYSTORE_FILE="$RUNNER_TEMP/release.p12"
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_FILE"
+          scripts/sign-release.sh "dist/nagwatch-$VERSION-unsigned.apk" "dist/nagwatch-$VERSION.apk"
+          rm "dist/nagwatch-$VERSION-unsigned.apk"
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.p12"
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum "nagwatch-$VERSION.apk" "nagwatch-$VERSION.cdx.json" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attest that this workflow built these files from this tag
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/nagwatch-${{ needs.build.outputs.version }}.apk
+            dist/nagwatch-${{ needs.build.outputs.version }}.cdx.json
+
+      # A draft: nobody, and no Obtainium, sees it until the maintainer has installed
+      # this exact APK on a phone and pressed Publish.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$TAG" \
+            --draft \
+            --verify-tag \
+            --title "Nagwatch $VERSION" \
+            --generate-notes \
+            "dist/nagwatch-$VERSION.apk" \
+            "dist/nagwatch-$VERSION.cdx.json" \
+            dist/SHA256SUMS
+
+      # Last, and allowed to fail: a Dependency-Track that is down must not cost a release.
+      # The SBOM is on the release either way and can be uploaded by hand.
+      - name: Send the SBOM to Dependency-Track
+        id: dtrack
+        continue-on-error: true
+        env:
+          # This repository's own DT_HOST (the public name), which overrides the organisation's.
+          DT_HOST: ${{ secrets.DT_HOST }}
+          DT_APIKEY: ${{ secrets.DT_APIKEY }}
+          PROJECT_NAME: ${{ github.repository }}
+        run: |
+          [[ -n "$DT_HOST" && -n "$DT_APIKEY" ]] || { echo "DT_HOST or DT_APIKEY is not set"; exit 1; }
+          jq -n \
+            --arg name "$PROJECT_NAME" \
+            --arg version "$VERSION" \
+            --rawfile bom "dist/nagwatch-$VERSION.cdx.json" \
+            '{projectName: $name, projectVersion: $version, autoCreate: true, bom: ($bom | @base64)}' \
+          | curl --silent --show-error --fail-with-body --max-time 60 -X PUT \
+              -H "X-Api-Key: $DT_APIKEY" \
+              -H "Content-Type: application/json" \
+              --data-binary @- \
+              "https://$DT_HOST/api/v1/bom"
+
+      - name: Say what happened, and what is left to do
+        if: always()
+        env:
+          DTRACK: ${{ steps.dtrack.outcome }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "## Nagwatch $VERSION"
+            if [[ "$DTRACK" == "success" ]]; then
+              echo "- SBOM sent to Dependency-Track."
+            else
+              echo "- **SBOM was not sent to Dependency-Track** ($DTRACK). The release is not affected; see \"Releasing\" in docs/development.md to send it by hand."
+            fi
+            echo "- The release is a **draft**: https://github.com/$REPO/releases"
+            echo "- Install its APK on a phone before publishing it."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$DTRACK" != "success" ]]; then
+            echo "::warning::The SBOM was not sent to Dependency-Track ($DTRACK)."
+          fi

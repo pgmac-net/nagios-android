@@ -167,3 +167,11 @@ _Avoid_: Is local, private address
 **Access token**:
 A Cloudflare Access service token (Client ID and Client Secret) sent as headers on every request to a profile.
 _Avoid_: API key, login
+
+**Release key**:
+The one key every published APK is signed with. Held by the maintainer; in CI it exists only in the `release` environment. Identified in the repository by its certificate's SHA-256 fingerprint, never by the key.
+_Avoid_: Upload key, signing secret, keystore (the keystore is the file the key is kept in)
+
+**Rehearsal**:
+A run of the release workflow started by hand. It builds and checks what a release would, and signs and publishes nothing.
+_Avoid_: Dry run, test release
