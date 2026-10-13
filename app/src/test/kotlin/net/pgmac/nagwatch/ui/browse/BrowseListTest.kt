@@ -8,11 +8,13 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -23,14 +25,22 @@ import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
+import net.pgmac.nagwatch.status.ActionProgress
+import net.pgmac.nagwatch.status.CommandPermission
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.ui.home.HomeTags
+import net.pgmac.nagwatch.ui.quick.QuickAction
+import net.pgmac.nagwatch.ui.quick.QuickActions
+import net.pgmac.nagwatch.ui.quick.QuickMenu
+import net.pgmac.nagwatch.ui.quick.QuickTags
+import net.pgmac.nagwatch.ui.quick.QuickUiState
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -326,6 +336,55 @@ class BrowseListTest {
         }
         val firstRow = composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).getUnclippedBoundsInRoot()
         assertTrue("the rows start on the first screen: ${firstRow.top}", firstRow.top < 360.dp)
+    }
+
+    @Test
+    fun `pressing and holding a host or a service offers its quick actions, for that very one`() {
+        val asked = mutableListOf<Pair<QuickAction, ObjectRef>>()
+        val quick = QuickMenu(
+            QuickUiState(permission = CommandPermission.ALLOWED),
+            object : QuickActions {
+                override fun opened() = Unit
+
+                override fun run(action: QuickAction, target: ObjectRef) {
+                    asked += action to target
+                }
+
+                override fun undo() = Unit
+
+                override fun dismiss(progress: ActionProgress) = Unit
+            },
+        )
+        composeRule.setContent {
+            NagwatchTheme(dynamicColor = false) {
+                BrowseList(
+                    rows = BrowseRows.services(snapshot(), ProblemClassifier.classify(snapshot())),
+                    style = ServiceStyle,
+                    status = status(),
+                    now = T0,
+                    onOpen = { opened += it.title },
+                    initialStates = emptySet(),
+                    quick = quick,
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).performTouchInput { longClick() }
+        composeRule.onNodeWithTag(QuickTags.item(QuickAction.ACKNOWLEDGE)).performClick()
+
+        // An OK service is no problem: it can be rechecked, and there is nothing to acknowledge.
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Ping")).performTouchInput { longClick() }
+        composeRule.onNodeWithTag(QuickTags.item(QuickAction.ACKNOWLEDGE)).assertDoesNotExist()
+        composeRule.onNodeWithTag(QuickTags.item(QuickAction.RECHECK)).performClick()
+
+        assertEquals(
+            listOf(
+                QuickAction.ACKNOWLEDGE to ObjectRef("web01", "Disk /"),
+                QuickAction.RECHECK to ObjectRef("web01", "Ping"),
+            ),
+            asked,
+        )
+        assertTrue("a long press opens nothing", opened.isEmpty())
     }
 
     /** With every chip off unless told otherwise, so a test sees the whole list. */

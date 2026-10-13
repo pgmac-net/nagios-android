@@ -49,6 +49,8 @@ data class ProfileEntity(
     @ColumnInfo(name = "graphs", defaultValue = "1") val graphs: Boolean = true,
     /** A path on this profile's server, or empty for where Nagios' own CGIs are. Never a URL. */
     @ColumnInfo(name = "graph_path", defaultValue = "''") val graphPath: String = "",
+    /** The comment a quick acknowledgement sends, or empty for the app's default. */
+    @ColumnInfo(name = "ack_comment", defaultValue = "''") val ackComment: String = "",
 ) {
     companion object {
         const val DEFAULT_POLL_MINUTES = 15
@@ -96,7 +98,7 @@ abstract class ProfileDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "profiles.db"
-        const val VERSION = 4
+        const val VERSION = 5
 
         /** Adds the remembered date format. Existing profiles have none, which is the truth. */
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
@@ -130,7 +132,17 @@ abstract class ProfileDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds the comment a quick acknowledgement sends. Existing profiles get none of their
+         * own, like new ones, and so send the app's default.
+         */
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN ack_comment TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         /** Every migration, in order. One list, so the app and the tests cannot open the database differently. */
-        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }

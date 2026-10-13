@@ -5,6 +5,7 @@ package net.pgmac.nagwatch.ui.problems
 import java.time.Duration
 import java.time.Instant
 import net.pgmac.nagwatch.nagios.model.HostProblem
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.Problem
 import net.pgmac.nagwatch.nagios.model.ServiceProblem
 import net.pgmac.nagwatch.nagios.model.Severity
@@ -52,4 +53,6 @@ object ProblemsTags {
     const val HANDLED_TOGGLE = "problems_handled_toggle"
 
     fun chip(kind: ProblemKind) = "problems_chip_${kind.name}"
+
+    fun row(ref: ObjectRef) = "problems_row_${ref.hostName}/${ref.description.orEmpty()}"
 }

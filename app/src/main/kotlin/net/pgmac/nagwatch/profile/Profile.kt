@@ -45,6 +45,13 @@ data class NotificationSettings(
 data class GraphSettings(val enabled: Boolean = true, val path: String = "")
 
 /**
+ * What a quick acknowledgement says when the profile has no words of its own. Nagios requires a
+ * comment and a quick action does not stop to ask for one (docs/adr/0012). It is what Nagios
+ * keeps and shows to everyone, so it is one fixed text and not a translated one.
+ */
+const val DEFAULT_ACK_COMMENT = "Acknowledged from Nagwatch"
+
+/**
  * A saved connection to a Nagios instance, as the UI sees it. Carries no
  * secrets: only whether each one is set. Secrets are write-only from the UI's
  * point of view and are never read back for display.
@@ -63,8 +70,13 @@ data class Profile(
     /** The app has offered to switch notifications on for this profile. It offers once. */
     val notificationsOffered: Boolean = false,
     val graphs: GraphSettings = GraphSettings(),
+    /** The profile's own comment for a quick acknowledgement, as stored. Empty for the default. */
+    val ackComment: String = "",
 ) {
     val isCleartext: Boolean get() = baseUrl.trim().startsWith("http://", ignoreCase = true)
+
+    /** The comment a quick acknowledgement sends: the profile's own, or [DEFAULT_ACK_COMMENT]. */
+    val quickAckComment: String get() = ackComment.ifBlank { DEFAULT_ACK_COMMENT }
 }
 
 /** What to do with a stored secret when a profile is saved. */
@@ -95,4 +107,5 @@ data class ProfileDraft(
     val allowCleartext: Boolean,
     val notifications: NotificationSettings = NotificationSettings(),
     val graphs: GraphSettings = GraphSettings(),
+    val ackComment: String = "",
 )

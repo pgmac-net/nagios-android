@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -27,14 +28,18 @@ import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.ProblemClassifier
+import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
 import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.status.ActionProgress
+import net.pgmac.nagwatch.status.CommandPermission
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
@@ -42,6 +47,11 @@ import net.pgmac.nagwatch.ui.browse.BrowseTags
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkTags
 import net.pgmac.nagwatch.ui.problems.ProblemKind
 import net.pgmac.nagwatch.ui.problems.ProblemsTags
+import net.pgmac.nagwatch.ui.quick.QuickAction
+import net.pgmac.nagwatch.ui.quick.QuickActions
+import net.pgmac.nagwatch.ui.quick.QuickMenu
+import net.pgmac.nagwatch.ui.quick.QuickTags
+import net.pgmac.nagwatch.ui.quick.QuickUiState
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -131,6 +141,42 @@ class HomeScreenTest {
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.HOSTS)).assertIsNotSelected()
         composeRule.onNodeWithTag(HomeTags.tab(HomeTab.SERVICES)).assertIsNotSelected()
         composeRule.onNodeWithTag(ProblemsTags.LIST).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a problem on the Problems tab has quick actions too`() {
+        show(quick = QuickMenu(QuickUiState(permission = CommandPermission.ALLOWED), quickActions))
+
+        composeRule.onNodeWithTag(ProblemsTags.row(ObjectRef("web01", "Disk /"))).performTouchInput { longClick() }
+        composeRule.onNodeWithTag(QuickTags.item(QuickAction.RECHECK)).performClick()
+
+        assertEquals(listOf("opened", "RECHECK web01/Disk /"), quickCalls)
+    }
+
+    @Test
+    fun `a confirmed acknowledgement says where the problem went, and can be undone`() {
+        val confirmed = ActionProgress.Confirmed(Command.Acknowledge(ObjectRef("web01", "Disk /"), "on it"))
+        show(quick = QuickMenu(QuickUiState(CommandPermission.ALLOWED, confirmed), quickActions))
+
+        composeRule.onNodeWithText("Acknowledged. It is with the handled problems now.").assertIsDisplayed()
+        composeRule.onNodeWithText("Undo").performClick()
+
+        assertEquals(listOf("undo"), quickCalls)
+    }
+
+    @Test
+    fun `a command on its way says so, and a recheck that is done has nothing to undo`() {
+        var quickState by mutableStateOf(
+            QuickUiState(CommandPermission.ALLOWED, ActionProgress.Sending(Command.ForceCheck(ObjectRef("gw01")))),
+        )
+        show(quickOf = { QuickMenu(quickState, quickActions) })
+        composeRule.onNodeWithText("Sending\u2026").assertIsDisplayed()
+
+        quickState = quickState.copy(progress = ActionProgress.Confirmed(Command.ForceCheck(ObjectRef("gw01"))))
+
+        composeRule.onNodeWithText("Sending\u2026").assertDoesNotExist()
+        composeRule.onNodeWithText("Undo").assertDoesNotExist()
+        composeRule.onNodeWithTag(HomeTags.SNACKBAR).assertIsDisplayed()
     }
 
     @Test
@@ -409,16 +455,33 @@ class HomeScreenTest {
         }
     }
 
-    private fun show() {
+    private fun show(quick: QuickMenu? = null, quickOf: () -> QuickMenu? = { quick }) {
         state = withStatus(
             ProfileStatus(report = ProblemClassifier.classify(snapshot), snapshot = snapshot, lastSuccess = T0),
         )
-        setContent()
+        setContent(quickOf)
     }
 
-    private fun setContent() = composeRule.setContent {
+    private fun setContent(quickOf: () -> QuickMenu? = { null }) = composeRule.setContent {
         activity = LocalActivity.current as? ComponentActivity
-        NagwatchTheme(dynamicColor = false) { HomeContent(state, actions) }
+        NagwatchTheme(dynamicColor = false) { HomeContent(state, actions, quick = quickOf()) }
+    }
+
+    private val quickCalls = mutableListOf<String>()
+    private val quickActions = object : QuickActions {
+        override fun opened() {
+            quickCalls += "opened"
+        }
+
+        override fun run(action: QuickAction, target: ObjectRef) {
+            quickCalls += "${action.name} ${target.hostName}/${target.description}"
+        }
+
+        override fun undo() {
+            quickCalls += "undo"
+        }
+
+        override fun dismiss(progress: ActionProgress) = Unit
     }
 
     private fun withStatus(status: ProfileStatus) = HomeUiState(

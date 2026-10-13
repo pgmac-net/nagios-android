@@ -2,7 +2,6 @@
 
 package net.pgmac.nagwatch.ui.problems
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -36,6 +35,7 @@ import net.pgmac.nagwatch.nagios.model.Problem
 import net.pgmac.nagwatch.nagios.model.ProblemCounts
 import net.pgmac.nagwatch.nagios.model.ServiceProblem
 import net.pgmac.nagwatch.nagios.model.Severity
+import net.pgmac.nagwatch.notify.ref
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.ui.home.HomeActions
 import net.pgmac.nagwatch.ui.home.HomeUiState
@@ -44,11 +44,14 @@ import net.pgmac.nagwatch.ui.home.StateChip
 import net.pgmac.nagwatch.ui.home.StatusBanners
 import net.pgmac.nagwatch.ui.home.UpdatedLabel
 import net.pgmac.nagwatch.ui.home.checkNotes
+import net.pgmac.nagwatch.ui.quick.QuickActionRow
+import net.pgmac.nagwatch.ui.quick.QuickMenu
+import net.pgmac.nagwatch.ui.quick.QuickTarget
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 
 /** The Problems tab: what needs attention now, worst first, with the handled ones folded away. */
 @Composable
-internal fun ProblemsTab(state: HomeUiState, status: ProfileStatus, actions: HomeActions) {
+internal fun ProblemsTab(state: HomeUiState, status: ProfileStatus, actions: HomeActions, quick: QuickMenu? = null) {
     val report = checkNotNull(status.report)
     var handledOpen by rememberSaveable { mutableStateOf(false) }
     LazyColumn(modifier = Modifier.fillMaxSize().testTag(ProblemsTags.LIST)) {
@@ -63,7 +66,7 @@ internal fun ProblemsTab(state: HomeUiState, status: ProfileStatus, actions: Hom
             item { AllClear(nothingAtAll, filtered = state.filter.isNotEmpty()) }
         } else {
             items(unhandled, key = ::rowKey) { problem ->
-                ProblemRow(problem, state.now, actions)
+                ProblemRow(problem, state.now, actions, quick)
                 HorizontalDivider()
             }
         }
@@ -81,7 +84,7 @@ internal fun ProblemsTab(state: HomeUiState, status: ProfileStatus, actions: Hom
             }
             if (handledOpen) {
                 items(handled, key = { "handled-${rowKey(it)}" }) { problem ->
-                    ProblemRow(problem, state.now, actions)
+                    ProblemRow(problem, state.now, actions, quick)
                     HorizontalDivider()
                 }
             }
@@ -143,12 +146,21 @@ private fun AllClear(nothingAtAll: Boolean, filtered: Boolean) {
 }
 
 @Composable
-private fun ProblemRow(problem: Problem, now: Instant, actions: HomeActions) {
+private fun ProblemRow(problem: Problem, now: Instant, actions: HomeActions, quick: QuickMenu?) {
+    val target = QuickTarget(problem.ref, isProblem = true, acknowledged = problem.check.acknowledged)
+    QuickActionRow(target, quick, onOpen = { problem.open(actions) }) { gestures ->
+        ProblemRowContent(problem, now, gestures)
+    }
+}
+
+@Composable
+private fun ProblemRowContent(problem: Problem, now: Instant, modifier: Modifier) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { problem.open(actions) }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .then(modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .testTag(ProblemsTags.row(problem.ref)),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

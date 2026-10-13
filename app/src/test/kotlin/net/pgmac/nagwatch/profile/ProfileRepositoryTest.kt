@@ -314,6 +314,30 @@ class ProfileRepositoryTest {
         assertEquals("", (repository.settingsFor(id) as SettingsResult.Ready).settings.graphPath)
     }
 
+    @Test
+    fun `a new profile acknowledges with the app's own words`() = runBlocking {
+        val profile = checkNotNull(repository.get(repository.save(draft())))
+
+        assertEquals("", profile.ackComment)
+        assertEquals(DEFAULT_ACK_COMMENT, profile.quickAckComment)
+    }
+
+    @Test
+    fun `a profile's own acknowledgement comment is kept as Nagios would keep it`() = runBlocking {
+        val id = repository.save(draft().copy(ackComment = "  On it; <paul>\nback soon "))
+
+        val profile = checkNotNull(repository.get(id))
+        assertEquals("On it  paul back soon", profile.ackComment)
+        assertEquals("On it  paul back soon", profile.quickAckComment)
+    }
+
+    @Test
+    fun `a comment that is nothing once Nagios has had it is the default`() = runBlocking {
+        val id = repository.save(draft().copy(ackComment = " <> "))
+
+        assertEquals(DEFAULT_ACK_COMMENT, repository.get(id)?.quickAckComment)
+    }
+
     private fun draft(
         id: Long? = null,
         password: SecretInput = Replace(PASSWORD),

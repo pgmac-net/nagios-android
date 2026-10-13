@@ -25,6 +25,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -33,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -52,7 +55,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.ui.browse.HostsTab
@@ -64,6 +69,11 @@ import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
 import net.pgmac.nagwatch.ui.notify.NotificationOffer
 import net.pgmac.nagwatch.ui.problems.ProblemKind
 import net.pgmac.nagwatch.ui.problems.ProblemsTab
+import net.pgmac.nagwatch.ui.quick.QuickAction
+import net.pgmac.nagwatch.ui.quick.QuickActions
+import net.pgmac.nagwatch.ui.quick.QuickActionsViewModel
+import net.pgmac.nagwatch.ui.quick.QuickFeedback
+import net.pgmac.nagwatch.ui.quick.QuickMenu
 
 object HomeTags {
     const val NO_PROFILES = "home_no_profiles"
@@ -76,6 +86,7 @@ object HomeTags {
     const val UPDATED = "home_updated"
     const val PROFILE_MENU = "home_profile_menu"
     const val PAGER = "home_pager"
+    const val SNACKBAR = "home_snackbar"
 
     fun tab(tab: HomeTab) = "home_tab_${tab.name}"
 }
@@ -113,8 +124,13 @@ interface HomeNavigation {
 }
 
 @Composable
-fun HomeScreen(navigation: HomeNavigation, viewModel: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    navigation: HomeNavigation,
+    viewModel: HomeViewModel = hiltViewModel(),
+    quickViewModel: QuickActionsViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val quickState by quickViewModel.state.collectAsStateWithLifecycle()
     // Coming back to the screen refreshes, but only if what is held is old. The first load does
     // not depend on this: the view model loads as soon as it knows which profile is shown.
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.refreshIfNeeded() }
@@ -150,7 +166,22 @@ fun HomeScreen(navigation: HomeNavigation, viewModel: HomeViewModel = hiltViewMo
             state.selected?.let { navigation.openService(it.id, hostName, description) }
         }
     }
-    HomeContent(state, actions)
+    // Quick actions are about the profile on screen. With none there is nothing to act on.
+    val quick = state.selected?.id?.let { profileId ->
+        QuickMenu(
+            quickState,
+            object : QuickActions {
+                override fun opened() = quickViewModel.opened(profileId)
+
+                override fun run(action: QuickAction, target: ObjectRef) = quickViewModel.run(profileId, action, target)
+
+                override fun undo() = quickViewModel.undo(profileId)
+
+                override fun dismiss(progress: ActionProgress) = quickViewModel.dismiss(progress)
+            },
+        )
+    }
+    HomeContent(state, actions, quick = quick)
     // One question at a time: the offer waits while local network access is being explained.
     if (!state.explainLocalNetwork) NotificationOffer()
 }
@@ -162,6 +193,7 @@ fun HomeContent(
     actions: HomeActions,
     modifier: Modifier = Modifier,
     initialTab: HomeTab = HomeTab.PROBLEMS,
+    quick: QuickMenu? = null,
 ) {
     // The tabs are pages: a swipe moves between them, and the bar says which is showing. The bar
     // and Back move the same pager, so there is one answer to "which tab" (pgmac-net/nagios-android#63).
@@ -176,6 +208,9 @@ fun HomeContent(
     // Each tab keeps its own search, filter and scroll position while another is shown.
     val tabStates = rememberSaveableStateHolder()
     val selected = state.selected
+    // Where a quick action says what became of it: there is no form and no screen of its own to say it on.
+    val snackbars = remember { SnackbarHostState() }
+    quick?.let { QuickFeedback(it, snackbars) }
     // Back from Hosts or Services returns to Problems, where the app opens; from there it leaves.
     BackHandler(enabled = tab != HomeTab.PROBLEMS) { show(HomeTab.PROBLEMS) }
 
@@ -183,6 +218,7 @@ fun HomeContent(
         modifier = modifier.fillMaxSize(),
         topBar = { TopAppBar(title = { ProfileSwitcher(state, actions) }) },
         bottomBar = { if (selected != null) HomeTabs(tab, onSelect = show) },
+        snackbarHost = { SnackbarHost(snackbars, Modifier.testTag(HomeTags.SNACKBAR)) },
     ) { innerPadding ->
         Box(Modifier.fillMaxSize().padding(innerPadding)) {
             when {
@@ -193,7 +229,7 @@ fun HomeContent(
                 else -> ProfileBody(state, selected, pager, actions) { page ->
                     // Keyed by profile as well: another profile's hosts need another search.
                     tabStates.SaveableStateProvider("${selected.id}:${page.name}") {
-                        TabBody(page, state, checkNotNull(state.status), actions)
+                        TabBody(page, state, checkNotNull(state.status), actions, quick)
                     }
                 }
             }
@@ -323,11 +359,11 @@ private fun ProfileBody(
 }
 
 @Composable
-private fun TabBody(tab: HomeTab, state: HomeUiState, status: ProfileStatus, actions: HomeActions) {
+private fun TabBody(tab: HomeTab, state: HomeUiState, status: ProfileStatus, actions: HomeActions, quick: QuickMenu?) {
     when (tab) {
-        HomeTab.PROBLEMS -> ProblemsTab(state, status, actions)
-        HomeTab.HOSTS -> HostsTab(status, state.now, actions::openHost, actions::allowLocalNetwork)
-        HomeTab.SERVICES -> ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork)
+        HomeTab.PROBLEMS -> ProblemsTab(state, status, actions, quick)
+        HomeTab.HOSTS -> HostsTab(status, state.now, actions::openHost, actions::allowLocalNetwork, quick)
+        HomeTab.SERVICES -> ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork, quick)
     }
 }
 

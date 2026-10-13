@@ -76,6 +76,7 @@ object ProfileEditorTags {
     const val HEADERS_TOGGLE = "editor_headers_toggle"
     const val HEADERS_SET = "editor_headers_set"
     const val HEADERS_FIELDS = "editor_headers_fields"
+    const val ACK_COMMENT = "editor_ack_comment"
     const val SAVE = "editor_save"
     const val TEST = "editor_test"
 }
@@ -172,6 +173,8 @@ fun ProfileEditorContent(state: ProfileEditorState, actions: ProfileEditorAction
                 }
                 HorizontalDivider()
                 NotificationFields(state.notifications, state.notificationsRefused, actions)
+                HorizontalDivider()
+                QuickActionFields(state, actions)
                 HorizontalDivider()
                 GraphFields(state, actions)
                 HorizontalDivider()
@@ -353,6 +356,22 @@ private fun HeaderRows(state: ProfileEditorState, actions: ProfileEditorActions,
     OutlinedButton(onClick = { actions.edit { it.copy(headers = it.headers + HeaderField()) } }) {
         Text(stringResource(R.string.profile_header_add))
     }
+}
+
+/**
+ * The "Quick actions" section: what an acknowledgement made without the form says. It is asked
+ * for here, once, because a quick action does not stop to ask (docs/adr/0012).
+ */
+@Composable
+private fun QuickActionFields(state: ProfileEditorState, actions: ProfileEditorActions) {
+    Text(stringResource(R.string.quick_title), style = MaterialTheme.typography.titleMedium)
+    Field(
+        label = R.string.quick_ack_comment,
+        value = state.ackComment,
+        isError = false,
+        supporting = R.string.quick_ack_comment_hint,
+        modifier = Modifier.testTag(ProfileEditorTags.ACK_COMMENT),
+    ) { value -> actions.edit { it.copy(ackComment = value) } }
 }
 
 /**

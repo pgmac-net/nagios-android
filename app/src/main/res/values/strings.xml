@@ -164,6 +164,13 @@
     <string name="notify_offer_turn_on">Turn on</string>
     <string name="notify_blocked">Android is not letting Nagwatch show notifications. This Nagios is still checked in the background, but you will not be told what it finds.</string>
 
+    <string name="quick_menu">Actions</string>
+    <string name="quick_acknowledged">Acknowledged. It is with the handled problems now.</string>
+    <string name="action_open">Open</string>
+    <string name="action_undo">Undo</string>
+    <string name="quick_title">Quick actions</string>
+    <string name="quick_ack_comment">Acknowledgement comment</string>
+    <string name="quick_ack_comment_hint">What an acknowledgement says when you make one from a list or a notification, without the form. Everyone who uses this Nagios will see it. Leave empty for “Acknowledged from Nagwatch”.</string>
     <string name="notify_sounds">Sounds and importance</string>
     <string name="notify_sounds_hint">Android keeps the sound, importance and vibration for each kind of notification: down and critical, warning, unknown, recovered, can’t reach Nagios and summaries. Android lists them under “Other”. What you set there applies to every profile.</string>
     <string name="channel_critical">Down and critical</string>

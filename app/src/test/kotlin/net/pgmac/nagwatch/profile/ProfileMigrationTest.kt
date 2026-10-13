@@ -104,6 +104,38 @@ class ProfileMigrationTest {
     }
 
     @Test
+    fun `a profile saved by version 4 survives the upgrade, with no acknowledgement comment of its own`() =
+        runBlocking {
+            createVersion(4) { db ->
+                db.execSQL("UPDATE profiles SET graphs = 0, graph_path = '/nagiosgraph/cgi-bin/'")
+            }
+
+            val profiles = open(*ProfileDatabase.MIGRATIONS.toTypedArray()).profiles()
+
+            val kept = checkNotNull(profiles.get(1))
+            assertEquals("Home", kept.name)
+            assertEquals("encrypted-password", kept.encryptedPassword)
+            assertEquals(
+                "what it chose about graphs is as it was",
+                false to "/nagiosgraph/cgi-bin/",
+                kept.graphs to kept.graphPath,
+            )
+            assertEquals("like a new profile: the app's default is sent", "", kept.ackComment)
+        }
+
+    @Test
+    fun `a version 4 database is refused without its own migration`() {
+        createVersion(4)
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                open(ProfileDatabase.MIGRATION_1_2, ProfileDatabase.MIGRATION_2_3, ProfileDatabase.MIGRATION_3_4)
+                    .profiles().get(1)
+            }
+        }
+    }
+
+    @Test
     fun `a version 3 database is refused without its own migration`() {
         createVersion(3)
 
