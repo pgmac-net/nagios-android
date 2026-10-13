@@ -24,13 +24,17 @@ None. The plan said the sounds row would be tested with a scroll in the UI test;
 ## What was found, and by what
 
 - **Channels do not exist until something is posted.** The channels are created by the first notification, so Android's page for a profile that has never notified would list nothing. The button creates them first; `NotifyChannel.createAll` is the code both it and the notifier use, and a test shows it is safe to repeat.
+- **Android's page folds the channels away.** See "Looked at on a phone, and not".
 - **The status bar ignores the colour.** Android draws a small icon white and flat there, whatever is set. The tint is only for the shade. The README and the design say so, so nobody expects the colour in the bar.
 - **A tint is not seen by a unit test.** The tests check the colour on the notification Android is handed. How it looks in the shade is a thing to look at.
 
-## Not verified
+## Looked at on a phone, and not
 
-- **Not looked at on a phone.** The phone was not connected when the debug build was ready to install. The behaviour is covered by Robolectric tests, the whole suite passes. Still to be seen: the tint in the shade for each kind; the button and Android's page it opens; and that the colours read on both a light and a dark shade.
-- Seeing a notification of each severity needs the debug poll receiver (`PollNowReceiver`) against a Nagios with each kind of problem.
+On a Pixel 8a, Android 17, in the debug build:
+
+- **The button.** Absent with the switch off, present with it on, between the last choice and Graphs. It opens Android's page for the app, which lists the six channels, and each channel's own page has Sound ("Default notification sound"), importance and vibration. Backing out leaves the editor as it was; nothing was saved.
+- **Android groups them under "Other", collapsed.** The page opens on "Other" folded and, until something has been posted from a channel, a "Show unused categories" button. The first look at that page does not show the channels. The hint under the button now says they are under "Other". A group of the app's own (a name that says what they are) would read better, but a channel's group is fixed at creation, so it is not done here.
+- **The tint was not seen.** A tinted notification needs a profile with notifications on and a problem that is new to it; the maintainer's profiles have them off, and a first poll gives a summary (untinted) in any case. The colour is checked on the notification object by unit tests and not by eye. The debug build has no way to post a sample notification; adding one under `app/src/debug` would be a small separate piece of work if it is wanted.
 
 ## Follow-ups
 
