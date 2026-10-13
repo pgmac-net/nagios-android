@@ -320,6 +320,17 @@
     <string name="problem_header_value_required">Each header needs a value.</string>
     <string name="problem_graph_path_invalid">The graph path must be a path on this Nagios server, like /nagiosgraph/cgi-bin/. It cannot be a full URL or name another server.</string>
 
+    <string name="graph_title">Graph</string>
+    <string name="graph_period_day">Day</string>
+    <string name="graph_period_week">Week</string>
+    <string name="graph_period_month">Month</string>
+    <string name="graph_period_year">Year</string>
+    <string name="graph_description">Graph of %1$s over the last %2$s, drawn by nagiosgraph. Tap for full screen.</string>
+    <string name="graph_description_full">Graph of %1$s over the last %2$s, drawn by nagiosgraph. Pinch to zoom, double-tap to reset.</string>
+    <string name="graph_loading">Loading the graph</string>
+    <string name="graph_open_browser">Open graphs in browser</string>
+    <string name="graph_none">There is no graph for this period.</string>
+    <string name="graph_unreachable">The graph could not be fetched just now.</string>
     <string name="graphs_title">Graphs</string>
     <string name="graphs_switch">Show nagiosgraph graphs</string>
     <string name="graphs_hint">A service\u2019s history as nagiosgraph draws it, where the server has nagiosgraph and the service has performance data. Where it has not, nothing is shown.</string>

@@ -120,15 +120,29 @@ class GraphRulesTest {
     // ---------------------------------------------------------------- what is asked for
 
     @Test
-    fun `the plot asked for fits the room there is, in steps`() {
-        assertEquals("a phone: 411dp less the screen's padding", GraphSize(240, 120), GraphSize.inline(379))
-        assertEquals(GraphSize(300, 120), GraphSize.inline(381))
-        assertEquals(GraphSize(300, 120), GraphSize.inline(440))
-        assertEquals(GraphSize(360, 120), GraphSize.inline(441))
+    fun `the plot asked for is a little wider than the room there is, in steps`() {
+        // A phone: 411dp less the screen's padding. At exactly the room's width the plot was 240
+        // and the legend was cut off; this is the size that showed all of it.
+        assertEquals(GraphSize(360, 120), GraphSize.inline(379))
+        assertEquals("a small phone", GraphSize(240, 120), GraphSize.inline(288))
+        assertEquals(GraphSize(300, 120), GraphSize.inline(330))
+        assertEquals(GraphSize(420, 120), GraphSize.inline(430))
         assertEquals("a tablet", GraphSize(660, 120), GraphSize.inline(2000))
         assertEquals("never smaller than can be read", GraphSize(240, 120), GraphSize.inline(0))
         assertEquals(GraphSize(240, 120), GraphSize.inline(-50))
         assertEquals("few enough sizes to keep", 8, (0..3000).map(GraphSize::inline).distinct().size)
+    }
+
+    @Test
+    fun `more room never means a smaller plot, and the picture is never much wider than the room`() {
+        val sizes = (0..3000).map { it to GraphSize.inline(it).width }
+
+        assertEquals(sizes.map { it.second }, sizes.map { it.second }.sorted())
+        // The picture is the plot and an axis of 81. Between the smallest and the largest plot,
+        // it is shown at no less than three quarters of its size: smaller and the text is lost.
+        sizes.filter { (room, plot) -> plot in 300..600 }.forEach { (room, plot) ->
+            assertEquals("room $room, plot $plot", true, room.toFloat() / (plot + 81) in 0.75f..1.0f)
+        }
     }
 
     @Test

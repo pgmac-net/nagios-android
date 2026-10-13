@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.ui.detail.DetailTags
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,6 +62,17 @@ class DetailRoutesTest {
             composeRule.onNodeWithTag(DetailTags.TITLE).assertTextEquals("host-for $name / $name")
             composeRule.onNodeWithTag(DetailTags.BACK).performClick()
         }
+    }
+
+    @Test
+    fun `a graph's route carries the same names the same way as its service's`() {
+        AWKWARD.forEach { name ->
+            assertEquals(
+                Routes.service(PROFILE, "host-for $name", name).replaceFirst("service/", "graph/"),
+                Routes.graph(PROFILE, "host-for $name", name),
+            )
+        }
+        assertEquals(Routes.SERVICE.replaceFirst("service/", "graph/"), Routes.GRAPH)
     }
 
     @Test

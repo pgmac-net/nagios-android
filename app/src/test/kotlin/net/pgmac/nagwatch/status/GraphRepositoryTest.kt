@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.status
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.ConnectionSettings
@@ -227,7 +228,7 @@ class GraphRepositoryTest {
             answer = { GraphAnswer.Unavailable(NagiosError.Http(500)) }
 
             // Asking again lifts the ruling; the failure would fall back on an older picture if one were left.
-            assertEquals(GraphState.None, graph(id, disk, GraphPeriod.WEEK, refresh = true))
+            assertEquals(GraphState.Unavailable, graph(id, disk, GraphPeriod.WEEK, refresh = true))
         }
 
     // ---------------------------------------------------------------- a failure that may pass
@@ -237,7 +238,7 @@ class GraphRepositoryTest {
         val id = profiles.saveTestProfile()
         answer = { GraphAnswer.Unavailable(NagiosError.Http(500)) }
 
-        assertEquals(GraphState.None, graph(id, disk))
+        assertEquals("not 'there is none': nobody could be asked", GraphState.Unavailable, graph(id, disk))
         answer = { picture() }
 
         assertTrue(graph(id, disk) is GraphState.Shown)
@@ -338,11 +339,60 @@ class GraphRepositoryTest {
         profiles.delete(id)
 
         assertEquals(null, memory.picture(id, GraphRequest("web01", "Disk /", GraphPeriod.DAY, size)))
-        assertEquals(false, memory.isRuledOut(id, GraphRequest("web01", "Load", GraphPeriod.DAY, size)))
+        assertEquals(false, memory.isRuledOut(id, "web01", "Load"))
         assertTrue(
             "the other profile's are untouched",
             memory.picture(other, GraphRequest("web01", "Disk /", GraphPeriod.DAY, size)) != null,
         )
+    }
+
+    // ---------------------------------------------------------------- what a screen is told without asking
+
+    @Test
+    fun `a graph is expected of a service on a profile with graphs on, until something rules it out`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val off = profiles.saveTestProfile("Off", graphs = GraphSettings(enabled = false))
+
+        assertTrue(repository.expects(id, disk))
+        assertEquals("a host", false, repository.expects(id, ObjectRef("web01")))
+        assertEquals("graphs off", false, repository.expects(off, disk))
+        assertEquals("no such profile", false, repository.expects(99, disk))
+        assertTrue("answered without a request", asked.isEmpty() && created.isEmpty())
+
+        answer = { GraphAnswer.NoGraph }
+        graph(id, disk)
+        assertEquals("ruled out", false, repository.expects(id, disk))
+        assertTrue("another service is not", repository.expects(id, load))
+
+        answer = { GraphAnswer.NotThere }
+        graph(id, load)
+        assertEquals("the whole profile is", false, repository.expects(id, ObjectRef("db01", "Replication")))
+    }
+
+    @Test
+    fun `the period last chosen is remembered for its profile, until the profile goes`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        val other = profiles.saveTestProfile("Other")
+        assertEquals(GraphPeriod.DAY, repository.period(id).first())
+
+        repository.choose(id, GraphPeriod.YEAR)
+
+        assertEquals(GraphPeriod.YEAR, repository.period(id).first())
+        assertEquals(GraphPeriod.DAY, repository.period(other).first())
+        profiles.delete(id)
+        assertEquals(GraphPeriod.DAY, repository.period(id).first())
+    }
+
+    @Test
+    fun `a new address forgets what was ruled out but not which period was chosen`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        repository.choose(id, GraphPeriod.MONTH)
+        graph(id, disk)
+
+        profiles.save(draft(id = id, baseUrl = "https://other.example.org/nagios"))
+        graph(id, disk)
+
+        assertEquals(GraphPeriod.MONTH, repository.period(id).first())
     }
 
     private suspend fun graph(

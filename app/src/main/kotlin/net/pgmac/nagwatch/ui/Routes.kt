@@ -22,12 +22,17 @@ internal object Routes {
     const val HOST = "host/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}"
     const val SERVICE = "service/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}&$ARG_SERVICE={$ARG_SERVICE}"
 
+    const val GRAPH = "graph/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}&$ARG_SERVICE={$ARG_SERVICE}"
+
     /** A non-positive id means "new profile". */
     const val NEW_PROFILE_ID = 0L
 
     fun profile(id: Long) = "profile/$id"
 
     fun host(profileId: Long, hostName: String) = "host/$profileId?$ARG_HOST=${Uri.encode(hostName)}"
+
+    fun graph(profileId: Long, hostName: String, description: String) =
+        "graph/$profileId?$ARG_HOST=${Uri.encode(hostName)}&$ARG_SERVICE=${Uri.encode(description)}"
 
     fun service(profileId: Long, hostName: String, description: String) =
         "service/$profileId?$ARG_HOST=${Uri.encode(hostName)}&$ARG_SERVICE=${Uri.encode(description)}"
