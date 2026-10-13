@@ -34,7 +34,11 @@ On a Pixel 8a, Android 17, in the debug build:
 
 - **The button.** Absent with the switch off, present with it on, between the last choice and Graphs. It opens Android's page for the app, which lists the six channels, and each channel's own page has Sound ("Default notification sound"), importance and vibration. Backing out leaves the editor as it was; nothing was saved.
 - **Android groups them under "Other", collapsed.** The page opens on "Other" folded and, until something has been posted from a channel, a "Show unused categories" button. The first look at that page does not show the channels. The hint under the button now says they are under "Other". A group of the app's own (a name that says what they are) would read better, but a channel's group is fixed at creation, so it is not done here.
-- **The tint was not seen.** A tinted notification needs a profile with notifications on and a problem that is new to it; the maintainer's profiles have them off, and a first poll gives a summary (untinted) in any case. The colour is checked on the notification object by unit tests and not by eye. The debug build has no way to post a sample notification; adding one under `app/src/debug` would be a small separate piece of work if it is wanted.
+- **The tint is not visible on this phone.** `SampleNotificationsReceiver` (new, `app/src/debug`) posts one of each kind. On the Pixel 8a with Android 17 the shade shows the app's launcher icon (the amber one with the D) in the header of every notification, and a notification inside a group shows no icon at all. A lone critical notification, grouped with nothing, looked the same: the launcher icon in a circle, no triangle and no red. So `setColor` has nothing to tint here. It is Android's choice on this version, not a fault in the code: the colour is on the notification (the unit tests check it) and is what older Android versions and other makers' shades draw.
+
+## What this means for #60
+
+On the one phone it was tried on, #60 changes nothing the person can see. It is harmless there and does what it says where the shade draws a small icon. Whether that is worth keeping is the maintainer's call; the alternatives are in the pull request. The status bar was never going to show it, and the title already says the state in words.
 
 ## Follow-ups
 

@@ -216,6 +216,12 @@ Things to know:
   adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.PollNowReceiver --el profile <profile id>
   ```
   It asks for the `DUMP` permission, which adb's shell holds and no ordinary app can, and it is not in a release build. It does what the scheduled job does: a profile with notifications off is not polled. The "Updated" time on the Problems tab moves when the run has finished. The scheduled job itself can be seen with `adb shell dumpsys jobscheduler | grep -A12 'PollWorker'`: it is ready when `TIMING_DELAY` is no longer among its unsatisfied constraints.
+- **To see what a notification looks like**, `SampleNotificationsReceiver` (`app/src/debug`) posts one of each kind through the real `AndroidNotifier`, with made-up problems and a profile of its own, so it needs no Nagios and touches nothing of the person's:
+  ```
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver [--es only down|critical|warning|unknown|recovered]
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es action clear
+  ```
+  Same permission as the poll receiver, and not in a release build. The app takes these down itself the next time it starts, as it does for any profile it does not know.
 - **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
 
 ## The widget
