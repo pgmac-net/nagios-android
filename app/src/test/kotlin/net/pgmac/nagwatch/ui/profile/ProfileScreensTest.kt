@@ -25,6 +25,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.profile.GraphSettings
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
@@ -351,6 +352,45 @@ class ProfileScreensTest {
         composeRule.onAllNodesWithText("Unencrypted HTTP").assertCountEquals(1)
         composeRule.onNodeWithText("LAN").performClick()
         assertEquals(listOf(8L), opened)
+    }
+
+    @Test
+    fun `graphs are on in a new profile, with a path that can be typed`() {
+        showEditor(ProfileEditorState(loading = false))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.GRAPHS_SWITCH).performScrollTo().assertIsOn()
+        composeRule.onNodeWithTag(
+            ProfileEditorTags.GRAPH_PATH,
+        ).performScrollTo().performTextInput("/nagiosgraph/cgi-bin/")
+
+        assertEquals(GraphSettings(enabled = true, path = "/nagiosgraph/cgi-bin/"), state.toDraft().graphs)
+    }
+
+    @Test
+    fun `switching graphs off hides the path and keeps what was typed`() {
+        showEditor(ProfileEditorState(loading = false, graphs = GraphSettings(path = "/nagiosgraph/cgi-bin/")))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.GRAPHS_SWITCH).performScrollTo().performClick()
+
+        composeRule.onNodeWithTag(ProfileEditorTags.GRAPH_PATH).assertDoesNotExist()
+        assertEquals(GraphSettings(enabled = false, path = "/nagiosgraph/cgi-bin/"), state.toDraft().graphs)
+    }
+
+    @Test
+    fun `a stored profile's graph settings are what the editor opens with`() {
+        showEditor(ProfileEditorState.from(storedProfile.copy(graphs = GraphSettings(enabled = false, path = "/g/"))))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.GRAPHS_SWITCH).performScrollTo().assertIsOff()
+        assertEquals(GraphSettings(enabled = false, path = "/g/"), state.toDraft().graphs)
+    }
+
+    @Test
+    fun `a graph path that is not a path is said to be the problem`() {
+        showEditor(
+            ProfileEditorState(loading = false, problems = setOf(ProfileProblem.GRAPH_PATH_INVALID)),
+        )
+
+        composeRule.onNodeWithText("cannot be a full URL", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     private fun showEditor(initial: ProfileEditorState) {

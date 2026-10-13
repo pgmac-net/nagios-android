@@ -237,6 +237,20 @@ A Glance widget (`widget/`), one profile per widget, four layouts by size. Why i
 - **What no unit test sees**: colours, clipping, how a launcher sizes the widget, and whether a redraw actually arrives. Those are for a phone, and the four rules above were all found on one. A redraw can also arrive a few seconds after the poll that caused it; look twice before calling a widget wrong. A widget's content cannot be read back over adb; `adb shell dumpsys appwidget` lists the widgets and their sizes, and a screenshot of the home screen is the only way to see one.
 - **Lint and `check` together.** After a source change, run `check` and the `assemble` tasks separately: together, lint can read a generated file while the release build is rewriting it and report "unexpected failure during lint analysis", which is not a finding.
 
+## Graphs
+
+nagiosgraph's pictures, on service detail (`nagios/graph/`, `status/GraphRepository.kt`). Why it is built this way is ADR 0010.
+
+- **Asking** is `GraphClient.fetch(GraphRequest)`, made by `NagiosClientFactory.createGraphs`. It is `NagiosApi.image`: one more GET through `ConnectionInterceptor`, so the same origin, the same refusal of redirects and cleartext. Only `host`, `service`, `period` and `geom` are sent. **Never add `rrdopts`**: nagiosgraph hands it to `rrdtool graph` as it stands.
+- **Whether it is a graph** is `GraphRules.judge(asked, bytes)`, from the first 24 bytes (`PngHeader`). nagiosgraph says 200 and `image/png` when it has nothing to draw, so the status and the type prove nothing. A graph is at least as large as the plot asked for, and no more than `MAX_EXTRA_WIDTH` and `MAX_EXTRA_HEIGHT` larger. **Nothing is given to a decoder that has not passed this.**
+- **What is asked for** is a plot in dp: `GraphSize.inline(availableDp)` in steps of 60, and `GraphSize.FULL`. Never below 120 high, which is what keeps an error picture (15 pixels a line) from passing as a graph.
+- **The answers** are `Picture`, `NoGraph` (this service), `NotThere` (this profile: 404, 403, or a 200 that is not a PNG) and `Unavailable` (may pass). `GraphRepository` turns all but the first into `GraphState.None`; the screen has nothing to say about why.
+- **`GraphMemory`** holds a dozen pictures and what was ruled out, for the session. It is never written anywhere. It forgets a profile when its address, graph path or user changes (`scope`) and when it is deleted (it is a `ProfileCleanup`). It is apart from `GraphRepository` because the repository needs `ProfileRepository`, which needs the cleanups.
+- **The graph path** is `GraphPath`: blank, or a path of unreserved characters starting with a slash. `ProfileValidator` refuses anything else and `ProfileRepository` will not store it. `resolve` puts it on the profile's own scheme, host and port by construction.
+- **The captures** in `app/src/test/resources/graphs` are real answers from the test Nagios; its README says how each was asked for. `GraphRulesTest` and `GraphClientTest` run on them. Do not add one from a real installation.
+- **The test Nagios draws graphs**: three of `web01`'s made-up checks print performance data (no thresholds: a semicolon starts a comment in an object file). `db01`'s `Replication` prints none. nagiosgraph writes its first file a check or two after start, so `GraphLiveTest` waits for it.
+- **Fuzzing**: the `Graph` target feeds bytes to the header reader and the rule, and the same bytes as text to `GraphPath`, checking that an accepted path never leaves the profile's server.
+
 ## Notifications
 
 `AndroidNotifier` (`notify/Notifier.kt`) turns a `Decision` into Android notifications. It decides nothing: whether to say something is `Announcer`'s, with its own tests.
@@ -259,21 +273,23 @@ A Glance widget (`widget/`), one profile per widget, four layouts by size. Why i
 
 What a Nagios server sends back is the app's main untrusted input, so it is fuzzed with [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer).
 
-**What is covered.** Three targets, in `app/src/test/java/net/pgmac/nagwatch/fuzz`:
+**What is covered.** Five targets, in `app/src/test/kotlin/net/pgmac/nagwatch/fuzz`:
 
 | Target | Takes arbitrary bytes through |
 |---|---|
 | `ResponseBody` | the step that turns a response's text into JSON or a `NagiosError` (`interpretResponseBody`) |
 | `StatusParser` | hosts, services, server info, and `ProblemClassifier` after them |
 | `AnnotationParser` | comments and downtimes |
+| `CommandPage` | the HTML pages `cmd.cgi` answers with, and the server clock read from them |
+| `Graph` | the PNG header reader and the rule that says whether bytes are a graph; and, as text, the graph path |
 
-The contract under test is "a result or a `NagiosError`, nothing else". The `ResponseBody` target also asserts about `repairInvalidEscapes`, which runs on everything a server sends: repairing twice is repairing once, and a repair never grows a body by more than its allowance (65,536 exact repairs, 256 KiB; past that it writes a same-length escape instead). An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
+The contract under test is "a result or a `NagiosError`, nothing else". The `ResponseBody` target also asserts about `repairInvalidEscapes`, which runs on everything a server sends: repairing twice is repairing once, and a repair never grows a body by more than its allowance (65,536 exact repairs, 256 KiB; past that it writes a same-length escape instead). The `Graph` target asserts that nothing is accepted as a graph that is smaller than its plot or larger than the bound, and that an accepted graph path resolves to the profile's own scheme, host and port with no query, fragment or `..`. An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
 
 **The targets are Kotlin.** Each is a few lines in `FuzzTargets.kt` that hand the bytes to a function in `FuzzEntryPoints`. They were Java at first, to earn credit from OpenSSF Scorecard's Fuzzing check, which looks for Jazzer in `*.java` files. It does not earn it here: Scorecard only examines languages at least a quarter the size of the repository's average one, this repository is almost entirely Kotlin, and Scorecard has no Kotlin pattern. That alert is dismissed as "won't fix" with this reason (#29). Do not add Java or ClusterFuzzLite for the score alone.
 
 **Two ways it runs:**
 
-- **On every build**, `FuzzCorpusTest` replays every sanitised fixture, the hand-made corpus (`app/src/test/resources/fuzz/corpus`) and every input that ever crashed a fuzzer (`app/src/test/resources/fuzz/crashes`) through all three entry points. It takes seconds and is part of `testDebugUnitTest`.
+- **On every build**, `FuzzCorpusTest` replays every sanitised fixture, the hand-made corpus (`app/src/test/resources/fuzz/corpus`) and every input that ever crashed a fuzzer (`app/src/test/resources/fuzz/crashes`) through every entry point, with the graph captures as well. It takes seconds and is part of `testDebugUnitTest`.
 - **The fuzzer itself**, `./gradlew :app:fuzz` (every target) or `:app:fuzz<Target>`, for `-PfuzzSeconds` each (default 60). It is not part of `check`. Its working files are under `app/build/fuzz/<Target>`. CI runs it in `fuzz.yml`: 60 seconds per target on every pull request, 10 minutes per target weekly, and by hand. **It is not a required check:** it is random, and must not be able to block a merge that did not cause what it found.
 
 **When it finds something:**
@@ -287,6 +303,7 @@ The contract under test is "a result or a `NagiosError`, nothing else". The `Res
 
 - The JSON reader recurses once per level of nesting, and a stack overflow is an `Error`, not an exception: `NagiosApi` did not catch it and a body of about 100 KB of `[` would have taken the app down. Bodies nested over 32 deep (Nagios writes about 6) are now refused before parsing (`nestsDeeperThan`). The first thing the fuzz corpus test found.
 - libFuzzer's resident-size limit is switched off: the JVM and Jazzer's native side sit near 2.7 GB before the first input, so it blamed the JVM. The heap cap does that job.
+- The graph path was checked for length as typed and stored with a slash added, so the longest path the editor accepted was refused when it was read back. Found by the `Graph` target in its first second, by asserting that normalising twice is normalising once. An invariant of that shape ("doing it again changes nothing") is cheap to write and is where a fuzzer earns its keep.
 - A fuzzer that finds nothing proves nothing until it has been shown to find something. When changing the harness, plant a crash behind a condition no fixture reaches (a string compare in `StatusParser.check` worked, found in about 15 seconds), check the fuzzer finds it and the replay test fails with its input saved, then take it out.
 
 **Licence.** Jazzer is Apache-2.0 and test-only: it is on a `fuzzer` configuration of its own, outside every classpath the app or its tests use, so it is in no APK and is not seen by Licensee. The targets compile against nothing from it.

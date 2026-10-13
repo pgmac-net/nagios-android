@@ -112,7 +112,7 @@ val fuzzer = configurations.create("fuzzer") {
     isCanBeResolved = true
 }
 
-val fuzzTargets = listOf("ResponseBody", "StatusParser", "AnnotationParser", "CommandPage")
+val fuzzTargets = listOf("ResponseBody", "StatusParser", "AnnotationParser", "CommandPage", "Graph")
 
 val fuzzTasks = fuzzTargets.map { name ->
     tasks.register<JavaExec>("fuzz$name") {
@@ -129,6 +129,7 @@ val fuzzTasks = fuzzTargets.map { name ->
             "src/test/resources/fixtures",
             "src/test/resources/commandpages",
             "src/test/resources/fuzz/corpus",
+            "src/test/resources/graphs",
             "src/test/resources/fuzz/crashes",
         )
             .map { layout.projectDirectory.dir(it).asFile }

@@ -61,10 +61,11 @@ object FuzzCorpus {
         "statusParser" to FuzzEntryPoints::statusParser,
         "annotationParser" to FuzzEntryPoints::annotationParser,
         "commandPage" to FuzzEntryPoints::commandPage,
+        "graph" to FuzzEntryPoints::graph,
     )
 
     fun directories(): List<File> =
-        listOf("fixtures", "commandpages", "fuzz/corpus", "fuzz/crashes").mapNotNull(::resource)
+        listOf("fixtures", "commandpages", "graphs", "fuzz/corpus", "fuzz/crashes").mapNotNull(::resource)
 
     fun inputs(): List<File> = directories().flatMap { it.walkTopDown().filter(File::isFile).toList() }.sorted()
 

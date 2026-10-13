@@ -318,6 +318,13 @@
     <string name="problem_header_name_invalid">A header name may only contain letters, digits and - _ . and similar symbols.</string>
     <string name="problem_header_name_reserved">That header is set by Nagwatch from the fields above and cannot be overridden.</string>
     <string name="problem_header_value_required">Each header needs a value.</string>
+    <string name="problem_graph_path_invalid">The graph path must be a path on this Nagios server, like /nagiosgraph/cgi-bin/. It cannot be a full URL or name another server.</string>
+
+    <string name="graphs_title">Graphs</string>
+    <string name="graphs_switch">Show nagiosgraph graphs</string>
+    <string name="graphs_hint">A service\u2019s history as nagiosgraph draws it, where the server has nagiosgraph and the service has performance data. Where it has not, nothing is shown.</string>
+    <string name="graphs_path">Graph path (optional)</string>
+    <string name="graphs_path_hint">Leave empty if nagiosgraph is in the same cgi-bin as Nagios. Otherwise its path on this server, like /nagiosgraph/cgi-bin/</string>
 
     <string name="error_access_rejected">Cloudflare Access rejected the request. Check the client ID and secret, and that the service token is allowed by the Access policy and has not expired.</string>
     <string name="error_bad_credentials">Nagios rejected the username or password.</string>

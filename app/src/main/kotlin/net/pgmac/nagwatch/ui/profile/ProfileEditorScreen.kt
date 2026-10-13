@@ -65,6 +65,8 @@ object ProfileEditorTags {
     const val TEST_NOTE = "editor_test_note"
     const val TEST_READ_ONLY = "editor_test_read_only"
     const val PROBLEMS = "editor_problems"
+    const val GRAPHS_SWITCH = "editor_graphs_switch"
+    const val GRAPH_PATH = "editor_graph_path"
     const val SAVE = "editor_save"
     const val TEST = "editor_test"
 }
@@ -161,6 +163,8 @@ fun ProfileEditorContent(state: ProfileEditorState, actions: ProfileEditorAction
                 }
                 HorizontalDivider()
                 NotificationFields(state.notifications, state.notificationsRefused, actions)
+                HorizontalDivider()
+                GraphFields(state, actions)
                 HorizontalDivider()
                 Problems(state.problems)
                 TestResult(state.test, actions)
@@ -265,6 +269,34 @@ private fun HeaderFields(state: ProfileEditorState, actions: ProfileEditorAction
     }
     OutlinedButton(onClick = { actions.edit { it.copy(headers = it.headers + HeaderField()) } }) {
         Text(stringResource(R.string.profile_header_add))
+    }
+}
+
+/**
+ * The "Graphs" section. The path is shown only while graphs are on: with them off it decides
+ * nothing. It is still checked on save, so that what is stored can be used when they come back.
+ */
+@Composable
+private fun GraphFields(state: ProfileEditorState, actions: ProfileEditorActions) {
+    Text(stringResource(R.string.graphs_title), style = MaterialTheme.typography.titleMedium)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Switch(
+            checked = state.graphs.enabled,
+            onCheckedChange = { checked -> actions.edit { it.copy(graphs = it.graphs.copy(enabled = checked)) } },
+            modifier = Modifier.testTag(ProfileEditorTags.GRAPHS_SWITCH),
+        )
+        Text(stringResource(R.string.graphs_switch))
+    }
+    Text(stringResource(R.string.graphs_hint), style = MaterialTheme.typography.bodySmall)
+    if (state.graphs.enabled) {
+        Field(
+            label = R.string.graphs_path,
+            value = state.graphs.path,
+            isError = ProfileProblem.GRAPH_PATH_INVALID in state.problems,
+            supporting = R.string.graphs_path_hint,
+            keyboardType = KeyboardType.Uri,
+            modifier = Modifier.testTag(ProfileEditorTags.GRAPH_PATH),
+        ) { value -> actions.edit { it.copy(graphs = it.graphs.copy(path = value)) } }
     }
 }
 
@@ -421,4 +453,5 @@ private fun ProfileProblem.message(): Int = when (this) {
     ProfileProblem.HEADER_NAME_INVALID -> R.string.problem_header_name_invalid
     ProfileProblem.HEADER_NAME_RESERVED -> R.string.problem_header_name_reserved
     ProfileProblem.HEADER_VALUE_REQUIRED -> R.string.problem_header_value_required
+    ProfileProblem.GRAPH_PATH_INVALID -> R.string.problem_graph_path_invalid
 }

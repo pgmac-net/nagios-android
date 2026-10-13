@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.command.CommandClient
 import net.pgmac.nagwatch.nagios.command.OkHttpCommandClient
+import net.pgmac.nagwatch.nagios.graph.GraphClient
+import net.pgmac.nagwatch.nagios.graph.OkHttpGraphClient
 import net.pgmac.nagwatch.nagios.http.AnnotationParser
 import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
 import net.pgmac.nagwatch.nagios.http.NagiosApi
@@ -104,11 +106,20 @@ class NagiosClientFactory internal constructor(
         val reader = create(settings) as OkHttpNagiosClient
         return OkHttpCommandClient(settings, api, reader::cgiBase)
     }
+
+    /**
+     * A client for nagiosgraph's pictures on the same instance. A read like any other: the
+     * same interceptor, so the same origin and the same rules.
+     */
+    fun createGraphs(settings: ConnectionSettings): GraphClient {
+        val reader = create(settings) as OkHttpNagiosClient
+        return OkHttpGraphClient(settings, reader.api, reader::cgiBase)
+    }
 }
 
 internal class OkHttpNagiosClient(
     private val settings: ConnectionSettings,
-    private val api: NagiosApi,
+    internal val api: NagiosApi,
     private val clock: Clock,
 ) : NagiosClient {
     private val fetcher = ResilientListFetcher(api)

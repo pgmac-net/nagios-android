@@ -22,6 +22,8 @@ class ConnectionSettings(
     val allowCleartext: Boolean = false,
     /** The CGI directory, if already known from an earlier connect. */
     val cgiBase: HttpUrl? = null,
+    /** Where nagiosgraph's CGIs are, as a path on [baseUrl]'s server. Blank: where Nagios' own are. */
+    val graphPath: String = "",
 ) {
     val hasAccessCredentials: Boolean
         get() = !accessClientId.isNullOrEmpty() && !accessClientSecret.isNullOrEmpty()

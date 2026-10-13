@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.profile
 
+import net.pgmac.nagwatch.nagios.graph.GraphPath
 import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -26,6 +27,9 @@ enum class ProfileProblem {
     /** A custom header that would override one the app sets from its own fields. */
     HEADER_NAME_RESERVED,
     HEADER_VALUE_REQUIRED,
+
+    /** The graph path is not a plain path on this profile's own server. */
+    GRAPH_PATH_INVALID,
 }
 
 /**
@@ -60,6 +64,8 @@ object ProfileValidator {
         if (hasAccessId != hasAccessSecret) add(ProfileProblem.ACCESS_INCOMPLETE)
 
         addAll(headerProblems(draft.customHeaders, stored?.customHeaderNames.orEmpty()))
+        // Checked whether graphs are on or off: what is stored should be usable when they are on.
+        if (!GraphPath.isValid(draft.graphs.path)) add(ProfileProblem.GRAPH_PATH_INVALID)
     }
 
     private fun headerProblems(headers: List<HeaderDraft>, storedNames: List<String>): Set<ProfileProblem> = buildSet {

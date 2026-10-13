@@ -74,6 +74,54 @@ internal class NagiosApi(
         }
     }
 
+    /** What a GET for a picture came to. */
+    sealed interface Image {
+        class Bytes(val bytes: ByteArray) : Image
+
+        /** Something answered with 200 and it does not call itself a PNG. */
+        data object NotAnImage : Image
+
+        class Failed(val error: NagiosError) : Image
+    }
+
+    /**
+     * One GET of a PNG from a CGI, at most [maxBytes] of it. What the bytes are is for the
+     * caller to decide: this only refuses what does not claim to be a PNG, and what is too big
+     * to be worth holding.
+     */
+    suspend fun image(cgiBase: HttpUrl, cgi: String, params: List<Pair<String, String>>, maxBytes: Long): Image {
+        val url = cgiBase.newBuilder().addPathSegment(cgi)
+            .apply { params.forEach { (name, value) -> addQueryParameter(name, value) } }
+            .build()
+        val request = Request.Builder().url(url).header("Accept", PNG).build()
+        return withContext(io) {
+            try {
+                client.newCall(request).execute().use { readImage(it, maxBytes) }
+            } catch (e: PolicyViolationException) {
+                Image.Failed(e.error)
+            } catch (e: IOException) {
+                Image.Failed(classify(e, url.host))
+            }
+        }
+    }
+
+    private fun readImage(response: Response, maxBytes: Long): Image {
+        val error = httpError(response)
+        val type = response.body.contentType()
+        val source = response.body.source()
+        return when {
+            error != null -> Image.Failed(error)
+
+            // Parameters after the type are ignored: nagiosgraph sends a charset with its PNGs.
+            // OkHttp has already put the type in lower case.
+            type == null || "${type.type}/${type.subtype}" != PNG -> Image.NotAnImage
+
+            source.request(maxBytes + 1) -> Image.Failed(NagiosError.ResponseTooLarge)
+
+            else -> Image.Bytes(source.readByteArray())
+        }
+    }
+
     /** What is known after posting a form that changes something. */
     sealed interface Submission {
         /** The server answered with a page. Whether it did what was asked is in the page. */
@@ -224,5 +272,6 @@ internal class NagiosApi(
         const val ACCESS_CHALLENGE = "Cloudflare-Access"
         const val ACCESS_LOGIN_DOMAIN = ".cloudflareaccess.com"
         const val CLOUDFLARE = "cloudflare"
+        const val PNG = "image/png"
     }
 }

@@ -27,6 +27,12 @@ object CommandPageFuzzTarget {
     fun fuzzerTestOneInput(data: ByteArray) = FuzzEntryPoints.commandPage(data)
 }
 
+/** What decides whether bytes are a graph, and whether text is a graph path. */
+object GraphFuzzTarget {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray) = FuzzEntryPoints.graph(data)
+}
+
 /** The parsers for comments and downtimes. */
 object AnnotationParserFuzzTarget {
     @JvmStatic

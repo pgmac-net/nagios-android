@@ -71,6 +71,17 @@ docker run --rm --entrypoint sh \
     sed -i -E "s@^date_format=.*@date_format=$DATE_FORMAT@; s@^use_timezone=.*@use_timezone=$TIMEZONE@" /work/nagios.cfg
     grep -q "^use_timezone=" /work/nagios.cfg || echo "use_timezone=$TIMEZONE" >>/work/nagios.cfg
 
+    # Run every first check at once. Left to itself Nagios spreads them over minutes, and a test
+    # that starts as soon as the server answers finds half the services still pending.
+    set_main() {
+      sed -i -E "s@^#?$1=.*@$1=$2@" /work/nagios.cfg
+      grep -q "^$1=" /work/nagios.cfg || echo "$1=$2" >>/work/nagios.cfg
+    }
+    set_main service_inter_check_delay_method n
+    set_main host_inter_check_delay_method n
+    set_main max_service_check_spread 1
+    set_main max_host_check_spread 1
+
     # Everyone sees everything; what differs is who may command.
     set_cgi() {
       sed -i -E "s@^#?$1=.*@$1=$2@" /work/cgi.cfg
@@ -96,11 +107,14 @@ docker run -d --name "$NAME" \
   -v "$VOLUME:/opt/nagios/etc" \
   "$IMAGE" >/dev/null
 
-# Ready when the JSON CGI answers and the first made-up checks have run.
+# Ready when the JSON CGI answers and every made-up check has run: something is critical and
+# nothing is still pending. "Something is critical" alone was true while two services had yet
+# to be checked, and a test that wanted one of those failed or passed by the clock.
 url="http://127.0.0.1:$PORT"
-for _ in $(seq 1 60); do
-  if curl -fsS -m 3 -u operator:operator-pw \
-    "$url/nagios/cgi-bin/statusjson.cgi?query=servicelist&formatoptions=enumerate" 2>/dev/null | grep -q '"critical"'; then
+for _ in $(seq 1 150); do
+  services="$(curl -fsS -m 3 -u operator:operator-pw \
+    "$url/nagios/cgi-bin/statusjson.cgi?query=servicelist&formatoptions=enumerate" 2>/dev/null || true)"
+  if printf '%s' "$services" | grep -q '"critical"' && ! printf '%s' "$services" | grep -q '"pending"'; then
     echo "test Nagios ready at $url/nagios  (date_format=$DATE_FORMAT, timezone=$TIMEZONE, bound to $BIND)"
     exit 0
   fi

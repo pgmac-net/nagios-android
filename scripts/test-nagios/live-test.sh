@@ -36,7 +36,8 @@ for combo in "${combos[@]}"; do
     ./gradlew --console=plain :app:testDebugUnitTest \
     --tests 'net.pgmac.nagwatch.nagios.command.CommandLiveTest' \
     --tests 'net.pgmac.nagwatch.status.CommandRepositoryLiveTest' \
-    --tests 'net.pgmac.nagwatch.nagios.ControlCharactersLiveTest' -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
+    --tests 'net.pgmac.nagwatch.nagios.ControlCharactersLiveTest' \
+    --tests 'net.pgmac.nagwatch.nagios.graph.GraphLiveTest' -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
   grep -E 'live:|LiveTest > .* (FAILED|SKIPPED)|AssertionError|IllegalStateException|^BUILD' "$log" | sed 's/^ */   /' || true
   [ "$status" -eq 0 ] || failed=1
 done

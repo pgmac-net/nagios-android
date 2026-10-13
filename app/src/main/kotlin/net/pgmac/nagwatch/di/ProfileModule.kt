@@ -31,6 +31,9 @@ import net.pgmac.nagwatch.profile.db.ProfileDatabase
 import net.pgmac.nagwatch.status.CommandClientProvider
 import net.pgmac.nagwatch.status.FactoryClientProvider
 import net.pgmac.nagwatch.status.FactoryCommandClientProvider
+import net.pgmac.nagwatch.status.FactoryGraphClientProvider
+import net.pgmac.nagwatch.status.GraphClientProvider
+import net.pgmac.nagwatch.status.GraphMemory
 import net.pgmac.nagwatch.status.NagiosClientProvider
 import net.pgmac.nagwatch.status.cache.StatusCache
 import net.pgmac.nagwatch.status.cache.StatusCacheDao
@@ -60,6 +63,14 @@ abstract class ProfileModule {
 
     @Binds
     abstract fun selectedProfile(selected: DataStoreSelectedProfile): SelectedProfile
+
+    @Binds
+    abstract fun graphClientProvider(provider: FactoryGraphClientProvider): GraphClientProvider
+
+    /** Deleting a profile also forgets what was remembered about its graphs. */
+    @Binds
+    @IntoSet
+    abstract fun graphMemoryCleanup(memory: GraphMemory): ProfileCleanup
 
     /** Deleting a profile also clears its cached status. */
     @Binds

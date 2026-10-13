@@ -16,6 +16,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
+import net.pgmac.nagwatch.nagios.graph.GraphPath
 import net.pgmac.nagwatch.profile.db.ProfileDao
 import net.pgmac.nagwatch.profile.db.ProfileEntity
 import okhttp3.HttpUrl
@@ -132,6 +133,9 @@ class ProfileRepository @Inject constructor(
             notifyUnreachable = draft.notifications.tellUnreachable,
             // Someone who switched it on in the editor has found it; there is nothing left to offer.
             notifyOffered = stored?.notifyOffered == true || draft.notifications.enabled,
+            graphs = draft.graphs.enabled,
+            // Stored as it will be used. A path the validator would refuse is not stored at all.
+            graphPath = GraphPath.normalise(draft.graphs.path).orEmpty(),
         )
     }
 
@@ -163,6 +167,7 @@ class ProfileRepository @Inject constructor(
                     customHeaders = headers.map { (name, value) -> name to value.orEmpty() },
                     allowCleartext = entity.allowCleartext,
                     cgiBase = entity.cgiBase?.toHttpUrlOrNull(),
+                    graphPath = entity.graphPath,
                 ),
             )
         }
@@ -185,6 +190,7 @@ class ProfileRepository @Inject constructor(
             tellUnreachable = entity.notifyUnreachable,
         ),
         notificationsOffered = entity.notifyOffered,
+        graphs = GraphSettings(enabled = entity.graphs, path = entity.graphPath),
     )
 
     /** Stored headers as (name, encrypted value). Anything malformed is dropped, not fatal. */

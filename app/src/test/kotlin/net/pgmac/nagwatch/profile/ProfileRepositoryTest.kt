@@ -288,6 +288,32 @@ class ProfileRepositoryTest {
     private fun ready(result: SettingsResult): ConnectionSettings =
         (result as? SettingsResult.Ready)?.settings ?: throw AssertionError("expected Ready but got $result")
 
+    @Test
+    fun `a new profile has graphs on and no path of its own`() = runBlocking {
+        val profile = checkNotNull(repository.get(repository.save(draft())))
+
+        assertEquals(GraphSettings(enabled = true, path = ""), profile.graphs)
+    }
+
+    @Test
+    fun `the graph settings are saved, the path as it will be used, and reach the connection settings`() = runBlocking {
+        val id = repository.save(
+            draft().copy(graphs = GraphSettings(enabled = false, path = " /nagiosgraph/cgi-bin ")),
+        )
+
+        assertEquals(GraphSettings(enabled = false, path = "/nagiosgraph/cgi-bin/"), repository.get(id)?.graphs)
+        val settings = (repository.settingsFor(id) as SettingsResult.Ready).settings
+        assertEquals("/nagiosgraph/cgi-bin/", settings.graphPath)
+    }
+
+    @Test
+    fun `a graph path that is not a path is never stored, whoever asks`() = runBlocking {
+        val id = repository.save(draft().copy(graphs = GraphSettings(path = "https://elsewhere.example/cgi-bin/")))
+
+        assertEquals("", repository.get(id)?.graphs?.path)
+        assertEquals("", (repository.settingsFor(id) as SettingsResult.Ready).settings.graphPath)
+    }
+
     private fun draft(
         id: Long? = null,
         password: SecretInput = Replace(PASSWORD),
