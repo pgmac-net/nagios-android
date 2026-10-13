@@ -7,7 +7,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.res.Configuration
 import android.service.notification.StatusBarNotification
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
@@ -19,6 +21,9 @@ import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.Severity
 import net.pgmac.nagwatch.nagios.model.firstOutputLine
 import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.ui.theme.DarkStateColors
+import net.pgmac.nagwatch.ui.theme.LightStateColors
+import net.pgmac.nagwatch.ui.theme.StateColors
 
 /** Puts a poll's [Decision] in front of the person. What to say was decided already; this is only how. */
 interface Notifier {
@@ -57,6 +62,21 @@ enum class NotifyChannel(val id: String, val label: Int, val importance: Int) {
     ;
 
     companion object {
+        /**
+         * Makes every channel, so Android's settings list all of them. Creating a channel that
+         * exists changes nothing the person has set, so this is safe to repeat, and it is what
+         * the app does before it sends the person there: until something has been posted there
+         * would be nothing to show.
+         */
+        fun createAll(context: Context) {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            entries.forEach { channel ->
+                manager.createNotificationChannel(
+                    NotificationChannel(channel.id, context.getString(channel.label), channel.importance),
+                )
+            }
+        }
+
         fun of(severity: Severity): NotifyChannel = when (severity) {
             Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> CRITICAL
             Severity.WARNING -> WARNING
@@ -140,6 +160,7 @@ class AndroidNotifier internal constructor(
         val title = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
         return builder(profile, NotifyChannel.of(notice.problem.severity), NotificationTarget(profile.id, notice.ref))
             .setSmallIcon(R.drawable.ic_tab_problems)
+            .setColor(stateColors().of(notice.problem.severity))
             .setContentTitle(title)
             .text(notice.problem.check.firstOutputLine())
             // An update says nothing new enough to interrupt for.
@@ -151,6 +172,7 @@ class AndroidNotifier internal constructor(
         val title = if (ref.description == null) R.string.notify_host_recovered else R.string.notify_service_recovered
         return builder(profile, NotifyChannel.RECOVERED, NotificationTarget(profile.id, ref))
             .setSmallIcon(R.drawable.ic_check)
+            .setColor(stateColors().ok.toArgb())
             .setContentTitle(context.getString(title, ref.describe()))
             .setSilent(true)
             // Good news goes stale: it clears itself, where a problem stays until dealt with.
@@ -228,14 +250,24 @@ class AndroidNotifier internal constructor(
         }
     }
 
-    /** Creating a channel that exists changes nothing the person has set, so this is safe to repeat. */
-    private fun ensureChannels() {
-        NotifyChannel.entries.forEach { channel ->
-            manager.createNotificationChannel(
-                NotificationChannel(channel.id, context.getString(channel.label), channel.importance),
-            )
-        }
+    private fun ensureChannels() = NotifyChannel.createAll(context)
+
+    /**
+     * The state colours the app's own screens use, in the variant for the phone's theme right now.
+     * They tint the small icon in the shade. The status bar draws it white whatever is set, which is
+     * Android's rule, and the title says the state in words, so the colour is only a second signal.
+     * A summary, the group's entry and an outage are left untinted: no state colour is true of them.
+     */
+    private fun stateColors(): StateColors {
+        val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return if (night == Configuration.UI_MODE_NIGHT_YES) DarkStateColors else LightStateColors
     }
+
+    private fun StateColors.of(severity: Severity): Int = when (severity) {
+        Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> critical
+        Severity.WARNING -> warning
+        Severity.UNKNOWN -> unknown
+    }.toArgb()
 
     private fun ObjectRef.describe(): String =
         description?.let { context.getString(R.string.notify_service_on_host, it, hostName) } ?: hostName

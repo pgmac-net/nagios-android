@@ -13,6 +13,16 @@
             android:name="net.pgmac.nagwatch.debug.PollNowReceiver"
             android:exported="true"
             android:permission="android.permission.DUMP" />
+
+        <!--
+            Debug builds only. Posts one notification of every kind, with made-up problems and a
+            profile of its own, to see what they look like (docs/development.md, "Background
+            polling"). Same permission, for the same reason.
+        -->
+        <receiver
+            android:name="net.pgmac.nagwatch.debug.SampleNotificationsReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 
 </manifest>

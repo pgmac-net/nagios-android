@@ -216,6 +216,12 @@ Things to know:
   adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.PollNowReceiver --el profile <profile id>
   ```
   It asks for the `DUMP` permission, which adb's shell holds and no ordinary app can, and it is not in a release build. It does what the scheduled job does: a profile with notifications off is not polled. The "Updated" time on the Problems tab moves when the run has finished. The scheduled job itself can be seen with `adb shell dumpsys jobscheduler | grep -A12 'PollWorker'`: it is ready when `TIMING_DELAY` is no longer among its unsatisfied constraints.
+- **To see what a notification looks like**, `SampleNotificationsReceiver` (`app/src/debug`) posts one of each kind through the real `AndroidNotifier`, with made-up problems and a profile of its own, so it needs no Nagios and touches nothing of the person's:
+  ```
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver [--es only down|critical|warning|unknown|recovered]
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es action clear
+  ```
+  Same permission as the poll receiver, and not in a release build. The app takes these down itself the next time it starts, as it does for any profile it does not know.
 - **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
 
 ## The widget
@@ -269,6 +275,7 @@ nagiosgraph's pictures, on service detail (`nagios/graph/`, `status/GraphReposit
 `AndroidNotifier` (`notify/Notifier.kt`) turns a `Decision` into Android notifications. It decides nothing: whether to say something is `Announcer`'s, with its own tests.
 
 - **Identity.** A problem's notification is `(tag, ID_PROBLEM)`, the tag made from the profile id, the host and the service, separated by line breaks (which a Nagios name cannot contain). The outage, the summary and the group's entry use the profile id as tag with their own ids. Posting to the same pair replaces; that is how worse, better and recovered work.
+- **Sounds are Android's to keep.** The profile editor links to Android's notification page for the app and stores nothing. An in-app sound picker would have to change a channel's sound, which Android ignores for a channel that exists, so every change would be a new channel id and a deleted one, resetting what the person had chosen. `NotifyChannel.createAll` makes every channel without posting, which is what the link does first.
 - **Channels are set once.** `NotifyChannel` lists them. Android ignores a change of importance to a channel that exists, by design, so changing a default means a new channel id and deleting the old one. Adding a channel is safe.
 - **The group's entry.** Android shows a group only if it has a summary notification of its own and does not remove that when the last member goes, so `tidyGroup` posts it while there are members and cancels it after. **Android's list of what is showing lags** behind a cancel or a post, so `tidyGroup` is told what was just taken down and whether anything was just posted, and does not trust the list for those. Robolectric does not lag; the tests that cover this hand the notifier a stale list on purpose.
 - **Critical notifications are a heads-up**, over whatever app is open, and tend to be swiped away within seconds. When checking on a phone, use warnings for anything that has to stay put, and read how a notification went from the event log: `adb logcat -d -b events | grep notification_cancel` (the number after the key is the reason: 1 a tap, 2 a swipe, 8 the app).

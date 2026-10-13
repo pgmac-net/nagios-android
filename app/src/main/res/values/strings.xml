@@ -164,6 +164,8 @@
     <string name="notify_offer_turn_on">Turn on</string>
     <string name="notify_blocked">Android is not letting Nagwatch show notifications. This Nagios is still checked in the background, but you will not be told what it finds.</string>
 
+    <string name="notify_sounds">Sounds and importance</string>
+    <string name="notify_sounds_hint">Android keeps the sound, importance and vibration for each kind of notification: down and critical, warning, unknown, recovered, can’t reach Nagios and summaries. Android lists them under “Other”. What you set there applies to every profile.</string>
     <string name="channel_critical">Down and critical</string>
     <string name="channel_warning">Warning</string>
     <string name="channel_unknown">Unknown</string>

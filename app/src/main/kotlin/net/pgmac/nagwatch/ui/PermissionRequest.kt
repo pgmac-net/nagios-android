@@ -65,6 +65,9 @@ fun appDetailsSettings(context: Context): Intent =
 fun appNotificationSettings(context: Context): Intent =
     Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
 
+/** Sends the person to the app's notification page in system settings, where each kind has its own sound. */
+fun openAppNotificationSettings(context: Context) = context.open(appNotificationSettings(context))
+
 private fun Context.activity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.activity()
