@@ -31,12 +31,13 @@ jazzer = "0.30.0"
 
 # Security floors. None of these is a dependency of the app, and none is in the APK.
 # They are libraries that build tools bring with them (the Android Gradle plugin, its
-# lint tool, ktlint) where the tool's latest release still asks for a version with a
-# known vulnerability. The build raises them to these versions; see the "floor-"
+# lint tool, ktlint, the CycloneDX plugin) where the tool's latest release still asks for
+# a version with a known vulnerability. The build raises them to these versions; see the "floor-"
 # libraries below and docs/development.md. Each can go once its tool catches up.
 floorBouncycastle = "1.85"
 floorCommonsLang3 = "3.18.0"
 floorHttpclient = "4.5.14"
+floorJackson = "2.22.3"
 floorJdom2 = "2.0.6.1"
 floorJose4j = "0.9.7"
 floorLogback = "1.5.34"
@@ -79,13 +80,17 @@ hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-view
 # Fuzzing. Test-only: neither is in the APK. See docs/development.md, "Fuzzing".
 jazzer = { module = "com.code-intelligence:jazzer", version.ref = "jazzer" }
 
-# Security floors (see the versions above). Bouncy Castle and logback are each a family
+# Security floors (see the versions above). Bouncy Castle, Jackson and logback are each a family
 # released together, so every member in use is raised, not only the one with the advisory.
 floor-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "floorBouncycastle" }
 floor-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "floorBouncycastle" }
 floor-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "floorBouncycastle" }
 floor-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "floorCommonsLang3" }
 floor-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "floorHttpclient" }
+floor-jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "floorJackson" }
+floor-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "floorJackson" }
+floor-jackson-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-xml", version.ref = "floorJackson" }
+floor-jackson-dataformat-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", version.ref = "floorJackson" }
 floor-jdom2 = { module = "org.jdom:jdom2", version.ref = "floorJdom2" }
 floor-jose4j = { module = "org.bitbucket.b_c:jose4j", version.ref = "floorJose4j" }
 floor-logback-core = { module = "ch.qos.logback:logback-core", version.ref = "floorLogback" }
