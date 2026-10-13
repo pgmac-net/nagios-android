@@ -38,13 +38,28 @@ Ticket: pgmac-net/nagios-android#9. One pull request, #56. The environment and t
 - **`./gradlew tasks --all` fails** on the `fuzz` task (`configure` called in the wrong context). It predates this work and is not fixed here.
 - **The system JDK 21 on the development machine has no `javac`**; the build needs `JAVA_HOME` pointed at the Temurin one from mise.
 
-## Not verified
+## The first release, `v0.1.0` (2026-10-14)
 
-Nothing downstream of the approval has run: the environment gate, the attestation, the draft Release, an authenticated Dependency-Track upload. Each is exercised for the first time by `v0.1.0`. The runbook says what each should look like and what to do when it does not.
+When this was merged, nothing downstream of the approval had run. `v0.1.0` ran all of it, once, and it passed first time ([run 38411682224](https://github.com/pgmac-net/nagios-android/actions/runs/38411682224)). Each part was then checked from outside the workflow, against the release's own files:
 
-Also not known: whether any library the CycloneDX plugin brings to the build classpath has an open advisory. The existing floors hold. Dependency submission on `main` will say after merge.
+- **The tag check and the approval.** The tag was on `main` and matched; the `release` job waited for the maintainer.
+- **The signature.** `apksigner verify` on the downloaded APK: v2 and v3, one signer, RSA 4096, and the certificate is the committed fingerprint.
+- **Checksums and attestation.** `sha256sum -c` passes; `gh attestation verify` passes for the APK and the SBOM and names `release.yml` at `refs/tags/v0.1.0`.
+- **Dependency-Track.** The upload was accepted, with a processing token and a project id. The upload-only key cannot read the project back, so that it was processed is the maintainer's to see.
+- **On a phone** (Pixel 8a, Android 17), by the maintainer: a profile behind Cloudflare Access, Problems, browsing, acknowledging, graphs, and the widget at 1x1, 2x1, 2x2 and 4x2 to 4x4, tapping through to a service. No crash and no error in the log; the process that was started is the one still running at the end.
+
+Two things did not go as the runbook says:
+
+- **It was published before it had been on a phone.** The draft could not be installed: the phone has Google's Advanced Protection on, which refuses any app from outside Google Play, from the browser and from Obtainium alike. It was installed after publishing, with `adb install`, which Advanced Protection allows. Nothing was wrong with it. The runbook and the README now say that `adb` is the way in on such a phone.
+- **A first release cannot prove an update.** The runbook's real test is installing over the previous release. There was none. `0.1.1` will be the first time the key and `versionCode` are proven that way.
+
+Profiles made in the debug build are not in the release app. They are two apps (`net.pgmac.nagwatch.debug` and `net.pgmac.nagwatch`) with a database each, by design.
+
+## What the merge turned up
+
+Dependency submission on `main` raised four alerts within a minute of the merge, all high: two each on `jackson-core` and `jackson-databind` 2.22.2, which the CycloneDX plugin brings to the build classpath. This was the one thing listed as not known when the pull request was opened. Neither library is in the APK. They are raised to 2.22.3 with a security floor, with the two `jackson-dataformat` modules in use, since Jackson is released as a family.
 
 ## Follow-ups
 
-- pgmac-net/terraform-github#25, which blocks the first tag.
-- `v0.1.0`: tag, approve, install the draft, publish.
+- Users with Advanced Protection can only install with `adb`. F-Droid (M8) does not change that, and there is to be no Play listing. Worth saying plainly wherever the app is described.
+- `0.1.1`, whenever it comes, is the first real test of an update.
