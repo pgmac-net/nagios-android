@@ -80,6 +80,7 @@ class BrowseListTest {
     @Test
     fun `hosts are listed with state, how long for, output and how they are handled`() {
         showHosts()
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
 
         composeRule.onNodeWithTag(BrowseTags.row("web01")).assertIsDisplayed()
         composeRule.onNodeWithText("PING OK").assertIsDisplayed()
@@ -94,9 +95,10 @@ class BrowseListTest {
         showHosts()
 
         composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertTextContains("UP (1)")
-        composeRule.onNodeWithTag(BrowseTags.chip(HostState.DOWN)).assertTextContains("DOWN (2)")
+        // The acknowledged host is hidden, so it is not in a count; the Handled chip says it is there.
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.DOWN)).assertTextContains("DOWN (1)")
         composeRule.onNodeWithTag(BrowseTags.chip(HostState.UNREACHABLE)).assertTextContains("UNREACH (0)")
-        composeRule.onNodeWithTag(BrowseTags.HANDLED).assertTextContains("Handled (1)")
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).assertTextContains("Handled (1)").assertIsNotSelected()
     }
 
     @Test
@@ -118,7 +120,7 @@ class BrowseListTest {
 
         composeRule.onNodeWithTag(BrowseTags.CLEAR).performClick()
 
-        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("web02")).assertIsDisplayed()
     }
 
     @Test
@@ -154,10 +156,8 @@ class BrowseListTest {
     }
 
     @Test
-    fun `switching Handled off hides acknowledged problems and keeps the switch, so they can come back`() {
+    fun `handled problems start hidden, and switching Handled on brings them in and keeps the switch`() {
         showHosts()
-
-        composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
 
         composeRule.onNodeWithTag(BrowseTags.row("db01")).assertDoesNotExist()
         composeRule.onNodeWithTag(BrowseTags.row("web02")).assertIsDisplayed()
@@ -166,6 +166,41 @@ class BrowseListTest {
         composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
 
         composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.DOWN)).assertTextContains("DOWN (2)")
+
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
+
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertDoesNotExist()
+    }
+
+    @Test
+    fun `when only handled problems stand between the person and a row, the empty list says so`() {
+        val onlyAcked = listOf(HostStatus("db01", HostState.DOWN, CheckStatus(acknowledged = true)))
+        showHosts(setOf(HostState.DOWN), onlyAcked)
+
+        composeRule.onNodeWithTag(BrowseTags.EMPTY_HANDLED_HIDDEN)
+            .assertTextContains("1 handled problem is hidden", substring = true)
+
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
+
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
+    }
+
+    @Test
+    fun `with nothing handled there is no Handled chip to switch`() {
+        showHosts(hosts = hosts.filterNot { it.name == "db01" })
+
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a list that is empty for another reason does not blame the handled problems`() {
+        showHosts()
+
+        composeRule.onNodeWithTag(BrowseTags.SEARCH).performTextInput("zzz")
+
+        composeRule.onNodeWithTag(BrowseTags.EMPTY).assertTextContains("Nothing matches.")
+        composeRule.onNodeWithTag(BrowseTags.EMPTY_HANDLED_HIDDEN).assertDoesNotExist()
     }
 
     @Test
@@ -176,7 +211,7 @@ class BrowseListTest {
         composeRule.onNodeWithTag(BrowseTags.chip(HostState.UNREACHABLE)).assertIsSelected()
         composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).assertIsNotSelected().assertTextContains("UP (1)")
         composeRule.onNodeWithTag(BrowseTags.row("web02")).assertIsDisplayed()
-        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertIsDisplayed()
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertDoesNotExist()
         composeRule.onNodeWithTag(BrowseTags.row("web01")).assertDoesNotExist()
 
         composeRule.onNodeWithTag(BrowseTags.chip(HostState.UP)).performClick()
@@ -193,8 +228,13 @@ class BrowseListTest {
         composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.OK)).assertIsNotSelected()
         composeRule.onNodeWithTag(BrowseTags.chip(ServiceState.UNKNOWN)).assertIsNotSelected()
         composeRule.onNodeWithTag(BrowseTags.row("web01 / Disk /")).assertIsDisplayed()
-        composeRule.onNodeWithTag(BrowseTags.row("web01 / Load")).assertIsDisplayed()
+        // In downtime, so handled, so hidden until the Handled chip is on.
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Load")).assertDoesNotExist()
         composeRule.onNodeWithTag(BrowseTags.row("web01 / Ping")).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
+
+        composeRule.onNodeWithTag(BrowseTags.row("web01 / Load")).assertIsDisplayed()
     }
 
     @Test
@@ -235,6 +275,7 @@ class BrowseListTest {
     @Test
     fun `services show the host and check name, with details only where there is a problem`() {
         showServices()
+        composeRule.onNodeWithTag(BrowseTags.HANDLED).performClick()
 
         composeRule.onNodeWithTag(BrowseTags.row("web01 / Ping")).assertIsDisplayed()
         composeRule.onNodeWithText("97% used").assertIsDisplayed()

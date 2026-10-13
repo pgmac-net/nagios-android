@@ -233,7 +233,7 @@ How M1 implements this screen, where it differs from the wireframe:
 
 ### Hosts / Services
 
-Searchable lists with state-filter chips (OK, WARN, CRIT, UNKN, PENDING; UP, DOWN, UNREACH) and a "show handled" toggle.
+Searchable lists with state-filter chips (OK, WARN, CRIT, UNKN, PENDING; UP, DOWN, UNREACH) and a "Handled" toggle, off by default.
 
 How M2 implements them:
 
@@ -242,7 +242,7 @@ How M2 implements them:
 - **The lists open on what is wrong.** Hosts starts with DOWN and UNREACH switched on, Services with WARN and CRIT. Everything else is one tap away, and its chip says how many there are. The Problems tab starts with no chip on, which there means everything. When nothing is in the states that are on, the list says that, not "no hosts"; a search that only matches a state that is off says to look at the chips.
 - **Chips are tinted with the colour of their state**, on all three tabs: faintly when off, more strongly when on, with a tick on the ones that are on so the strength of a tint is never the only sign. The label stays in the normal text colour. The Handled chip is not about a state and keeps the plain look.
 - **Chips** carry a count ("CRIT (3)") and several can be on at once. The count follows the search and the handled switch but not the other chips, so a chip always says what tapping it would show. PENDING only has a chip while something is pending.
-- **Handled problems are shown by default** here, the opposite of the Problems tab, at the end of their severity, and a "Handled (N)" chip switches them off. A host that vanished from the list when someone acknowledged it would look like a host that is not monitored. The chip only appears when there is something handled to hide.
+- **Handled problems are hidden by default** here, as on the Problems tab, and a "Handled (N)" chip brings them in, at the end of their severity. Until pgmac-net/nagios-android#58 it was the other way round, because a host that vanished from the list when someone acknowledged it could look like a host that is not monitored. What keeps that honest is the chip, which is on screen whenever anything is hidden and says how many, and the empty list, which says "N handled problems are hidden" when they are all that stands between the person and a row. The choice is not remembered past the tab. The chip only appears when there is something handled, or while it is on.
 - **A service that is OK shows its name and state and nothing else.** Each poll lists every service by name and state and fetches details only for those with a problem (section 5), so output and "how long for" are there for problems and for every host, and for other services only once opened.
 - **Each tab keeps its own search, chips and scroll position** while another tab is shown. Switching profile, or starting the app again, returns them to the defaults.
 - The time of the data and the stale, failed and "details unavailable" banners are the same on every tab.

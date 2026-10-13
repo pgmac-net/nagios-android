@@ -27,6 +27,10 @@
     <string name="browse_chip">%1$s (%2$d)</string>
     <string name="browse_handled">Handled (%1$d)</string>
     <string name="browse_none">Nothing matches.</string>
+    <plurals name="browse_none_handled_hidden">
+        <item quantity="one">Nothing here needs attention. %1$d handled problem is hidden: tap Handled to see it.</item>
+        <item quantity="other">Nothing here needs attention. %1$d handled problems are hidden: tap Handled to see them.</item>
+    </plurals>
     <string name="browse_none_searched_in_states">Nothing matches in the states that are switched on. The chips show where the matches are.</string>
     <string name="browse_none_in_states">Nothing is in the states that are switched on.</string>
     <string name="browse_empty_hosts">Nagios reported no hosts.</string>

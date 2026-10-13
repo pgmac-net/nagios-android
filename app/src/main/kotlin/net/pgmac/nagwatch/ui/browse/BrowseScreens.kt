@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -55,6 +56,7 @@ object BrowseTags {
     const val LIST = "browse_list"
     const val HANDLED = "browse_handled"
     const val EMPTY = "browse_empty"
+    const val EMPTY_HANDLED_HIDDEN = "browse_empty_handled_hidden"
 
     fun chip(state: Enum<*>) = "browse_chip_${state.name}"
 
@@ -201,7 +203,7 @@ internal fun <S : Enum<S>> BrowseList(
     // same frame, and the tab's saved state already outlives switching to another tab.
     var query by rememberSaveable { mutableStateOf("") }
     var states by rememberSaveable { mutableStateOf(initialStates) }
-    var showHandled by rememberSaveable { mutableStateOf(true) }
+    var showHandled by rememberSaveable { mutableStateOf(BrowseFilter<S>().showHandled) }
     val view = remember(rows, query, states, showHandled) { BrowseFilter(query, states, showHandled).apply(rows) }
 
     Column(Modifier.fillMaxSize()) {
@@ -225,7 +227,14 @@ internal fun <S : Enum<S>> BrowseList(
             }
             item { StatusBanners(status, now, onAllowLocalNetwork) }
             if (view.rows.isEmpty()) {
-                item { Empty(emptyText(rows.isEmpty(), query.isNotBlank(), states.isNotEmpty(), style)) }
+                // Hiding handled problems is the default, so when that is all that stands between
+                // the person and a row, the list has to say so.
+                val hiddenHandled = if (showHandled) 0 else BrowseFilter(query, states, showHandled = true).apply(rows).rows.size
+                if (hiddenHandled > 0) {
+                    item { EmptyHandledHidden(hiddenHandled) }
+                } else {
+                    item { Empty(emptyText(rows.isEmpty(), query.isNotBlank(), states.isNotEmpty(), style)) }
+                }
             } else {
                 items(view.rows, key = { it.key }) { row ->
                     BrowseRowItem(row, style, now, onOpen)
@@ -284,8 +293,9 @@ private fun <S : Enum<S>> FilterChips(
                 )
             }
         }
-        // Nothing handled, nothing to hide: the switch only appears when it would do something.
-        if (view.handledCount > 0 || !showHandled) {
+        // Nothing handled, nothing to hide: the switch only appears when it would do something,
+        // which includes while it is on, so it can be switched off again.
+        if (view.handledCount > 0 || showHandled) {
             StateChip(
                 label = stringResource(R.string.browse_handled, view.handledCount),
                 selected = showHandled,
@@ -306,6 +316,16 @@ private fun emptyText(nothingAtAll: Boolean, searching: Boolean, chipsOn: Boolea
     searching && chipsOn -> R.string.browse_none_searched_in_states
     chipsOn -> R.string.browse_none_in_states
     else -> R.string.browse_none
+}
+
+@Composable
+private fun EmptyHandledHidden(count: Int) {
+    Text(
+        text = pluralStringResource(R.plurals.browse_none_handled_hidden, count, count),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(24.dp).testTag(BrowseTags.EMPTY_HANDLED_HIDDEN),
+    )
 }
 
 @Composable

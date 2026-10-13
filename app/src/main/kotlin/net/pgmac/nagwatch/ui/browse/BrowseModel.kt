@@ -41,11 +41,14 @@ data class BrowseRow<S>(
 /**
  * What the user has asked to see. An empty [states] means every state.
  *
- * Handled problems are shown unless switched off: a host that vanished when
- * it was acknowledged would look like a host that is not monitored. The
- * Problems tab is the opposite.
+ * Handled problems are hidden until switched on, as on the Problems tab: these tabs open on
+ * what needs someone, and an acknowledged problem is not that. They were shown by default
+ * until pgmac-net/nagios-android#58, because a host that vanished when it was acknowledged
+ * could look like a host that is not monitored. The "Handled (N)" chip stays on screen
+ * while anything is hidden, and an empty list says so (see `emptyText`), which is what
+ * makes hiding them by default honest.
  */
-data class BrowseFilter<S>(val query: String = "", val states: Set<S> = emptySet(), val showHandled: Boolean = true)
+data class BrowseFilter<S>(val query: String = "", val states: Set<S> = emptySet(), val showHandled: Boolean = false)
 
 /** The rows to show, and the numbers on the chips above them. */
 data class BrowseView<S>(
