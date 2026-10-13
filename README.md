@@ -2,7 +2,7 @@
 
 A modern Android client for [Nagios Core](https://www.nagios.org/): see what is broken, acknowledge it, schedule downtime, look at the graphs, and keep a status widget on your home screen.
 
-> **Status: early development (M7: the release pipeline is in place; the first release has not been cut yet).** You can add Nagios profiles, see what is currently wrong (unhandled problems, sorted by severity, with hosts that are down and the services behind them grouped together), browse and search every host and service, and open any of them to see its output, status, comments and scheduled downtime. What was last seen is kept on the device, so the app opens with something to show and works offline. From a host or service you can acknowledge a problem, remove an acknowledgement, add a comment and ask for a recheck; the app tells you when Nagios has accepted a command and, separately, when it has seen it take effect. You can also schedule a fixed downtime and cancel one: the app reads every downtime back from Nagios and tells you if it landed anywhere other than where you asked. You can have it check a Nagios in the background and notify you about new problems (see below). There is a home-screen widget, from a single number up to a scrolling list (see below). Where the server has nagiosgraph, a service's screen shows its graph (see below). The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).
+> **Status: early development (0.1.0 released; M8, F-Droid, next).** You can add Nagios profiles, see what is currently wrong (unhandled problems, sorted by severity, with hosts that are down and the services behind them grouped together), browse and search every host and service, and open any of them to see its output, status, comments and scheduled downtime. What was last seen is kept on the device, so the app opens with something to show and works offline. From a host or service you can acknowledge a problem, remove an acknowledgement, add a comment and ask for a recheck; the app tells you when Nagios has accepted a command and, separately, when it has seen it take effect. You can also schedule a fixed downtime and cancel one: the app reads every downtime back from Nagios and tells you if it landed anywhere other than where you asked. You can have it check a Nagios in the background and notify you about new problems (see below). There is a home-screen widget, from a single number up to a scrolling list (see below). Where the server has nagiosgraph, a service's screen shows its graph (see below). The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).
 
 Nagwatch is an independent open-source project. It is **not affiliated with, endorsed by, or sponsored by Nagios Enterprises, LLC**. "Nagios" is a registered trademark of Nagios Enterprises, LLC and is used here only to describe compatibility.
 
@@ -43,10 +43,12 @@ The widget has been seen on Android 17 only. It is built to work back to Android
 
 ## Install
 
-Nagwatch is not on Google Play. It is published as a signed APK on this repository's [Releases](https://github.com/pgmac-net/nagios-android/releases) page. Until the first release is there, [build it yourself](#building).
+Nagwatch is not on Google Play. It is published as a signed APK on this repository's [Releases](https://github.com/pgmac-net/nagios-android/releases) page.
 
 - **With [Obtainium](https://obtainium.imranr.dev/)** (recommended, because it also tells you about updates): add an app, give it `https://github.com/pgmac-net/nagios-android`, and install. Each release has exactly one APK, so there is nothing to choose.
 - **By hand:** download `nagwatch-X.Y.Z.apk` from the latest release and open it. Android will ask you to allow your browser or file manager to install apps. You will have to come back for updates yourself.
+
+**If Android refuses to install it.** A phone with Google's Advanced Protection switched on does not allow apps from outside Google Play, and neither way above will work: there is no prompt to allow it, only a refusal. Installing from a computer still does. With [USB debugging](https://developer.android.com/studio/debug/dev-options) on and the phone connected, `adb install nagwatch-X.Y.Z.apk`, and the same command with `-r` for each update. (Seen on a Pixel 8a with Android 17.)
 
 Android 8.0 or later. Every release is signed with the same key, so a new version installs over the old one and keeps your profiles.
 

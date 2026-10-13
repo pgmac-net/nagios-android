@@ -48,7 +48,7 @@ Build tools bring libraries of their own, and a tool's latest release can still 
 
 - The versions are the `floor...` entries in `gradle/libs.versions.toml`, so Renovate keeps them moving.
 - They are applied as **constraints** in three places, because Gradle has three separate classpaths here: the build script's (`build.gradle.kts`, for what the Android Gradle plugin brings), and the lint tool's and ktlint's (`app/build.gradle.kts`). A constraint adds nothing: it only applies where something already asks for that library.
-- Where a library is one of a family released together (Bouncy Castle, logback), every member in use is raised, not only the one named in the advisory.
+- Where a library is one of a family released together (Bouncy Castle, Jackson, logback), every member in use is raised, not only the one named in the advisory.
 - `build-logic` does not use the `kotlin-dsl` plugin, because that brings the Kotlin Gradle plugin of whichever version Gradle embeds, which cannot be raised without a new Gradle. It uses the project's own Kotlin plugin instead. The cost: in `build-logic`, a lambda passed to a Gradle `Action` takes its argument as a parameter (`{ task -> task.dependsOn(...) }`), not as an implicit receiver.
 - **When an alert appears:** find where the version comes from (`./gradlew buildEnvironment` for the build script, `./gradlew :app:dependencies` for everything else), add or raise a floor, refresh the lockfile, and run the full `check`: a raised library is being run by a tool that was not released against it.
 - **When to remove one:** when the tool that needed it asks for a fixed version itself. A floor below what is already resolved does nothing and can go.
@@ -373,7 +373,7 @@ A release is a signed APK, its SBOM and a checksum file on a GitHub Release, mad
 1. A pull request that raises `versionName` and adds one to `versionCode` in `app/build.gradle.kts`. Android refuses an update whose `versionCode` is not higher. Merge it.
 2. On `main`, at that merge: `git tag -s vX.Y.Z -m "Nagwatch X.Y.Z" && git push origin vX.Y.Z`. The tag must be `v` plus `versionName` exactly, and on `main`, or `build` fails before doing anything else.
 3. When `build` is green the run waits. Approve the `release` environment.
-4. The run leaves a **draft** Release. Download its APK and install it on a phone: over the previous release, not onto a clean phone. That it installs as an update is the only real proof it was signed with the right key and a higher `versionCode`. Open a profile.
+4. The run leaves a **draft** Release. Download its APK and install it on a phone: over the previous release, not onto a clean phone. That it installs as an update is the only real proof it was signed with the right key and a higher `versionCode`. Open a profile. On a phone with Advanced Protection on, the only way in is `adb install -r`; the browser and Obtainium are refused.
 5. Edit the notes, then Publish. Obtainium sees it from then.
 
 **When something goes wrong.**

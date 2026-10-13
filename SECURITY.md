@@ -29,7 +29,7 @@ Please allow up to 90 days from your report before disclosing publicly, or until
 
 ## Supported versions
 
-Only the latest release receives security fixes. Before the first release, that means the `main` branch.
+Only the latest release receives security fixes.
 
 ## Checking a download
 
