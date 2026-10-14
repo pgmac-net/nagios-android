@@ -200,6 +200,8 @@ After any command the app re-reads the affected object and reports what it sees,
  Profile switcher (top bar) | Problems | Hosts | Services | Settings
 ```
 
+**The tabs are pages** (pgmac-net/nagios-android#63): a sideways swipe anywhere on a tab moves to the next, and the bar follows. The bar and Back move the same pager. A row has no swipe of its own, so nothing competes for the gesture (see "Quick actions" below). Leaving a tab drops its keyboard focus: a search box that had the keyboard would otherwise keep it up while off screen.
+
 As built in M2: a bottom navigation bar with **Problems, Hosts, Services**, and the profile switcher in the top bar on every tab. **There is no Settings tab yet.** It arrives in M4 with the first thing there is to set (polling and notifications); an empty tab was not worth a place in the bar. Back from Hosts or Services returns to Problems, where the app opens. A host or service opens over the bar, on its own screen.
 
 ### Problems (start screen)
@@ -246,6 +248,18 @@ How M2 implements them:
 - **A service that is OK shows its name and state and nothing else.** Each poll lists every service by name and state and fetches details only for those with a problem (section 5), so output and "how long for" are there for problems and for every host, and for other services only once opened.
 - **Each tab keeps its own search, chips and scroll position** while another tab is shown. Switching profile, or starting the app again, returns them to the defaults.
 - The time of the data and the stale, failed and "details unavailable" banners are the same on every tab.
+
+### Quick actions
+
+Pressing and holding a row on Problems, Hosts or Services opens a small menu (pgmac-net/nagios-android#64, [ADR 0012](adr/0012-a-quick-acknowledgement-is-sent-at-once.md)). A tap still opens the item.
+
+- **Acknowledge** where there is a problem that is not acknowledged, **Remove acknowledgement** where there is one, **Recheck** always, and **Open**. The rules are the detail screen's. Comment and downtime are not here: they need words or a window, and stay on the detail screen.
+- **An acknowledgement is sent at once**, with no form: the profile's own comment, or "Acknowledged from Nagwatch", and the form's flags (not sticky, notify, not persistent). The comment is a setting on the profile, under "Quick actions" in its editor.
+- **It is the same command as the form's.** It goes through `CommandRepository`: accepted, then confirmed by reading the object back, never retried. One at a time.
+- **A snackbar says where it has got to**: sending, done, or why not, in the detail screen's words. Once an acknowledgement is confirmed it says the problem "is with the handled problems now", because on Hosts and Services the row has just gone (they hide handled problems until asked), and offers **Undo**, which removes the acknowledgement.
+- **An undo goes to the Nagios the acknowledgement went to.** The profile on screen can change while the snackbar is up, and two servers can each have a `web01`. The same holds for what a user may do: it is kept per profile.
+- **A read-only user** sees the actions switched off with the reason above them, not hidden.
+- **There is no swipe on a row**, on purpose. A sideways drag changes tab, and nothing that changes Nagios for everyone should be one stray movement away.
 
 ### Service detail
 
@@ -357,7 +371,7 @@ What a poll is worth saying is decided in one place (`Announcer`), and why is in
 - **Unhandled only by default.** A per-profile switch includes acknowledged problems and those in downtime. A problem that becomes handled loses its notification without a word.
 - **A recovery replaces the problem's own notification**, silently, and clears after an hour. Something that was only in a summary recovers silently.
 - **A failed poll never produces "all OK"** and never changes what is known. A failure that may pass by itself raises one notification after three polls in a row, unless the profile's "Tell me when this Nagios can't be reached" is off. One that will not (a rejected password or Access token, unreadable credentials) raises it at once, regardless. The next good poll removes it.
-- One notification per problem, grouped per profile, with a channel per kind so classes can be muted in system settings. No buttons: a tap opens the host, the service or Problems.
+- One notification per problem, grouped per profile, with a channel per kind so classes can be muted in system settings. A tap opens the host, the service or Problems. A problem's own notification has two buttons, Acknowledge and Recheck (below).
 
 How it is switched on:
 
@@ -373,7 +387,8 @@ How it is shown (`AndroidNotifier`):
 - **Colour** (pgmac-net/nagios-android#60): the small icon is tinted with the state's colour in the shade, from the same `StateColors` the screens use, light or dark to match the phone: red for down, unreachable and critical, amber for warning, orange for unknown, green for a recovery. A summary, the group's entry and an outage are left untinted, because no state colour is true of them. The status bar draws a small icon white and flat whatever is set, so colour never reaches it. Nor does it reach a shade that draws the app's launcher icon in place of the small icon: a Pixel 8a on Android 17 does, and showed no tint on any notification, grouped or alone. That is Android's choice and the colour is still on the notification, so it is kept for the Android versions and makers that draw it. The title says the state in words, so colour is a second signal and never the only one. One shape for every problem (the triangle with an exclamation mark) and a tick for a recovery; a shape per state was considered and left, since the words already carry it.
 - **Text**: the state and the object ("CRITICAL: Disk / on web01"), the first line of the plugin's output, and the profile's name. Nothing that the Problems list does not already show. Lock-screen visibility is left to the system setting.
 - **A recovery** takes the problem's place, silently, and clears itself after an hour. A problem's notification stays until it is dealt with or dismissed.
-- **A tap** opens the host or the service, or the profile's Problems list for a summary or an outage, and selects that profile. No buttons: acknowledging from a notification is left for later.
+- **A tap** opens the host or the service, or the profile's Problems list for a summary or an outage, and selects that profile.
+- **Buttons** (pgmac-net/nagios-android#64): a problem's own notification has **Acknowledge** and **Recheck**. A recovery, a summary and "Can't reach Nagios" have none. A press goes to a receiver that is not exported, by an immutable intent addressed to it by name; the profile and the object come from the notification and nowhere else. The receiver says "Acknowledging…" on the notification at once and queues a job that runs the same `CommandRepository` the screens use. **With no screen, the notification says what became of it**: a confirmed acknowledgement says so and clears itself after a minute; anything that leaves the problem a problem (a recheck, a refusal, not sent, not yet confirmed) puts the reason on it and the buttons back. A user Nagios takes no commands from gets no buttons: the poll asks what the user may do once, only when there is a problem to put a button on. A profile that has gone sends nothing. Android shows a paired watch the same buttons.
 - **Without Android's permission** nothing is posted, the background checks continue, and the profile's editor says notifications are blocked.
 - **When a profile stops being watched** (notifications switched off, or the profile deleted) everything it has showing is taken down and what was announced for it is forgotten, so switching back on is a first poll: one summary, then changes. On the first look after the app starts, anything showing for a profile that does not have notifications on is swept up as well, which also removes what an earlier version stranded.
 - **A tap for a profile that no longer exists** opens the app as the launcher would and goes nowhere.
@@ -420,6 +435,8 @@ Why it is built this way is ADR 0010.
 ## 10. Data model (Room)
 
 - `profiles` (database `profiles.db`, since M1): name, base URL, remembered CGI directory, username, cleartext opt-in, Access client ID, and three secret columns holding ciphertext only: `password_enc`, `access_client_secret_enc`, and the values inside `custom_headers`. Secrets are AES-256-GCM under a non-exportable Android Keystore key (`SecretCipher`). The UI never reads a secret back: it shows "saved" and offers Replace. If the key is lost (device restore), the profile survives and its credentials have to be entered again.
+
+Since pgmac-net/nagios-android#64 a profile carries `ack_comment`, the words a quick acknowledgement sends (empty for the app's own), and `profiles.db` is at version 5.
 
 Since M4 a profile also carries its notification choices: `notify` (off by default), `poll_minutes`, `notify_unhandled_only`, `notify_unreachable`, and `notify_offered`, which records that the app has made its one offer for that profile.
 

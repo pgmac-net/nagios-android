@@ -95,6 +95,7 @@ Profiles live in a Room database (`profiles.db`). Passwords, the Cloudflare Acce
 
 - **Never add a way to read a secret back into the UI.** The editor shows "saved" and offers Replace; `SecretInput.Keep` means "leave what is stored".
 - **Never log or `toString` a secret.** `ConnectionSettings`, `SecretInput.Replace`, `SecretField` and `SettingsResult.Ready` are deliberately not data classes, or override `toString`, for this reason. Tests assert on it.
+- **Quick actions** (`ui/quick`) are the detail screen's commands sent without the form. `QuickActionsViewModel` keeps what it knows per profile (`QuickState`) and hands a list one profile's view of it; an undo is sent to the profile the acknowledgement went to, never to the one on screen. `QuickActionRow` is the row's tap and long press; a list shown without quick actions passes `null`. The reasoning is [ADR 0012](adr/0012-a-quick-acknowledgement-is-sent-at-once.md).
 - **Schema changes need a migration.** Raising `ProfileDatabase.VERSION` exports a new file under `app/schemas`; commit it, write the `Migration`, and add a `MigrationTestHelper` test. There is no destructive fallback, so a missing migration crashes on upgrade rather than silently deleting profiles.
 - `SecretCipher` is unit-tested with a software key. `KeystoreKeySource`, the few lines that talk to the Android Keystore, cannot run on the JVM and is only exercised on a device.
 
@@ -216,6 +217,7 @@ Things to know:
   adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.PollNowReceiver --el profile <profile id>
   ```
   It asks for the `DUMP` permission, which adb's shell holds and no ordinary app can, and it is not in a release build. It does what the scheduled job does: a profile with notifications off is not polled. The "Updated" time on the Problems tab moves when the run has finished. The scheduled job itself can be seen with `adb shell dumpsys jobscheduler | grep -A12 'PollWorker'`: it is ready when `TIMING_DELAY` is no longer among its unsatisfied constraints.
+- **A notification's buttons** are `NotificationActions.kt`: `ActionRequest` (what a button carries), `NotificationActionReceiver` (not exported; says "on its way" and queues the job), `NotificationActionWorker` and `NotificationActionRunner` (sends, and tells the notifier the answer). The profile comes from the request and from nowhere else; do not reach for "the selected profile" here. `Notifier.acting` and `Notifier.acted` redraw the problem's notification from what the request carried, so they work when it has been swiped away. Before Android 12 the job is not expedited (that would need a foreground service), so the answer can take a while.
 - **To see what a notification looks like**, `SampleNotificationsReceiver` (`app/src/debug`) posts one of each kind through the real `AndroidNotifier`, with made-up problems and a profile of its own, so it needs no Nagios and touches nothing of the person's:
   ```
   adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver [--es only down|critical|warning|unknown|recovered]

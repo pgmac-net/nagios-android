@@ -175,3 +175,15 @@ _Avoid_: Upload key, signing secret, keystore (the keystore is the file the key 
 **Rehearsal**:
 A run of the release workflow started by hand. It builds and checks what a release would, and signs and publishes nothing.
 _Avoid_: Dry run, test release
+
+**Quick action**:
+A command sent from a list (by pressing and holding a row) or from a notification's button, at once and without the form: acknowledge, remove acknowledgement, recheck. It is the same command the detail screen sends, confirmed the same way.
+_Avoid_: Swipe action, shortcut, fast action
+
+**Acknowledgement comment**:
+The words a quick acknowledgement sends, set on the profile. With none set it is "Acknowledged from Nagwatch".
+_Avoid_: Default comment (a comment typed in the form has no default), canned comment
+
+**Undo (of an acknowledgement)**:
+Removing an acknowledgement that a quick action has just had confirmed, on the Nagios it was sent to.
+_Avoid_: Cancel, revert
