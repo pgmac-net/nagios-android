@@ -24,7 +24,8 @@ There was also one gesture and two uses for it. Swiping between the three tabs a
 ## What it costs
 
 - **An acknowledgement can now be made with two touches, and one from a notification.** That is the point, and it is also the risk: it is easier to silence a problem for the whole team than it was. The undo is the answer in the app. From a notification there is no undo; the acknowledgement has to be removed in the app.
-- **A watch is a way in.** With the phone locked and in a pocket, whoever is wearing its paired, unlocked watch can acknowledge. That is the watch's own lock to set; a watch with none is as open as a phone with none.
+- **A watch is a way in.** With the phone locked and in a pocket, whoever is wearing its paired, unlocked watch can acknowledge. That is the watch's own lock to set; a watch with none is as open as a phone with none. Tried on a Pixel 8a with a paired watch: the phone locked at 13:19:02, Acknowledge pressed on the watch at 13:19:15, and Nagios showed the acknowledgement.
+- **So is anything with notification access.** A watch reaches the buttons through Android's notification access, and any app the owner has given that access can press them the same way, phone locked or not. That access is the owner's to give, and Android warns about it when it is given; the app cannot tell such a press from a watch's.
 - **The default comment says less than a person would.** "Acknowledged from Nagwatch" tells a colleague who and how (Nagios records the user) but not why. The profile's setting, and the form, are there for more.
 - **A row that is acknowledged leaves Hosts and Services**, since they hide handled problems until asked. The snackbar says where it went.
 - **One more request in the background.** The poll asks once per run of the app what the user may do, so a read-only user is not shown buttons that cannot work.
