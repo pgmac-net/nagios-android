@@ -42,6 +42,9 @@ interface Notifier {
     /** What became of it, said in the same place, because there is no screen to say it on. */
     fun acted(request: ActionRequest, progress: ActionProgress)
 
+    /** A button was pressed on a locked phone: nothing was sent, and the notification says to unlock. */
+    fun needsUnlock(request: ActionRequest)
+
     /**
      * Takes down everything this profile has showing: its problems, its summary, its outage and
      * its group's entry. For a profile that is no longer watched in the background, so that
@@ -158,6 +161,10 @@ class AndroidNotifier internal constructor(
         }
     }
 
+    override fun needsUnlock(request: ActionRequest) {
+        redraw(request) { it.text(context.getString(R.string.notify_needs_unlock)).withActions(request) }
+    }
+
     /**
      * Draws a problem's notification again from what its button carried, in its own place. Silent:
      * the person pressed the button, and does not need to be called over to see the answer.
@@ -188,7 +195,16 @@ class AndroidNotifier internal constructor(
                 NoticeAction.ACKNOWLEDGE -> R.string.action_acknowledge
                 NoticeAction.RECHECK -> R.string.action_recheck
             }
-            addAction(0, context.getString(label), request.copy(action = action).toPendingIntent(context))
+            val pressed = request.copy(action = action).toPendingIntent(context)
+            addAction(
+                NotificationCompat.Action.Builder(0, context.getString(label), pressed)
+                    // A notification is shown on the lock screen, and its buttons with it. These
+                    // change a Nagios for everyone who uses it, with this profile's credentials, so
+                    // whoever is holding a locked phone must not be able to press them. Android
+                    // asks for the unlock first (from Android 12; the receiver checks on every version).
+                    .setAuthenticationRequired(true)
+                    .build(),
+            )
         }
         return this
     }

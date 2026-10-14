@@ -51,6 +51,7 @@ class FakeNotifier(private val onDeliver: (Profile) -> Unit = {}) : Notifier {
     val mayAct = mutableListOf<Boolean>()
     val acting = CopyOnWriteArrayList<ActionRequest>()
     val acted = CopyOnWriteArrayList<Pair<ActionRequest, ActionProgress>>()
+    val needsUnlock = CopyOnWriteArrayList<ActionRequest>()
 
     override fun deliver(profile: Profile, decision: Decision, mayAct: Boolean) {
         onDeliver(profile)
@@ -64,6 +65,10 @@ class FakeNotifier(private val onDeliver: (Profile) -> Unit = {}) : Notifier {
 
     override fun acted(request: ActionRequest, progress: ActionProgress) {
         acted += request to progress
+    }
+
+    override fun needsUnlock(request: ActionRequest) {
+        needsUnlock += request
     }
 
     override fun clear(profileId: Long) {

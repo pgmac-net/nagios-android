@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.notify
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -200,6 +201,41 @@ class AndroidNotifierTest {
             Triple(office.id, disk, NoticeAction.RECHECK),
             Triple(other.profileId, other.ref, other.action),
         )
+    }
+
+    @Test
+    fun `the buttons cannot be pressed on a locked phone - Android asks for the unlock first`() {
+        raise(disk, ServiceState.CRITICAL)
+
+        val buttons = problem(disk).actions
+        assertEquals(2, buttons.size)
+        assertTrue("acknowledge", buttons[0].isAuthenticationRequired)
+        assertTrue("recheck too: it is this profile's credentials either way", buttons[1].isAuthenticationRequired)
+    }
+
+    @Test
+    fun `a press that arrives from a locked phone anyway sends nothing and says to unlock`() {
+        raise(disk, ServiceState.CRITICAL)
+        val request = request(disk, NoticeAction.ACKNOWLEDGE)
+
+        notifier.needsUnlock(request)
+
+        val shown = problem(disk)
+        assertEquals("CRITICAL: Disk / on web01", shown.title())
+        assertEquals("Unlock the phone to do this. Nothing was sent.", shown.text())
+        assertEquals(listOf("Acknowledge", "Recheck"), shown.buttons())
+        assertTrue(shown.actions.all { it.isAuthenticationRequired })
+    }
+
+    @Test
+    fun `a locked phone is one that needs unlocking, and a phone with no lock is not`() {
+        val keyguard = shadowOf(context.getSystemService(KeyguardManager::class.java))
+
+        keyguard.setIsDeviceLocked(false)
+        assertFalse(NotificationActionReceiver.isLocked(context))
+
+        keyguard.setIsDeviceLocked(true)
+        assertTrue(NotificationActionReceiver.isLocked(context))
     }
 
     @Test

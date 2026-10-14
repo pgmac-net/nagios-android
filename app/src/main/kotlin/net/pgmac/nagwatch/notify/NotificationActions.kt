@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.notify
 
+import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -171,7 +172,14 @@ class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val request = ActionRequest.from(intent) ?: return
         val app = context.applicationContext
-        EntryPointAccessors.fromApplication(app, Dependencies::class.java).notifier().acting(request)
+        val notifier = EntryPointAccessors.fromApplication(app, Dependencies::class.java).notifier()
+        // The buttons ask Android to unlock first, which Android does from version 12. This is
+        // the same rule for every version, and for anything that reaches here another way.
+        if (isLocked(app)) {
+            notifier.needsUnlock(request)
+            return
+        }
+        notifier.acting(request)
         val work = OneTimeWorkRequestBuilder<NotificationActionWorker>().setInputData(request.toData())
         // Before Android 12 an expedited job has to run as a foreground service with a notification
         // of its own. There it is an ordinary job, which Android may hold back for a while.
@@ -185,6 +193,15 @@ class NotificationActionReceiver : BroadcastReceiver() {
     @InstallIn(SingletonComponent::class)
     interface Dependencies {
         fun notifier(): Notifier
+    }
+
+    companion object {
+        /**
+         * True while the phone would need a PIN, pattern, password or fingerprint to be used. A
+         * phone with no lock set is never locked in this sense: there is nothing to prove.
+         */
+        fun isLocked(context: Context): Boolean =
+            context.getSystemService(KeyguardManager::class.java)?.isDeviceLocked == true
     }
 }
 

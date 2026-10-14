@@ -1,6 +1,6 @@
 # Swipe between tabs, and quick actions
 
-Tickets: pgmac-net/nagios-android#63 and #64, from the ideas in pgmac-net/homelabia#210. One pull request, four commits: the pager, the row menu, a fix to it, the notification buttons. The reasoning for the actions is ADR 0012.
+Tickets: pgmac-net/nagios-android#63 and #64, from the ideas in pgmac-net/homelabia#210. One pull request: the pager, the row menu, a fix to it, the notification buttons, a fix to those, and the docs. The reasoning for the actions is ADR 0012.
 
 ## What was built
 
@@ -29,6 +29,7 @@ Tickets: pgmac-net/nagios-android#63 and #64, from the ideas in pgmac-net/homela
 ## What was found, and by what
 
 - **An undo went to whichever profile was on screen.** The commit security review found it in the second commit: Undo took the profile from the screen at the moment it was tapped. The profile can be switched while the snackbar is up, and two Nagios servers can each have a `web01`, so an undo could have removed an acknowledgement on the wrong server. The view model now remembers where a command went and an undo takes no profile. What a user may do was kept the same wrong way (one answer for every profile) and is now per profile. Both have tests. The notification buttons, written afterwards, take their profile from the notification only.
+- **The buttons worked on a locked phone.** The commit security review found this too, in the notification commit. A notification and its buttons are on the lock screen, so anyone holding the phone could have acknowledged a problem, silencing it on Nagios for everyone. Each button now needs authentication (Android asks for the unlock, from Android 12) and the receiver refuses a press from a locked phone on every version, saying so on the notification. A recheck is held to the same rule.
 - **Two updates where there should have been one.** A test for "read-only is remembered" failed one run in several: the refusal was published, and what it taught a moment later. Anything watching could see one without the other. They are now one update.
 - **A menu in a pop-up can be tested here.** A text field in a dialog cannot, with this project's tools (the detail screen's forms are in the page for that reason), so this was tried before relying on it. Dropdown menus and their items are found and clicked by Robolectric.
 - **A clickable row and a pager do not fight** when the row has no horizontal gesture of its own, which is the design. A long press on a row inside the pager works; a swipe that starts on a row changes tab.
