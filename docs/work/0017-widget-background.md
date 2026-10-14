@@ -30,7 +30,22 @@ Ticket: pgmac-net/nagios-android#65, from the ideas in pgmac-net/homelabia#210.
 - **Eight-bit alpha.** A test expecting 0.5 got 0.502: a colour's alpha is kept in eight bits. The tests allow for it.
 - **The widget's own surface is the system's**, Material You on Android 12 and later, so it cannot be a fixed colour here. It is read back for light and for dark from the context, then washed.
 
+## Looked at on a phone
+
+Pixel 8a, Android 17, dark theme, debug build, two widgets placed by the maintainer through the new setup screen:
+
+- **1x1 at 100%:** solid amber (the worst problem was a warning), the number 3 in the badge's own ink. As before this work.
+- **2x1 at 50%:** the wallpaper plainly visible through it, a faint amber wash, all four counts readable.
+- **Reconfigured from the home screen**, the setup screen opening on each widget's setting with Save.
+- **1x1 at 20%:** a faint amber panel with the wallpaper through it, and the 3 drawn in amber instead of the badge's ink.
+- **2x1 at 0%:** no background at all; the chips and the grey counts on the wallpaper, readable on this one.
+
 ## Not verified
 
-- **Not seen on a phone yet** at the time of writing; see the pull request for what was looked at.
-- **Android 11 and older**, where there is no Material You and no reconfigure.
+- **A stale or unreachable widget** on a phone. A background check waits for a network rather than failing, so one could not be made without breaking the profile's connection. The 60% floor and the stale widget's other signs are covered by unit tests only.
+- **The light theme**, and **Android 11 and older** (no Material You, no reconfigure).
+- **Busy or bright wallpaper** at low settings: readability there is the owner's call, by design (no floor).
+
+## Noticed, not changed
+
+- At 2x1 the four counts sit two by two and the last is cut to "UNKN…". That is the existing narrow layout, not this work.
