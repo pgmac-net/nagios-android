@@ -149,7 +149,8 @@ class AndroidNotifier internal constructor(
     }
 
     override fun acted(request: ActionRequest, progress: ActionProgress) {
-        redraw(request) { builder ->
+        // Heard when it did not work: that is news, and on a watch a silent change is not seen at all.
+        redraw(request, silent = progress.worked) { builder ->
             builder.text(progress.sentence())
             if (progress.leavesTheProblem) {
                 // Still a problem, and still theirs to deal with: the buttons come back.
@@ -162,14 +163,20 @@ class AndroidNotifier internal constructor(
     }
 
     override fun needsUnlock(request: ActionRequest) {
-        redraw(request) { it.text(context.getString(R.string.notify_needs_unlock)).withActions(request) }
+        redraw(request, silent = false) {
+            it.text(context.getString(R.string.notify_needs_unlock)).withActions(request)
+        }
     }
 
     /**
-     * Draws a problem's notification again from what its button carried, in its own place. Silent:
-     * the person pressed the button, and does not need to be called over to see the answer.
+     * Draws a problem's notification again from what its button carried, in its own place.
+     *
+     * @param silent true while a command is on its way and when it worked: the person pressed the
+     *   button and does not need calling over to be told so. False for a refusal or a failure,
+     *   which they do need to hear of; found with a watch, which showed a silent refusal as nothing
+     *   having happened (pgmac-net/nagios-android#76).
      */
-    private fun redraw(request: ActionRequest, change: (NotificationCompat.Builder) -> Unit) {
+    private fun redraw(request: ActionRequest, silent: Boolean = true, change: (NotificationCompat.Builder) -> Unit) {
         if (!permission.isHeld()) return
         ensureChannels()
         val notification = builder(
@@ -181,7 +188,7 @@ class AndroidNotifier internal constructor(
             .setSmallIcon(R.drawable.ic_tab_problems)
             .setColor(request.color)
             .setContentTitle(request.title)
-            .setSilent(true)
+            .setSilent(silent)
             .also(change)
             .build()
         manager.notify(problemTag(request.profileId, request.ref), ID_PROBLEM, notification)
