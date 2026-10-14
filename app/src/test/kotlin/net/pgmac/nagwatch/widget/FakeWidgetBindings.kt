@@ -17,6 +17,14 @@ class FakeWidgetBindings(initial: Map<Int, Long> = emptyMap()) : WidgetBindings 
 
     override suspend fun bind(appWidgetId: Int, profileId: Long) = state.update { it + (appWidgetId to profileId) }
 
+    val opacities = mutableMapOf<Int, Int>()
+
+    override suspend fun opacityOf(appWidgetId: Int): Int = opacities[appWidgetId] ?: OPAQUE
+
+    override suspend fun setOpacity(appWidgetId: Int, percent: Int) {
+        opacities[appWidgetId] = percent
+    }
+
     override suspend fun unbind(appWidgetIds: Collection<Int>) = state.update { it - appWidgetIds.toSet() }
 
     override suspend fun retainOnly(appWidgetIds: Collection<Int>) =

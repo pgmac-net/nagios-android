@@ -70,6 +70,26 @@ class StatusWidgetContentTest {
         handled = 0,
     )
 
+    // ---------------------------------------------------------------- see-through
+
+    @Test
+    fun `at any opacity each size still draws its own layout, with what it says`() {
+        listOf(0, 35, 100).forEach { opacity ->
+            draw(current, BADGE, opacity) { onNode(hasTestTag(WidgetTags.NUMBER)).assertExists() }
+            draw(current, COUNTS, opacity) { onNode(hasTestTag(WidgetTags.COUNTS)).assertExists() }
+            draw(current, SHORT, opacity) { onNode(hasTestTag(WidgetTags.SHORT_LIST)).assertExists() }
+            draw(current, FULL, opacity) { onNode(hasTestTag(WidgetTags.FULL_LIST)).assertExists() }
+        }
+    }
+
+    @Test
+    fun `a stale widget at nothing keeps the signs that do not depend on its background`() {
+        val stale = current.copy(state = WidgetState.STALE)
+
+        draw(stale, BADGE, opacity = 0) { onNode(hasTestTag(WidgetTags.NUMBER)).assertExists() }
+        draw(stale, COUNTS, opacity = 0) { onNode(hasText("Out of date")).assertExists() }
+    }
+
     // ---------------------------------------------------------------- which layout
 
     @Test
@@ -322,13 +342,19 @@ class StatusWidgetContentTest {
 
     private fun status(content: WidgetContent) = statusText(context, content, ZoneOffset.UTC)
 
-    private fun draw(content: WidgetContent, size: DpSize, check: GlanceAppWidgetUnitTest.() -> Unit) =
-        runGlanceAppWidgetUnitTest {
-            setContext(context)
-            setAppWidgetSize(size)
-            provideComposable { GlanceTheme { StatusWidgetContent(WidgetView(PROFILE, content, T0), WIDGET) } }
-            check()
+    private fun draw(
+        content: WidgetContent,
+        size: DpSize,
+        opacity: Int = OPAQUE,
+        check: GlanceAppWidgetUnitTest.() -> Unit,
+    ) = runGlanceAppWidgetUnitTest {
+        setContext(context)
+        setAppWidgetSize(size)
+        provideComposable {
+            GlanceTheme { StatusWidgetContent(WidgetView(PROFILE, content, T0, opacity), WIDGET) }
         }
+        check()
+    }
 
     private companion object {
         const val PROFILE = 7L
