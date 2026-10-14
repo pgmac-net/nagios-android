@@ -45,12 +45,13 @@ On a Pixel 8a with Android 17, in the debug build, against the maintainer's own 
 - **A notification's button with no profile behind it** (`SampleNotificationsReceiver`): the press reached the receiver, the job ran, and everything of that profile was taken down.
 - **A notification's button against the real Nagios.** The debug poster was given a way to post a sample for a real profile and service. Recheck on it: the notification read "Asking for a check…" with no buttons and could not be swiped away, then "Checked again. The next background check will show what it found." with its buttons back. Then it was cleared.
 - **The editor** shows "Quick actions" and "Acknowledgement comment". Left by Cancel.
+- **A locked phone** (after the merge, by the maintainer, with the phone reporting itself locked). A sample notification was posted; on the lock screen it could be expanded and its text and buttons read. Acknowledge was pressed and **the phone asked for the unlock before anything happened**. The log agrees: the lock screen went at 12:54:51.655 and the button's job was queued at 12:54:51.680, after it and not before. So the press is held by Android until the phone is unlocked and then delivered. That is the first of the two checks (the button marked as needing authentication, Android 12 and later). The receiver's own refusal, for older Android, was not reached, because Android never delivered a press from a locked phone; it remains covered by unit tests only.
 - No crash in the log from start to finish.
 
 ## Not verified
 
+- **The text and the buttons can be read on the lock screen.** Android showed them once the notification was expanded, on this phone with its settings. That was already so before this work (lock-screen visibility is left to the system setting, design section 7); it is noted because a host name and a plugin's output are now accompanied by buttons, which do nothing until the unlock.
 - **An acknowledgement, anywhere.** None was sent: not from the menu, not from a notification. So Undo, "it is with the handled problems now", and a notification saying "Acknowledged" and clearing itself have only been seen by the unit tests. The local test Nagios (`scripts/test-nagios`) is the place, or the maintainer's say-so for a real one.
-- **A locked phone.** This phone is kept unlocked by a trust agent while it is connected, so it never reported itself locked, and neither the unlock Android asks for nor the receiver's own refusal could be seen. Both are covered by unit tests only. This is the one that most wants a look, since it is a security fix.
 - **A read-only user** on a phone: the menu's switched-off items and a notification with no buttons.
 - **A paired watch** showing the buttons.
 - **The release build.** Everything above is the debug build. R8 keeping the new receiver and worker is reasoned from the poll's, not seen.
