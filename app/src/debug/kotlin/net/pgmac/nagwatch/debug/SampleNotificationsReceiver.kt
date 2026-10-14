@@ -36,6 +36,12 @@ import net.pgmac.nagwatch.profile.Profile
  *     adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es action clear
  *     adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es only critical
  *
+ * To try a button against a real Nagios, name a real profile and one of its services. **Its
+ * Acknowledge button is then real too**: it will acknowledge that service for everyone.
+ *
+ *     ... SampleNotificationsReceiver --el profile ID --es host HOST --es service SERVICE
+ *     ... SampleNotificationsReceiver --el profile ID --es action clear
+ *
  * Only adb's shell and the system can send it (the manifest asks for the DUMP permission). The
  * app takes these down by itself the next time it starts, as it does for any profile it does not
  * know; a tap on one opens the app and finds no such profile.
@@ -43,13 +49,32 @@ import net.pgmac.nagwatch.profile.Profile
 class SampleNotificationsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val notifier = AndroidNotifier(context, AndroidNotificationPermission(context))
+        // A real profile's number, to try a button all the way to a Nagios. Without it, a profile of
+        // the samples' own that does not exist, so a button's press sends nothing.
+        val profile = PROFILE.copy(id = intent.getLongExtra(EXTRA_PROFILE, PROFILE.id))
         if (intent.getStringExtra(EXTRA_ACTION) == ACTION_CLEAR) {
-            notifier.clear(PROFILE.id)
+            notifier.clear(profile.id)
             return
         }
+        val host = intent.getStringExtra(EXTRA_HOST)
+        val service = intent.getStringExtra(EXTRA_SERVICE)
         val only = intent.getStringExtra(EXTRA_ONLY)
-        val samples = samples().filter { only == null || it.kind() == only }
-        notifier.deliver(PROFILE, Decision(post = samples, state = AnnouncedState()))
+        val samples = when {
+            host != null && service != null -> listOf(real(host, service))
+            else -> samples().filter { only == null || it.kind() == only }
+        }
+        notifier.deliver(profile, Decision(post = samples, state = AnnouncedState()))
+    }
+
+    /** A made-up warning about a service that does exist, so that its buttons have something real to act on. */
+    private fun real(host: String, service: String): Notice {
+        val up = HostStatus(host, HostState.UP, CheckStatus())
+        val status =
+            ServiceStatus(host, service, ServiceState.WARNING, CheckStatus(pluginOutput = "sample for a real service"))
+        val problem = ProblemClassifier.classify(
+            StatusSnapshot(listOf(up), listOf(status), Instant.now()),
+        ).unhandled.single()
+        return Notice.Raised(problem.ref, problem, Notice.Change.NEW)
     }
 
     private fun Notice.kind(): String = when (this) {
@@ -86,6 +111,11 @@ class SampleNotificationsReceiver : BroadcastReceiver() {
 
         /** One of down, critical, warning, unknown or recovered: post only that one. */
         const val EXTRA_ONLY = "only"
+
+        /** With [EXTRA_HOST] and [EXTRA_SERVICE]: post one sample for that service of that profile. */
+        const val EXTRA_PROFILE = "profile"
+        const val EXTRA_HOST = "host"
+        const val EXTRA_SERVICE = "service"
         const val ACTION_CLEAR = "clear"
 
         /** Not a number a real profile can have, so nothing of the person's is ever replaced. */

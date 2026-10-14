@@ -223,6 +223,7 @@ Things to know:
   adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver [--es only down|critical|warning|unknown|recovered]
   adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es action clear
   ```
+  To try a button against a real Nagios, add `--el profile ID --es host HOST --es service SERVICE` (and `--el profile ID --es action clear` afterwards). **That sample's Acknowledge button is real**: it will acknowledge the service for everyone.
   Same permission as the poll receiver, and not in a release build. The app takes these down itself the next time it starts, as it does for any profile it does not know.
 - **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
 

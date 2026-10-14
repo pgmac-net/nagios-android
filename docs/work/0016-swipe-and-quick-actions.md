@@ -34,12 +34,26 @@ Tickets: pgmac-net/nagios-android#63 and #64, from the ideas in pgmac-net/homela
 - **A menu in a pop-up can be tested here.** A text field in a dialog cannot, with this project's tools (the detail screen's forms are in the page for that reason), so this was tried before relying on it. Dropdown menus and their items are found and clicked by Robolectric.
 - **A clickable row and a pager do not fight** when the row has no horizontal gesture of its own, which is the design. A long press on a row inside the pager works; a swipe that starts on a row changes tab.
 
+## Looked at on a phone
+
+On a Pixel 8a with Android 17, in the debug build, against the maintainer's own Nagios. Every tap was aimed at something found on the screen first, after one early tap, aimed by coordinates at a notification, landed on a row of the app instead because the screen had dozed and the shade had closed. It opened a detail screen and sent nothing, but it was a tap on a live Nagios that was not meant.
+
+- **Upgrade.** The build installed over a version 4 `profiles.db` and opened with all five profiles.
+- **Swipe.** Left twice, past the end, right twice, past the start; a tap on the bar; Back. The selected tab was read from the screen each time and was right every time.
+- **The menu.** On a problem nobody has acknowledged: Acknowledge, Recheck, Open. On an acknowledged one: Remove acknowledgement, Recheck, Open. The second was closed with Back and nothing was chosen.
+- **A recheck from the menu**, on a real service: "Nagios accepted it. Waiting to see it take effect…", then "Checked again."
+- **A notification's button with no profile behind it** (`SampleNotificationsReceiver`): the press reached the receiver, the job ran, and everything of that profile was taken down.
+- **A notification's button against the real Nagios.** The debug poster was given a way to post a sample for a real profile and service. Recheck on it: the notification read "Asking for a check…" with no buttons and could not be swiped away, then "Checked again. The next background check will show what it found." with its buttons back. Then it was cleared.
+- **The editor** shows "Quick actions" and "Acknowledgement comment". Left by Cancel.
+- No crash in the log from start to finish.
+
 ## Not verified
 
-- **None of this has been on a phone.** It was not connected when the build was ready. The unit suite, lint, detekt, ktlint, the licence checks and both builds pass; R8 keeps the new receiver and worker by the same rules as the poll's, but that is reasoning and not a look.
-- **Wanted on a phone:** the swipe and how it feels against pull to refresh; the menu; a **Recheck** against a real Nagios (it changes nothing); the notification buttons, using `SampleNotificationsReceiver`, whose profile does not exist, so a press should take its notifications down.
-- **Not to be tried against a real Nagios without the maintainer saying so: Acknowledge.** It is visible to everyone and stops notifications. The local test Nagios (`scripts/test-nagios`) is the place for it.
-- **A paired watch** showing the buttons is Android's behaviour and was not seen.
+- **An acknowledgement, anywhere.** None was sent: not from the menu, not from a notification. So Undo, "it is with the handled problems now", and a notification saying "Acknowledged" and clearing itself have only been seen by the unit tests. The local test Nagios (`scripts/test-nagios`) is the place, or the maintainer's say-so for a real one.
+- **A locked phone.** This phone is kept unlocked by a trust agent while it is connected, so it never reported itself locked, and neither the unlock Android asks for nor the receiver's own refusal could be seen. Both are covered by unit tests only. This is the one that most wants a look, since it is a security fix.
+- **A read-only user** on a phone: the menu's switched-off items and a notification with no buttons.
+- **A paired watch** showing the buttons.
+- **The release build.** Everything above is the debug build. R8 keeping the new receiver and worker is reasoned from the poll's, not seen.
 
 ## Follow-ups
 
