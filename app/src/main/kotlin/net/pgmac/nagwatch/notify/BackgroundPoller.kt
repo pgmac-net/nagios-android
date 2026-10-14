@@ -8,6 +8,8 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
+import net.pgmac.nagwatch.status.CommandPermission
+import net.pgmac.nagwatch.status.CommandRepository
 import net.pgmac.nagwatch.status.Refreshed
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.StatusRepository
@@ -41,13 +43,18 @@ sealed interface PollRun {
  * later, the widget.
  */
 @Singleton
-class BackgroundPoller @Inject constructor(
+class BackgroundPoller
+// One collaborator for each thing a poll touches; a holder for them would be a second place to look.
+@Suppress("LongParameterList")
+@Inject
+constructor(
     private val profiles: ProfileRepository,
     private val statuses: StatusRepository,
     private val announced: AnnouncedStore,
     private val scheduler: PollScheduler,
     private val notifier: Notifier,
     private val bindings: WidgetBindings,
+    private val commands: CommandRepository,
 ) {
     suspend fun poll(profileId: Long): PollRun {
         val profile = profiles.get(profileId) ?: return notWanted(profileId)
@@ -81,7 +88,7 @@ class BackgroundPoller @Inject constructor(
             val decision = Announcer.decide(announced.load(profile.id), outcome, settings)
             // Said before it is remembered as said. If the app dies between the two, the next run
             // says it again, which replaces the same notification; the other order would lose it.
-            notifier.deliver(profile, decision)
+            notifier.deliver(profile, decision, mayAct(profile, decision))
             announced.save(profile.id, decision.state)
             PollRun.Decided(decision)
         } catch (_: SQLiteException) {
@@ -90,6 +97,14 @@ class BackgroundPoller @Inject constructor(
             PollRun.NotRemembered
         }
     }
+
+    /**
+     * Whether a problem's notification should have its buttons. Asked only when there is one to
+     * post, and then it is one request that changes nothing, remembered for as long as the app
+     * runs. An answer that could not be had shows the buttons: a refusal will say so if pressed.
+     */
+    private suspend fun mayAct(profile: Profile, decision: Decision): Boolean =
+        decision.post.none { it is Notice.Raised } || commands.permission(profile.id) != CommandPermission.READ_ONLY
 
     /** The schedule outlived the reason for it: stop it here, where it was noticed. */
     private fun notWanted(profileId: Long): PollRun {

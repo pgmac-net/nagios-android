@@ -17,13 +17,16 @@ import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SecretCipher
 import net.pgmac.nagwatch.profile.inMemoryProfileDatabase
 import net.pgmac.nagwatch.profile.softwareKeySource
+import net.pgmac.nagwatch.status.CommandRepository
 import net.pgmac.nagwatch.status.FakeClient
+import net.pgmac.nagwatch.status.FakeCommandClient
 import net.pgmac.nagwatch.status.MutableClock
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.StatusRepository
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.status.cache.AnnouncedStore
 import net.pgmac.nagwatch.status.cache.StatusCache
+import net.pgmac.nagwatch.status.commandProvider
 import net.pgmac.nagwatch.status.criticalService
 import net.pgmac.nagwatch.status.failure
 import net.pgmac.nagwatch.status.inMemoryStatusDatabase
@@ -54,7 +57,9 @@ class BackgroundPollerTest {
     private val rememberedWhenSaid = mutableListOf<AnnouncedState>()
     private val notifier = FakeNotifier { profile -> rememberedWhenSaid += runBlocking { announced.load(profile.id) } }
     private val widgets = FakeWidgetBindings()
-    private val poller = BackgroundPoller(profiles, statuses, announced, scheduler, notifier, widgets)
+    private val sender = FakeCommandClient()
+    private val poller =
+        BackgroundPoller(profiles, statuses, announced, scheduler, notifier, widgets, commands(profiles))
 
     @After
     fun close() {
@@ -187,6 +192,32 @@ class BackgroundPollerTest {
     }
 
     @Test
+    fun `a problem's notification gets its buttons unless Nagios takes no commands from this user`() = runBlocking {
+        val id = profiles.save(draftWith())
+        poller.poll(id)
+        assertEquals("nothing to put a button on, so Nagios is not asked", 0, sender.probes)
+
+        sender.mayCommandResult = NagiosResult.Success(false)
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+        poller.poll(id)
+
+        assertEquals(1, sender.probes)
+        assertEquals("the first run had nothing to act on; the second may not", listOf(true, false), notifier.mayAct)
+    }
+
+    @Test
+    fun `when Nagios cannot be asked what the user may do, the buttons are shown`() = runBlocking {
+        val id = profiles.save(draftWith())
+        poller.poll(id)
+        sender.mayCommandResult = failure()
+        client.statusResult = { NagiosResult.Success(snapshot(services = listOf(criticalService()))) }
+
+        poller.poll(id)
+
+        assertEquals(true, notifier.mayAct.last())
+    }
+
+    @Test
     fun `failed polls are counted across runs, and the third is worth saying`() = runBlocking {
         val id = profiles.save(draftWith())
         poller.poll(id)
@@ -225,7 +256,15 @@ class BackgroundPollerTest {
         val id = profiles.save(draftWith())
         // The same database after a device restore: the profile is there, the key is not.
         val restored = ProfileRepository(database.profiles(), SecretCipher(softwareKeySource()), Json)
-        val afterRestore = BackgroundPoller(restored, statuses(restored), announced, scheduler, notifier, widgets)
+        val afterRestore = BackgroundPoller(
+            restored,
+            statuses(restored),
+            announced,
+            scheduler,
+            notifier,
+            widgets,
+            commands(restored),
+        )
 
         val run = afterRestore.poll(id)
 
@@ -257,6 +296,9 @@ class BackgroundPollerTest {
         assertEquals("so the next run is still the first", AnnouncedState(), announced.load(id))
         assertNotNull(statuses.statuses.value[id]?.report)
     }
+
+    private fun commands(profiles: ProfileRepository) =
+        CommandRepository(profiles, provider(client), commandProvider(sender), emptyList())
 
     private fun statuses(profiles: ProfileRepository) =
         StatusRepository(profiles, provider(client), StatusCache(statusDatabase.cache()), MutableClock(T0))

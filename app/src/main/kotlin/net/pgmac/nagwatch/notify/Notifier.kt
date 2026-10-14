@@ -16,18 +16,31 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.command.Command
+import net.pgmac.nagwatch.nagios.command.Refusal
 import net.pgmac.nagwatch.nagios.model.HostProblem
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.Severity
 import net.pgmac.nagwatch.nagios.model.firstOutputLine
 import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.ui.theme.DarkStateColors
 import net.pgmac.nagwatch.ui.theme.LightStateColors
 import net.pgmac.nagwatch.ui.theme.StateColors
 
 /** Puts a poll's [Decision] in front of the person. What to say was decided already; this is only how. */
 interface Notifier {
-    fun deliver(profile: Profile, decision: Decision)
+    /**
+     * @param mayAct false for a profile whose user Nagios takes no commands from: a problem's
+     *   notification then has no buttons, since neither could work.
+     */
+    fun deliver(profile: Profile, decision: Decision, mayAct: Boolean = true)
+
+    /** A button on a problem's notification was pressed: say on the notification that it is on its way. */
+    fun acting(request: ActionRequest)
+
+    /** What became of it, said in the same place, because there is no screen to say it on. */
+    fun acted(request: ActionRequest, progress: ActionProgress)
 
     /**
      * Takes down everything this profile has showing: its problems, its summary, its outage and
@@ -107,7 +120,7 @@ class AndroidNotifier internal constructor(
 
     private val manager: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
 
-    override fun deliver(profile: Profile, decision: Decision) {
+    override fun deliver(profile: Profile, decision: Decision, mayAct: Boolean) {
         // Taking down needs no permission, and is done even when posting is not allowed.
         val takenDown = buildSet {
             decision.remove.forEach { add(problemTag(profile.id, it) to ID_PROBLEM) }
@@ -118,9 +131,100 @@ class AndroidNotifier internal constructor(
         val posting = decision.post.isNotEmpty() && permission.isHeld()
         if (posting) {
             ensureChannels()
-            decision.post.forEach { post(profile, it) }
+            decision.post.forEach { post(profile, it, mayAct) }
         }
-        tidyGroup(profile, takenDown, posting)
+        tidyGroup(profile.id, profile.name, takenDown, posting)
+    }
+
+    override fun acting(request: ActionRequest) {
+        val words = when (request.action) {
+            NoticeAction.ACKNOWLEDGE -> R.string.notify_acting_acknowledge
+            NoticeAction.RECHECK -> R.string.notify_acting_recheck
+        }
+        // No buttons while one is on its way: a second press would be a second command.
+        redraw(request) { it.text(context.getString(words)).setProgress(0, 0, true).setOngoing(true) }
+    }
+
+    override fun acted(request: ActionRequest, progress: ActionProgress) {
+        redraw(request) { builder ->
+            builder.text(progress.sentence())
+            if (progress.leavesTheProblem) {
+                // Still a problem, and still theirs to deal with: the buttons come back.
+                builder.withActions(request)
+            } else {
+                // Dealt with. The next poll takes this down anyway; this is so it does not wait for one.
+                builder.setTimeoutAfter(ACTED_SHOWN_FOR_MS)
+            }
+        }
+    }
+
+    /**
+     * Draws a problem's notification again from what its button carried, in its own place. Silent:
+     * the person pressed the button, and does not need to be called over to see the answer.
+     */
+    private fun redraw(request: ActionRequest, change: (NotificationCompat.Builder) -> Unit) {
+        if (!permission.isHeld()) return
+        ensureChannels()
+        val notification = builder(
+            request.profileId,
+            request.profileName,
+            request.channelId,
+            NotificationTarget(request.profileId, request.ref),
+        )
+            .setSmallIcon(R.drawable.ic_tab_problems)
+            .setColor(request.color)
+            .setContentTitle(request.title)
+            .setSilent(true)
+            .also(change)
+            .build()
+        manager.notify(problemTag(request.profileId, request.ref), ID_PROBLEM, notification)
+        // It may have been swiped away meanwhile, and its group's entry with it.
+        tidyGroup(request.profileId, request.profileName, emptySet(), posted = true)
+    }
+
+    private fun NotificationCompat.Builder.withActions(request: ActionRequest): NotificationCompat.Builder {
+        NoticeAction.entries.forEach { action ->
+            val label = when (action) {
+                NoticeAction.ACKNOWLEDGE -> R.string.action_acknowledge
+                NoticeAction.RECHECK -> R.string.action_recheck
+            }
+            addAction(0, context.getString(label), request.copy(action = action).toPendingIntent(context))
+        }
+        return this
+    }
+
+    /** What became of a button's command, in a line. The screens say the same things at more length. */
+    private fun ActionProgress.sentence(): String = when (this) {
+        is ActionProgress.Confirmed -> when (command) {
+            is Command.Acknowledge -> context.getString(R.string.progress_confirmed_acknowledge)
+            else -> context.getString(R.string.notify_acted_recheck)
+        }
+
+        is ActionProgress.NotConfirmed -> context.getString(R.string.notify_acted_not_confirmed)
+
+        is ActionProgress.Refused -> reason.sentence(detail)
+
+        is ActionProgress.NotSent -> context.getString(R.string.notify_acted_not_sent)
+
+        else -> context.getString(R.string.progress_unknown)
+    }
+
+    /** Nagios' own words are used only where they say something the app's do not. */
+    private fun Refusal.sentence(detail: String): String = when (this) {
+        Refusal.READ_ONLY -> context.getString(R.string.refused_read_only)
+
+        Refusal.NOT_AUTHORISED -> context.getString(R.string.refused_not_authorised)
+
+        Refusal.COMMANDS_DISABLED -> context.getString(R.string.refused_commands_disabled)
+
+        Refusal.COULD_NOT_WRITE -> context.getString(R.string.refused_could_not_write)
+
+        Refusal.AUTHENTICATION_DISABLED -> context.getString(R.string.refused_authentication_disabled)
+
+        Refusal.INVALID -> when {
+            detail.isBlank() -> context.getString(R.string.refused_invalid_no_detail)
+            else -> context.getString(R.string.refused_invalid, detail)
+        }
     }
 
     override fun clear(profileId: Long) {
@@ -141,10 +245,10 @@ class AndroidNotifier internal constructor(
         }
     }
 
-    private fun post(profile: Profile, notice: Notice) {
+    private fun post(profile: Profile, notice: Notice, mayAct: Boolean) {
         when (notice) {
             is Notice.Raised ->
-                manager.notify(problemTag(profile.id, notice.ref), ID_PROBLEM, raised(profile, notice))
+                manager.notify(problemTag(profile.id, notice.ref), ID_PROBLEM, raised(profile, notice, mayAct))
 
             is Notice.Recovered ->
                 manager.notify(problemTag(profile.id, notice.ref), ID_PROBLEM, recovered(profile, notice.ref))
@@ -155,17 +259,34 @@ class AndroidNotifier internal constructor(
         }
     }
 
-    private fun raised(profile: Profile, notice: Notice.Raised): Notification {
+    private fun raised(profile: Profile, notice: Notice.Raised, mayAct: Boolean): Notification {
         val what = context.getString(notice.problem.severity.word(), notice.ref.describe())
         val title = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
-        return builder(profile, NotifyChannel.of(notice.problem.severity), NotificationTarget(profile.id, notice.ref))
+        val channel = NotifyChannel.of(notice.problem.severity)
+        val color = stateColors().of(notice.problem.severity)
+        val text = notice.problem.check.firstOutputLine()
+        val drawn = builder(profile, channel, NotificationTarget(profile.id, notice.ref))
             .setSmallIcon(R.drawable.ic_tab_problems)
-            .setColor(stateColors().of(notice.problem.severity))
+            .setColor(color)
             .setContentTitle(title)
-            .text(notice.problem.check.firstOutputLine())
+            .text(text)
             // An update says nothing new enough to interrupt for.
             .setSilent(notice.change == Notice.Change.UPDATED)
-            .build()
+        if (mayAct) {
+            // The button carries what the notification says, so the answer can be drawn in its place.
+            val request = ActionRequest(
+                profileId = profile.id,
+                profileName = profile.name,
+                ref = notice.ref,
+                action = NoticeAction.ACKNOWLEDGE,
+                channelId = channel.id,
+                title = title,
+                text = text,
+                color = color,
+            )
+            drawn.withActions(request)
+        }
+        return drawn.build()
     }
 
     private fun recovered(profile: Profile, ref: ObjectRef): Notification {
@@ -199,11 +320,14 @@ class AndroidNotifier internal constructor(
 
     /** What every notification of a profile has: where it goes, which profile, and its group. */
     private fun builder(profile: Profile, channel: NotifyChannel, target: NotificationTarget) =
-        NotificationCompat.Builder(context, channel.id)
-            .setSubText(profile.name)
+        builder(profile.id, profile.name, channel.id, target)
+
+    private fun builder(profileId: Long, profileName: String, channelId: String, target: NotificationTarget) =
+        NotificationCompat.Builder(context, channelId)
+            .setSubText(profileName)
             .setContentIntent(open(target))
             .setAutoCancel(true)
-            .setGroup(group(profile.id))
+            .setGroup(group(profileId))
             // The group's own entry never makes a sound; its members do.
             .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
 
@@ -226,27 +350,27 @@ class AndroidNotifier internal constructor(
      * lists it, and having just posted counts as having members even if Android does not yet.
      * Without this the entry outlived its last member until the next poll (found on a phone).
      */
-    private fun tidyGroup(profile: Profile, takenDown: Set<Pair<String, Int>>, posted: Boolean) {
-        val key = group(profile.id)
+    private fun tidyGroup(profileId: Long, profileName: String, takenDown: Set<Pair<String, Int>>, posted: Boolean) {
+        val key = group(profileId)
         val others = showing(manager).count { shown ->
             shown.notification.group == key &&
                 shown.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0 &&
                 (shown.tag to shown.id) !in takenDown
         }
         if (!posted && others == 0) {
-            manager.cancel(profileTag(profile.id), ID_GROUP)
+            manager.cancel(profileTag(profileId), ID_GROUP)
         } else if (permission.isHeld()) {
             ensureChannels()
             val entry = NotificationCompat.Builder(context, NotifyChannel.SUMMARY.id)
                 .setSmallIcon(R.drawable.ic_tab_problems)
-                .setContentTitle(profile.name)
-                .setContentIntent(open(NotificationTarget(profile.id)))
+                .setContentTitle(profileName)
+                .setContentIntent(open(NotificationTarget(profileId)))
                 .setGroup(key)
                 .setGroupSummary(true)
                 .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
                 .setSilent(true)
                 .build()
-            manager.notify(profileTag(profile.id), ID_GROUP, entry)
+            manager.notify(profileTag(profileId), ID_GROUP, entry)
         }
     }
 
@@ -300,6 +424,9 @@ class AndroidNotifier internal constructor(
         const val ID_GROUP = 4
 
         val RECOVERY_SHOWN_FOR_MS: Long = TimeUnit.HOURS.toMillis(1)
+
+        /** Long enough to read "Acknowledged", and no longer: it is no longer news. */
+        val ACTED_SHOWN_FOR_MS: Long = TimeUnit.MINUTES.toMillis(1)
 
         /** A line break cannot be part of a Nagios name, so two different objects never share a tag. */
         fun problemTag(profileId: Long, ref: ObjectRef): String =
