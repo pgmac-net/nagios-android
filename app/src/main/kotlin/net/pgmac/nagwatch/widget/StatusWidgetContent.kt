@@ -5,10 +5,12 @@ package net.pgmac.nagwatch.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
@@ -68,17 +70,19 @@ fun StatusWidgetContent(view: WidgetView, appWidgetId: Int) {
     val wide = size.width.value >= StatusWidget.WIDE
     Box(
         modifier = GlanceModifier.fillMaxSize()
-            .background(GlanceTheme.colors.widgetBackground)
+            // Transparent here: each layout draws the background itself, at the widget's opacity.
+            // Drawn here as well, the two would stack and a 50% widget would come out at 75%.
+            .background(TRANSPARENT)
             .cornerRadius(CORNER.dp)
             .clickable(open)
             .semantics { testTag = WidgetTags.ROOT },
     ) {
         when {
-            content.counts == null -> Message(content)
+            content.counts == null -> Message(content, view.opacity)
 
             else -> when (WidgetTier.of(size.width.value, size.height.value)) {
-                WidgetTier.BADGE -> Badge(content)
-                WidgetTier.COUNTS -> Counts(content, wide)
+                WidgetTier.BADGE -> Badge(content, view.opacity)
+                WidgetTier.COUNTS -> Counts(content, wide, view.opacity)
                 WidgetTier.SHORT_LIST -> ShortList(view, wide)
                 WidgetTier.FULL_LIST -> FullList(view, wide)
             }
@@ -88,9 +92,9 @@ fun StatusWidgetContent(view: WidgetView, appWidgetId: Int) {
 
 /** Nothing is known: say which kind of nothing. Never a zero, which would read as "all is well". */
 @Composable
-private fun Message(content: WidgetContent) {
+private fun Message(content: WidgetContent, opacity: Int) {
     Column(
-        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+        modifier = GlanceModifier.fillMaxSize().background(surface(content, opacity)).padding(PAD.dp)
             .semantics { testTag = WidgetTags.MESSAGE },
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -101,12 +105,19 @@ private fun Message(content: WidgetContent) {
 }
 
 @Composable
-private fun Badge(content: WidgetContent) {
+private fun Badge(content: WidgetContent, opacity: Int) {
     val total = content.counts?.total ?: 0
-    val fill = when {
+    val state = when {
         content.isDemoted -> DEMOTED
         else -> content.worst?.color() ?: OK
     }
+    val (day, night) = state.inEach()
+    val fill = ColorProvider(
+        WidgetBackground.badge(day, opacity, content.isDemoted),
+        WidgetBackground.badge(night, opacity, content.isDemoted),
+    )
+    // A faint badge cannot carry a white number: the number and the icon take the state's colour.
+    val ink = if (WidgetBackground.badgeKeepsItsInk(opacity, content.isDemoted)) ON_STATE else state
     Column(
         modifier = GlanceModifier.fillMaxSize().background(fill).semantics { testTag = WidgetTags.BADGE },
         verticalAlignment = Alignment.CenterVertically,
@@ -114,14 +125,24 @@ private fun Badge(content: WidgetContent) {
     ) {
         when {
             // Old or unconfirmed: the warning sign goes with the number, so the grey is not the only clue.
-            content.isDemoted -> Image(ImageProvider(R.drawable.ic_tab_problems), null, GlanceModifier.size(ICON.dp))
+            content.isDemoted -> Image(
+                ImageProvider(R.drawable.ic_tab_problems),
+                null,
+                GlanceModifier.size(ICON.dp),
+                colorFilter = ColorFilter.tint(ink),
+            )
 
-            total == 0 -> Image(ImageProvider(R.drawable.ic_check), null, GlanceModifier.size(BIG_ICON.dp))
+            total == 0 -> Image(
+                ImageProvider(R.drawable.ic_check),
+                null,
+                GlanceModifier.size(BIG_ICON.dp),
+                colorFilter = ColorFilter.tint(ink),
+            )
         }
         if (total > 0 || content.isDemoted) {
             Text(
                 text = total.toString(),
-                style = TextStyle(color = ON_STATE, fontSize = NUMBER.sp, fontWeight = FontWeight.Bold),
+                style = TextStyle(color = ink, fontSize = NUMBER.sp, fontWeight = FontWeight.Bold),
                 modifier = GlanceModifier.semantics { testTag = WidgetTags.NUMBER },
             )
         }
@@ -129,9 +150,9 @@ private fun Badge(content: WidgetContent) {
 }
 
 @Composable
-private fun Counts(content: WidgetContent, wide: Boolean) {
+private fun Counts(content: WidgetContent, wide: Boolean, opacity: Int) {
     Column(
-        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+        modifier = GlanceModifier.fillMaxSize().background(surface(content, opacity)).padding(PAD.dp)
             .semantics { testTag = WidgetTags.COUNTS },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -146,7 +167,7 @@ private fun ShortList(view: WidgetView, wide: Boolean) {
     val content = view.content
     val rows = rowsThatFit(LocalSize.current.height.value, chipRows = if (wide) 1 else 2)
     Column(
-        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+        modifier = GlanceModifier.fillMaxSize().background(surface(view.content, view.opacity)).padding(PAD.dp)
             .semantics { testTag = WidgetTags.SHORT_LIST },
     ) {
         Chips(content, wide)
@@ -162,7 +183,7 @@ private fun FullList(view: WidgetView, wide: Boolean) {
     val content = view.content
     val profileId = view.profileId
     Column(
-        modifier = GlanceModifier.fillMaxSize().background(surface()).padding(PAD.dp)
+        modifier = GlanceModifier.fillMaxSize().background(surface(view.content, view.opacity)).padding(PAD.dp)
             .semantics { testTag = WidgetTags.FULL_LIST },
     ) {
         Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -388,7 +409,35 @@ private fun configure(context: Context, appWidgetId: Int): Action = actionStartA
  * layout does not set, it inherits from whatever was drawn there before.**
  */
 @Composable
-private fun surface(): ColorProvider = GlanceTheme.colors.widgetBackground
+private fun surface(content: WidgetContent, opacity: Int): ColorProvider {
+    val (baseDay, baseNight) = GlanceTheme.colors.widgetBackground.inEach()
+    // Nothing known is not "all well": a message gets no wash, and so no green.
+    val wash = when {
+        content.counts == null -> null
+        content.isDemoted -> DEMOTED
+        else -> content.worst?.color() ?: OK
+    }
+    val (stateDay, stateNight) = wash?.inEach() ?: (baseDay to baseNight)
+    return ColorProvider(
+        WidgetBackground.surface(baseDay, stateDay, opacity, content.isDemoted),
+        WidgetBackground.surface(baseNight, stateNight, opacity, content.isDemoted),
+    )
+}
+
+/**
+ * This colour as it is drawn in a light theme and in a dark one. The widget's own surface is the
+ * system's (Material You on Android 12 and later), so it is read back for each, not assumed.
+ */
+@Composable
+private fun ColorProvider.inEach(): Pair<Color, Color> {
+    val context = LocalContext.current
+    fun at(night: Int): Color {
+        val config = Configuration(context.resources.configuration)
+        config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or night
+        return getColor(context.createConfigurationContext(config))
+    }
+    return at(Configuration.UI_MODE_NIGHT_NO) to at(Configuration.UI_MODE_NIGHT_YES)
+}
 
 @Composable
 private fun text(size: Int, bold: Boolean = false) = TextStyle(

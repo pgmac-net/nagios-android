@@ -113,4 +113,48 @@ class DataStoreWidgetBindingsTest {
         const val HOME = 1L
         const val OFFICE = 2L
     }
+
+    @Test
+    fun `a widget that was never given an opacity is opaque, as every widget used to be`() = runBlocking {
+        bindings.bind(7, 1)
+
+        assertEquals(OPAQUE, bindings.opacityOf(7))
+    }
+
+    @Test
+    fun `each widget keeps its own opacity, and it is never taken for a profile`() = runBlocking {
+        bindings.bind(7, 1)
+        bindings.bind(8, 2)
+
+        bindings.setOpacity(7, 40)
+
+        assertEquals(40, bindings.opacityOf(7))
+        assertEquals(OPAQUE, bindings.opacityOf(8))
+        assertEquals("the opacity is not a binding", setOf(1L, 2L), bindings.watched.first())
+        assertEquals(1L, bindings.profileOf(7))
+    }
+
+    @Test
+    fun `an opacity out of range is kept in range`() = runBlocking {
+        bindings.setOpacity(7, 250)
+        assertEquals(OPAQUE, bindings.opacityOf(7))
+
+        bindings.setOpacity(7, -5)
+        assertEquals(0, bindings.opacityOf(7))
+    }
+
+    @Test
+    fun `a widget's opacity goes with it, whichever way it goes`() = runBlocking {
+        bindings.bind(7, 1)
+        bindings.bind(8, 2)
+        bindings.setOpacity(7, 30)
+        bindings.setOpacity(8, 20)
+
+        bindings.unbind(listOf(7))
+        bindings.retainOnly(emptyList())
+
+        // Placed again with the same number, it starts afresh.
+        assertEquals(OPAQUE, bindings.opacityOf(7))
+        assertEquals(OPAQUE, bindings.opacityOf(8))
+    }
 }

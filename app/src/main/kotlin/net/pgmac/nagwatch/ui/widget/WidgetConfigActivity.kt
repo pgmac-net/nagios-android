@@ -50,21 +50,28 @@ class WidgetConfigActivity : ComponentActivity() {
             finish()
             return
         }
-        setContent {
-            val state by viewModel.state.collectAsStateWithLifecycle()
-            NagwatchTheme {
-                WidgetConfigContent(
-                    state = state,
-                    onChoose = { profileId -> choose(appWidgetId, profileId) },
-                    onAddProfile = { startActivity(Intent(this, MainActivity::class.java)) },
-                    onCancel = ::finish,
-                )
+        lifecycleScope.launch {
+            // What the widget is set to now, so reconfiguring starts from it. Nothing for a new one.
+            val profileId = bindings.profileOf(appWidgetId)
+            val current = WidgetSetup(profileId, bindings.opacityOf(appWidgetId), placed = profileId != null)
+            setContent {
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                NagwatchTheme {
+                    WidgetConfigContent(
+                        state = state,
+                        current = current,
+                        onSave = { profile, opacity -> save(appWidgetId, profile, opacity) },
+                        onAddProfile = { startActivity(Intent(this@WidgetConfigActivity, MainActivity::class.java)) },
+                        onCancel = ::finish,
+                    )
+                }
             }
         }
     }
 
-    private fun choose(appWidgetId: Int, profileId: Long) {
+    private fun save(appWidgetId: Int, profileId: Long, opacity: Int) {
         lifecycleScope.launch {
+            bindings.setOpacity(appWidgetId, opacity)
             bindings.bind(appWidgetId, profileId)
             refresher.redraw()
             setResult(RESULT_OK, result(appWidgetId))

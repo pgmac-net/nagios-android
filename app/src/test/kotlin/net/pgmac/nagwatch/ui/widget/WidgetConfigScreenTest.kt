@@ -2,11 +2,18 @@
 
 package net.pgmac.nagwatch.ui.widget
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
@@ -38,14 +45,62 @@ class WidgetConfigScreenTest {
     }
 
     @Test
-    fun `each profile is listed with how often it is checked, and choosing one names it`() {
+    fun `each profile is listed with how often it is checked, and choosing one only selects it`() {
         show(listOf(profile(1, "Home"), profile(2, "Office", PollInterval.ONE_HOUR)))
 
         composeRule.onNodeWithText("Checked about every 15 minutes").assertIsDisplayed()
         composeRule.onNodeWithText("Checked about every 1 hour").assertIsDisplayed()
+        composeRule.onNodeWithTag(WidgetConfigTags.SAVE).performScrollTo().assertIsNotEnabled()
+
         composeRule.onNodeWithTag(WidgetConfigTags.profile(2)).performClick()
 
-        assertEquals(listOf("choose 2"), calls)
+        composeRule.onNodeWithTag(WidgetConfigTags.profile(2)).assertIsSelected()
+        assertEquals("nothing is kept until the button", emptyList<String>(), calls)
+        composeRule.onNodeWithTag(
+            WidgetConfigTags.SAVE,
+        ).performScrollTo().assertIsEnabled().assertTextEquals("Add widget")
+    }
+
+    @Test
+    fun `the button keeps the profile and the background together`() {
+        show(listOf(profile(1, "Home"), profile(2, "Office")))
+        composeRule.onNodeWithTag(WidgetConfigTags.profile(1)).performClick()
+
+        composeRule.onNodeWithTag(WidgetConfigTags.OPACITY).performScrollTo()
+            .performSemanticsAction(SemanticsActions.SetProgress) { it(40f) }
+        composeRule.onNodeWithTag(WidgetConfigTags.OPACITY_LABEL).assertTextEquals("Background: 40%")
+        composeRule.onNodeWithTag(WidgetConfigTags.PREVIEW).assertExists()
+        composeRule.onNodeWithTag(WidgetConfigTags.SAVE).performScrollTo().performClick()
+
+        assertEquals(listOf("save 1 40"), calls)
+    }
+
+    @Test
+    fun `the slider moves in steps of five`() {
+        show(listOf(profile(1, "Home")))
+
+        composeRule.onNodeWithTag(WidgetConfigTags.OPACITY).performScrollTo()
+            .performSemanticsAction(SemanticsActions.SetProgress) { it(42f) }
+
+        composeRule.onNodeWithTag(WidgetConfigTags.OPACITY_LABEL).assertTextEquals("Background: 40%")
+    }
+
+    @Test
+    fun `a new widget starts opaque, and says Add`() {
+        show(listOf(profile(1, "Home")))
+
+        composeRule.onNodeWithTag(WidgetConfigTags.OPACITY_LABEL).performScrollTo().assertTextEquals("Background: 100%")
+    }
+
+    @Test
+    fun `reconfiguring opens on what the widget is set to, and says Save`() {
+        show(listOf(profile(1, "Home"), profile(2, "Office")), WidgetSetup(profileId = 2, opacity = 25, placed = true))
+
+        composeRule.onNodeWithTag(WidgetConfigTags.profile(2)).assertIsSelected()
+        composeRule.onNodeWithTag(WidgetConfigTags.OPACITY_LABEL).performScrollTo().assertTextEquals("Background: 25%")
+        composeRule.onNodeWithTag(WidgetConfigTags.SAVE).performScrollTo().assertTextEquals("Save").performClick()
+
+        assertEquals(listOf("save 2 25"), calls)
     }
 
     @Test
@@ -61,7 +116,9 @@ class WidgetConfigScreenTest {
     @Test
     fun `while profiles are still being read it does not claim there are none`() {
         composeRule.setContent {
-            NagwatchTheme(dynamicColor = false) { WidgetConfigContent(WidgetConfigState(loading = true), {}, {}, {}) }
+            NagwatchTheme(dynamicColor = false) {
+                WidgetConfigContent(WidgetConfigState(loading = true), WidgetSetup(), { _, _ -> }, {}, {})
+            }
         }
 
         composeRule.onNodeWithTag(WidgetConfigTags.NO_PROFILES).assertDoesNotExist()
@@ -76,11 +133,12 @@ class WidgetConfigScreenTest {
         assertEquals(listOf("cancel"), calls)
     }
 
-    private fun show(profiles: List<Profile>) = composeRule.setContent {
+    private fun show(profiles: List<Profile>, current: WidgetSetup = WidgetSetup()) = composeRule.setContent {
         NagwatchTheme(dynamicColor = false) {
             WidgetConfigContent(
                 state = WidgetConfigState(loading = false, profiles = profiles),
-                onChoose = { calls += "choose $it" },
+                current = current,
+                onSave = { profile, opacity -> calls += "save $profile $opacity" },
                 onAddProfile = { calls += "add" },
                 onCancel = { calls += "cancel" },
             )

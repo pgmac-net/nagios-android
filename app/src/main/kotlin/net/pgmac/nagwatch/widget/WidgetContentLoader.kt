@@ -17,6 +17,8 @@ data class WidgetView(
     val content: WidgetContent,
     /** When this was worked out, for "2h 04m" beside a problem. */
     val now: Instant,
+    /** How opaque its background is, as its owner chose: 0 to 100 percent. */
+    val opacity: Int = OPAQUE,
 )
 
 /**
@@ -34,13 +36,14 @@ class WidgetContentLoader @Inject constructor(
     suspend fun load(appWidgetId: Int): WidgetView {
         val now = clock.instant()
         val profile = bindings.profileOf(appWidgetId)?.let { profiles.get(it) }
-        if (profile == null) return WidgetView(null, WidgetContent(WidgetState.PROFILE_GONE), now)
+        val opacity = bindings.opacityOf(appWidgetId)
+        if (profile == null) return WidgetView(null, WidgetContent(WidgetState.PROFILE_GONE), now, opacity)
         val content = try {
             WidgetModel.of(profile, cache.loadPoll(profile.id), cache.loadAttempt(profile.id), now)
         } catch (_: SQLiteException) {
             // The cache cannot be read. That is "nothing known", said as such, not a crash on the home screen.
             WidgetContent(WidgetState.NO_DATA, profile.name)
         }
-        return WidgetView(profile.id, content, now)
+        return WidgetView(profile.id, content, now, opacity)
     }
 }

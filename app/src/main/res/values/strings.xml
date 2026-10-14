@@ -144,6 +144,12 @@
     <string name="widget_config_interval">Checked about every %1$s</string>
     <string name="widget_config_no_profiles">There are no profiles yet. Add one in Nagwatch, then place the widget again.</string>
     <string name="widget_config_open_app">Open Nagwatch</string>
+    <string name="widget_config_background">Background: %1$d%%</string>
+    <string name="widget_config_background_hint" formatted="false">How much of your wallpaper shows through, from 0% (all of it) to 100% (none). The background is washed with the colour of the worst problem. A widget that is out of date is never fainter than 60%, so you can still tell.</string>
+    <string name="widget_config_preview_name">Home</string>
+    <string name="widget_config_preview_line">WARN  web01 / Load</string>
+    <string name="widget_config_add">Add widget</string>
+    <string name="widget_config_save">Save</string>
     <string name="background_title">Background checks</string>
     <string name="background_hint">How often Nagwatch checks this Nagios while the app is closed. It applies when this profile has notifications on or a widget on the home screen; otherwise nothing is checked in the background. Android decides exactly when, so allow for it running late.</string>
     <string name="notify_title">Notifications</string>
