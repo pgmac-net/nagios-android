@@ -229,6 +229,8 @@ Things to know:
 
 ## The widget
 
+- **Its background** comes from `WidgetBackground`, one rule for every layout: the theme's widget surface (read back for light and for dark, since on Android 12 and later it is Material You's), washed with the state's colour, at the widget's opacity, never below 60% when stale. The outermost box is transparent and each layout draws the background itself; drawn twice, a 50% widget would come out at 75%. The opacity is kept per widget in `WidgetBindings` as `widget_opacity_<id>` (an Int, where a binding is a Long, so the two are never confused).
+
 A Glance widget (`widget/`), one profile per widget, four layouts by size. Why it polls is ADR 0009.
 
 - **What it shows** is `WidgetModel.of(profile, snapshot, attempt, now)`: one of five states (current, stale, unreachable, no data, profile gone), the four counts, the rows in the Problems tab's order, the "as of" time and the reason for a failure. It has no Android and no clock in it.
