@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.service.notification.StatusBarNotification
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
@@ -118,7 +119,7 @@ class NotificationButtonsTest {
     }
 
     @Test
-    fun `a press that arrives from a locked phone anyway sends nothing and says to unlock`() {
+    fun `a press that is refused for a locked phone sends nothing, says to unlock, and is heard`() {
         raise(disk, ServiceState.CRITICAL)
         val request = request(disk, NoticeAction.ACKNOWLEDGE)
 
@@ -129,6 +130,7 @@ class NotificationButtonsTest {
         assertEquals("Unlock the phone to do this. Nothing was sent.", shown.text())
         assertEquals(listOf("Acknowledge", "Recheck"), shown.buttons())
         assertTrue(shown.actions.all { it.isAuthenticationRequired })
+        assertFalse("a refusal nobody hears looks, on a watch, like nothing happened", shown.isSilent())
     }
 
     @Test
@@ -140,6 +142,43 @@ class NotificationButtonsTest {
 
         keyguard.setIsDeviceLocked(true)
         assertTrue(NotificationActionReceiver.isLocked(context))
+    }
+
+    @Test
+    fun `from Android 12 a press that Android delivers from a locked phone is a watch's, and is let through`() {
+        val android12 = Build.VERSION_CODES.S
+
+        assertFalse(NotificationActionReceiver.refusesWhileLocked(android12, locked = true))
+        assertFalse(NotificationActionReceiver.refusesWhileLocked(android12 + 6, locked = true))
+        assertFalse(NotificationActionReceiver.refusesWhileLocked(android12, locked = false))
+    }
+
+    @Test
+    fun `before Android 12 nothing else guards the lock screen, so a locked phone is refused`() {
+        val android11 = Build.VERSION_CODES.R
+
+        assertTrue(NotificationActionReceiver.refusesWhileLocked(android11, locked = true))
+        assertTrue(NotificationActionReceiver.refusesWhileLocked(Build.VERSION_CODES.O, locked = true))
+        assertFalse(
+            "an unlocked phone is never refused",
+            NotificationActionReceiver.refusesWhileLocked(android11, false),
+        )
+    }
+
+    @Test
+    fun `an answer is heard when it did not work, and not when it did`() {
+        raise(disk, ServiceState.CRITICAL)
+        val request = request(disk, NoticeAction.ACKNOWLEDGE)
+        val command = Command.Acknowledge(disk, "on it")
+
+        notifier.acted(request, ActionProgress.Refused(command, Refusal.READ_ONLY, ""))
+        assertFalse(problem(disk).isSilent())
+
+        notifier.acted(request, ActionProgress.NotSent(command, StatusError.InvalidUrl))
+        assertFalse(problem(disk).isSilent())
+
+        notifier.acted(request, ActionProgress.Confirmed(command))
+        assertTrue("they pressed it; no need to be called over to hear it worked", problem(disk).isSilent())
     }
 
     @Test

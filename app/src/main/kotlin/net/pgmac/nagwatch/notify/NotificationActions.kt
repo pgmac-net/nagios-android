@@ -173,9 +173,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val request = ActionRequest.from(intent) ?: return
         val app = context.applicationContext
         val notifier = EntryPointAccessors.fromApplication(app, Dependencies::class.java).notifier()
-        // The buttons ask Android to unlock first, which Android does from version 12. This is
-        // the same rule for every version, and for anything that reaches here another way.
-        if (isLocked(app)) {
+        if (refusesWhileLocked(Build.VERSION.SDK_INT, isLocked(app))) {
             notifier.needsUnlock(request)
             return
         }
@@ -202,6 +200,20 @@ class NotificationActionReceiver : BroadcastReceiver() {
          */
         fun isLocked(context: Context): Boolean =
             context.getSystemService(KeyguardManager::class.java)?.isDeviceLocked == true
+
+        /**
+         * Whether a press is refused because the phone is locked.
+         *
+         * From Android 12 the buttons are marked as needing authentication, and Android itself
+         * holds a press made on the phone's lock screen until the phone is unlocked. What it
+         * still delivers from a locked phone is a press from a paired watch, which is a device
+         * its owner has unlocked and is wearing; that is let through, or a watch could only act
+         * while the phone happened to be unlocked (pgmac-net/nagios-android#76).
+         *
+         * Before Android 12 there is no such mark, and nothing but this stands between the lock
+         * screen and the command. There a locked phone is refused, watch or no watch.
+         */
+        fun refusesWhileLocked(sdk: Int, locked: Boolean): Boolean = locked && sdk < Build.VERSION_CODES.S
     }
 }
 
@@ -251,6 +263,10 @@ class NotificationActionRunner @Inject constructor(
         }
     }
 }
+
+/** True when the command did what was asked. Anything else is a refusal or a failure of some kind. */
+internal val ActionProgress.worked: Boolean
+    get() = this is ActionProgress.Confirmed
 
 /** True for an answer that leaves the problem as it was, so its notification should offer its buttons again. */
 internal val ActionProgress.leavesTheProblem: Boolean
