@@ -2,7 +2,11 @@
 
 package net.pgmac.nagwatch.ui.quick
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -20,10 +24,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.command.Command
@@ -47,23 +58,41 @@ fun QuickActionRow(
     content: @Composable (gestures: Modifier) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    // Where on the row the finger went down, and how tall the row is: the menu opens there, not
+    // at the row's left edge however far along it was pressed (pgmac-net/nagios-android#74).
+    var pressedAt by remember { mutableStateOf(Offset.Zero) }
+    var rowHeight by remember { mutableStateOf(0) }
     val haptics = LocalHapticFeedback.current
-    val gestures = Modifier.combinedClickable(
-        onClick = onOpen,
-        onLongClickLabel = quick?.let { stringResource(R.string.quick_menu) },
-        onLongClick = quick?.let {
-            {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                it.actions.opened()
-                open = true
+    val gestures = Modifier
+        // The row whose menu is open is marked, so it is plain which problem the menu is about.
+        .background(if (open) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent)
+        .pointerInput(Unit) {
+            // Only looks: the press is left for the click and the long click below.
+            awaitEachGesture {
+                pressedAt = awaitFirstDown(requireUnconsumed = false, PointerEventPass.Initial).position
             }
-        },
-    )
-    Box {
+        }
+        .combinedClickable(
+            onClick = onOpen,
+            onLongClickLabel = quick?.let { stringResource(R.string.quick_menu) },
+            onLongClick = quick?.let {
+                {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    it.actions.opened()
+                    open = true
+                }
+            },
+        )
+    Box(Modifier.onSizeChanged { rowHeight = it.height }) {
         content(gestures)
         if (quick != null) {
             QuickActionMenu(
                 expanded = open,
+                offset = with(LocalDensity.current) {
+                    // A menu is placed under its anchor, which is the whole row. Moving it up by
+                    // what is left of the row below the finger puts its top at the finger.
+                    DpOffset(pressedAt.x.toDp(), (pressedAt.y - rowHeight).toDp())
+                },
                 target = target,
                 state = quick.state,
                 onDismiss = { open = false },
@@ -88,13 +117,24 @@ fun QuickActionRow(
 @Composable
 private fun QuickActionMenu(
     expanded: Boolean,
+    offset: DpOffset,
     target: QuickTarget,
     state: QuickUiState,
     onDismiss: () -> Unit,
     onAction: (QuickAction) -> Unit,
     onOpen: () -> Unit,
 ) {
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.testTag(QuickTags.MENU)) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        offset = offset,
+        // It changes Nagios, so it should not be mistaken for part of the list behind it: a
+        // surface of its own, an outline in the theme's accent, and a shadow.
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        border = BorderStroke(MENU_BORDER, MaterialTheme.colorScheme.primary),
+        shadowElevation = MENU_SHADOW,
+        modifier = Modifier.testTag(QuickTags.MENU),
+    ) {
         if (state.readOnly) {
             Text(
                 text = stringResource(R.string.actions_read_only),
@@ -127,6 +167,9 @@ private fun Item(action: QuickAction, label: Int, state: QuickUiState, onAction:
         modifier = Modifier.testTag(QuickTags.item(action)),
     )
 }
+
+private val MENU_BORDER = 1.5.dp
+private val MENU_SHADOW = 12.dp
 
 /**
  * Says what became of the last quick action, at the bottom of the screen: on its way, done, or
