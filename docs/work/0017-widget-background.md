@@ -39,10 +39,10 @@ Pixel 8a, Android 17, dark theme, debug build, two widgets placed by the maintai
 - **Reconfigured from the home screen**, the setup screen opening on each widget's setting with Save.
 - **1x1 at 20%:** a faint amber panel with the wallpaper through it, and the 3 drawn in amber instead of the badge's ink.
 - **2x1 at 0%:** no background at all; the chips and the grey counts on the wallpaper, readable on this one.
+- **Unreachable, at 0% and at 20%.** The maintainer pointed both widgets at a profile whose server is down but which had a good result cached from the day before (a host down, two criticals). Both came up demoted and **held at the 60% floor** in grey, not see-through: the 1x1 with the warning icon and the 4 in the badge's own ink; the 2x1 with yesterday's counts greyed and a red "Can't reach Nagios" line. The wallpaper shows faintly through the grey, as 60% should. Unreachable and stale take the same path (`isDemoted`), so stale was not made separately.
 
 ## Not verified
 
-- **A stale or unreachable widget** on a phone. A background check waits for a network rather than failing, so one could not be made without breaking the profile's connection. The 60% floor and the stale widget's other signs are covered by unit tests only.
 - **The light theme**, and **Android 11 and older** (no Material You, no reconfigure).
 - **Busy or bright wallpaper** at low settings: readability there is the owner's call, by design (no floor).
 
