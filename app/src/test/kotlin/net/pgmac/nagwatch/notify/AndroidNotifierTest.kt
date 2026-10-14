@@ -2,10 +2,12 @@
 
 package net.pgmac.nagwatch.notify
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.service.notification.StatusBarNotification
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
@@ -13,6 +15,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.util.concurrent.TimeUnit
 import net.pgmac.nagwatch.nagios.ProblemClassifier
+import net.pgmac.nagwatch.nagios.command.Command
+import net.pgmac.nagwatch.nagios.command.Refusal
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
@@ -23,6 +27,7 @@ import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
 import net.pgmac.nagwatch.notify.Notice.Change
 import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
 import net.pgmac.nagwatch.ui.theme.DarkStateColors
@@ -553,7 +558,8 @@ class AndroidNotifierTest {
         post: List<Notice> = emptyList(),
         remove: List<ObjectRef> = emptyList(),
         removeOutage: Boolean = false,
-    ) = notifier.deliver(profile, Decision(post, remove, removeOutage, AnnouncedState()))
+        mayAct: Boolean = true,
+    ) = notifier.deliver(profile, Decision(post, remove, removeOutage, AnnouncedState()), mayAct)
 
     private fun raise(
         ref: ObjectRef,
@@ -561,11 +567,13 @@ class AndroidNotifierTest {
         output: String = "plugin output",
         change: Change = Change.NEW,
         profile: Profile = home,
+        mayAct: Boolean = true,
     ) {
         val service =
             ServiceStatus(ref.hostName, checkNotNull(ref.description), state, CheckStatus(pluginOutput = output))
         val host = HostStatus(ref.hostName, HostState.UP, CheckStatus())
-        deliver(profile, post = listOf(Notice.Raised(ref, classify(listOf(host), listOf(service)), change)))
+        val raised = Notice.Raised(ref, classify(listOf(host), listOf(service)), change)
+        deliver(profile, post = listOf(raised), mayAct = mayAct)
     }
 
     private fun raiseHost(name: String, state: HostState) {

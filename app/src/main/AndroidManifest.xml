@@ -81,6 +81,15 @@
             </intent-filter>
         </activity>
 
+        <!--
+            Where a button on a notification (Acknowledge, Recheck) arrives. Not exported: only
+            Nagwatch itself, and Android acting on one of Nagwatch's own notifications, can send
+            to it. What it does changes a Nagios, so nothing else on the phone may reach it.
+        -->
+        <receiver
+            android:name=".notify.NotificationActionReceiver"
+            android:exported="false" />
+
         <activity-alias
             android:name=".notify.FromNotification"
             android:exported="false"

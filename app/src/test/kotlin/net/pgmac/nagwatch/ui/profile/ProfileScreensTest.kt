@@ -394,6 +394,24 @@ class ProfileScreensTest {
     }
 
     @Test
+    fun `the acknowledgement comment is the profile's to set, and starts empty for the app's own`() {
+        showEditor(ProfileEditorState(loading = false))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACK_COMMENT).performScrollTo().performTextInput("Seen, on it")
+
+        assertEquals("Seen, on it", state.ackComment)
+        assertEquals("Seen, on it", state.toDraft().ackComment)
+        composeRule.onNodeWithText("Acknowledged from Nagwatch", substring = true).assertExists()
+    }
+
+    @Test
+    fun `a profile's own acknowledgement comment is shown for editing`() {
+        showEditor(ProfileEditorState.from(storedProfile.copy(ackComment = "On it")))
+
+        composeRule.onNodeWithTag(ProfileEditorTags.ACK_COMMENT).performScrollTo().assertTextContains("On it")
+    }
+
+    @Test
     fun `Cloudflare Access and custom headers start folded on a new profile`() {
         showEditor(ProfileEditorState(loading = false))
 

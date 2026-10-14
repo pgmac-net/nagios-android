@@ -3,7 +3,6 @@
 package net.pgmac.nagwatch.ui.browse
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -39,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import java.time.Instant
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.model.HostState
+import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.ui.home.StateBadge
@@ -47,6 +47,9 @@ import net.pgmac.nagwatch.ui.home.StatusBanners
 import net.pgmac.nagwatch.ui.home.UpdatedLabel
 import net.pgmac.nagwatch.ui.home.checkNotes
 import net.pgmac.nagwatch.ui.problems.formatAge
+import net.pgmac.nagwatch.ui.quick.QuickActionRow
+import net.pgmac.nagwatch.ui.quick.QuickMenu
+import net.pgmac.nagwatch.ui.quick.QuickTarget
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.ui.theme.StateColors
 
@@ -152,15 +155,22 @@ internal fun HostsTab(
     now: Instant,
     onOpen: (hostName: String) -> Unit,
     onAllowLocalNetwork: () -> Unit,
+    quick: QuickMenu? = null,
 ) {
     val snapshot = status.snapshot
     val report = status.report
     val rows = remember(snapshot, report) {
         if (snapshot == null || report == null) emptyList() else BrowseRows.hosts(snapshot, report)
     }
-    BrowseList(rows, HostStyle, status, now, onOpen = {
-        onOpen(it.hostName)
-    }, onAllowLocalNetwork = onAllowLocalNetwork)
+    BrowseList(
+        rows,
+        HostStyle,
+        status,
+        now,
+        onOpen = { onOpen(it.hostName) },
+        onAllowLocalNetwork = onAllowLocalNetwork,
+        quick = quick,
+    )
 }
 
 @Composable
@@ -169,6 +179,7 @@ internal fun ServicesTab(
     now: Instant,
     onOpen: (hostName: String, description: String) -> Unit,
     onAllowLocalNetwork: () -> Unit,
+    quick: QuickMenu? = null,
 ) {
     val snapshot = status.snapshot
     val report = status.report
@@ -182,6 +193,7 @@ internal fun ServicesTab(
         now,
         onOpen = { onOpen(it.hostName, it.service.orEmpty()) },
         onAllowLocalNetwork = onAllowLocalNetwork,
+        quick = quick,
     )
 }
 
@@ -198,6 +210,7 @@ internal fun <S : Enum<S>> BrowseList(
     onOpen: (BrowseRow<S>) -> Unit,
     onAllowLocalNetwork: (() -> Unit)? = null,
     initialStates: Set<S> = style.defaultStates,
+    quick: QuickMenu? = null,
 ) {
     // Kept here rather than in the view model: what is typed must reach the text field in the
     // same frame, and the tab's saved state already outlives switching to another tab.
@@ -241,7 +254,7 @@ internal fun <S : Enum<S>> BrowseList(
                 }
             } else {
                 items(view.rows, key = { it.key }) { row ->
-                    BrowseRowItem(row, style, now, onOpen)
+                    BrowseRowItem(row, style, now, onOpen, quick)
                     HorizontalDivider()
                 }
             }
@@ -348,11 +361,25 @@ private fun <S : Enum<S>> BrowseRowItem(
     style: BrowseStyle<S>,
     now: Instant,
     onOpen: (BrowseRow<S>) -> Unit,
+    quick: QuickMenu?,
 ) {
+    // A row that is not a problem can still be rechecked; only a problem can be acknowledged.
+    val target = QuickTarget(
+        ref = ObjectRef(row.hostName, row.service),
+        isProblem = row.handling != null,
+        acknowledged = row.check?.acknowledged == true,
+    )
+    QuickActionRow(target, quick, onOpen = { onOpen(row) }) { gestures ->
+        BrowseRowContent(row, style, now, gestures)
+    }
+}
+
+@Composable
+private fun <S : Enum<S>> BrowseRowContent(row: BrowseRow<S>, style: BrowseStyle<S>, now: Instant, modifier: Modifier) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onOpen(row) }
+            .then(modifier)
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .testTag(BrowseTags.row(row.title)),
         verticalArrangement = Arrangement.spacedBy(2.dp),

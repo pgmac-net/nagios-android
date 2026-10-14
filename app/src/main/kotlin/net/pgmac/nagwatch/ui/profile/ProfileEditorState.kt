@@ -65,6 +65,8 @@ data class ProfileEditorState(
     /** Android said no to notifications, so the switch stayed off. The section says so. */
     val notificationsRefused: Boolean = false,
     val graphs: GraphSettings = GraphSettings(),
+    /** The profile's own comment for a quick acknowledgement. Empty for the app's default. */
+    val ackComment: String = "",
 ) {
     val isNew: Boolean get() = profileId == null
 
@@ -83,6 +85,7 @@ data class ProfileEditorState(
         allowCleartext = allowCleartext,
         notifications = notifications,
         graphs = graphs,
+        ackComment = ackComment,
     )
 
     companion object {
@@ -99,6 +102,7 @@ data class ProfileEditorState(
             allowCleartext = profile.allowCleartext,
             notifications = profile.notifications,
             graphs = profile.graphs,
+            ackComment = profile.ackComment,
         )
     }
 }

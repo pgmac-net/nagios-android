@@ -16,6 +16,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
+import net.pgmac.nagwatch.nagios.command.storedCommentText
 import net.pgmac.nagwatch.nagios.graph.GraphPath
 import net.pgmac.nagwatch.profile.db.ProfileDao
 import net.pgmac.nagwatch.profile.db.ProfileEntity
@@ -136,6 +137,8 @@ class ProfileRepository @Inject constructor(
             graphs = draft.graphs.enabled,
             // Stored as it will be used. A path the validator would refuse is not stored at all.
             graphPath = GraphPath.normalise(draft.graphs.path).orEmpty(),
+            // Stored as Nagios would keep it, so what the editor shows is what will be sent.
+            ackComment = storedCommentText(draft.ackComment),
         )
     }
 
@@ -191,6 +194,7 @@ class ProfileRepository @Inject constructor(
         ),
         notificationsOffered = entity.notifyOffered,
         graphs = GraphSettings(enabled = entity.graphs, path = entity.graphPath),
+        ackComment = entity.ackComment,
     )
 
     /** Stored headers as (name, encrypted value). Anything malformed is dropped, not fatal. */

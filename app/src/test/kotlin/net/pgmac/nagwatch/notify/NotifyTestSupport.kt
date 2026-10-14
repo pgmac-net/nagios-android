@@ -8,6 +8,7 @@ import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileDraft
 import net.pgmac.nagwatch.profile.SecretInput
+import net.pgmac.nagwatch.status.ActionProgress
 
 class FakeNotificationHistory(var exhausted: Boolean = false) : NotificationHistory {
     override suspend fun exhausted(): Boolean = exhausted
@@ -46,9 +47,28 @@ class FakeNotifier(private val onDeliver: (Profile) -> Unit = {}) : Notifier {
     val cleared = CopyOnWriteArrayList<Long>()
     val swept = CopyOnWriteArrayList<Set<Long>>()
 
-    override fun deliver(profile: Profile, decision: Decision) {
+    /** Whether each delivery was told the profile's user may send commands. */
+    val mayAct = mutableListOf<Boolean>()
+    val acting = CopyOnWriteArrayList<ActionRequest>()
+    val acted = CopyOnWriteArrayList<Pair<ActionRequest, ActionProgress>>()
+    val needsUnlock = CopyOnWriteArrayList<ActionRequest>()
+
+    override fun deliver(profile: Profile, decision: Decision, mayAct: Boolean) {
         onDeliver(profile)
         delivered += profile.id to decision
+        this.mayAct += mayAct
+    }
+
+    override fun acting(request: ActionRequest) {
+        acting += request
+    }
+
+    override fun acted(request: ActionRequest, progress: ActionProgress) {
+        acted += request to progress
+    }
+
+    override fun needsUnlock(request: ActionRequest) {
+        needsUnlock += request
     }
 
     override fun clear(profileId: Long) {

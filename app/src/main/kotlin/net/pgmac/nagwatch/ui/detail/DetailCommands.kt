@@ -162,8 +162,9 @@ private fun Progress(progress: ActionProgress, actions: DetailActions) {
     }
 }
 
+/** Where a command has got to, in words. The lists' quick actions say it the same way. */
 @Composable
-private fun ActionProgress.text(): String = when (this) {
+internal fun ActionProgress.text(): String = when (this) {
     is ActionProgress.Sending -> stringResource(R.string.progress_sending)
 
     is ActionProgress.Sent -> stringResource(R.string.progress_sent)
