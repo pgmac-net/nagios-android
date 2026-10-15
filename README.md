@@ -3,6 +3,7 @@
 [![CI](https://github.com/pgmac-net/nagios-android/actions/workflows/ci.yml/badge.svg)](https://github.com/pgmac-net/nagios-android/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/pgmac-net/nagios-android/actions/workflows/codeql.yml/badge.svg)](https://github.com/pgmac-net/nagios-android/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pgmac-net/nagios-android/badge)](https://scorecard.dev/viewer/?uri=github.com/pgmac-net/nagios-android)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15514/badge)](https://www.bestpractices.dev/projects/15514)
 [![codecov](https://codecov.io/gh/pgmac-net/nagios-android/branch/main/graph/badge.svg)](https://codecov.io/gh/pgmac-net/nagios-android)
 [![Dependency-Track vulnerabilities](https://sbom.pgmac.net.au/api/v1/badge/vulns/project/pgmac-net%2Fnagios-android/0.1.1)](https://github.com/pgmac-net/nagios-android/releases/latest)
 [![Release](https://img.shields.io/github/v/release/pgmac-net/nagios-android)](https://github.com/pgmac-net/nagios-android/releases/latest)

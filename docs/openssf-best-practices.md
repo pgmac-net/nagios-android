@@ -10,7 +10,7 @@ Criteria and their wording are those of the badge project's `criteria.yml` and E
 
 **Three answers are the maintainer's to confirm**, because they are about people and not files: `know_secure_design`, `know_common_errors` and `dynamic_analysis_fixed`.
 
-Project page: *to be added when registered.*
+Project page: <https://www.bestpractices.dev/projects/15514> (project ID 15514). The README badge links here.
 
 ## Passing
 
