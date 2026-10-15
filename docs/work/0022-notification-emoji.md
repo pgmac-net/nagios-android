@@ -41,4 +41,4 @@ Ticket: pgmac-net/nagios-android#81. Large icon split to #91.
 
 - #91: large icon per state, with its own setting on the Settings screen.
 - A Custom set (one emoji per state typed in) if the five are not enough.
-- Look at the Settings screen and each set in the shade on the phone (the phone was locked for the last check).
+- Seen on the Pixel 8a (Android 17): the Settings screen lists every set with its preview; choosing Signs and firing the debug samples drew ⛔ 🚨 ⚠️ ❓ ✅ in the shade, grouped and alone. Circles, Squares, Faces and None were checked by the unit tests and previews, not in the shade.
