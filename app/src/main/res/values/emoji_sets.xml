@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  The emoji a notification's title starts with, a set at a time (pgmac-net/nagios-android#81).
+  Each set lists, in this order: host down, host unreachable, critical, warning, unknown,
+  recovered, can't check Nagios. Not translated: the same in every language. "None" has no
+  array, and EmojiSet reads it as seven empty strings.
+-->
+<resources>
+    <string-array name="emoji_set_circles" translatable="false">
+        <item>🔴</item>
+        <item>🔴</item>
+        <item>🔴</item>
+        <item>🟡</item>
+        <item>🟠</item>
+        <item>🟢</item>
+        <item>📡</item>
+    </string-array>
+    <string-array name="emoji_set_signs" translatable="false">
+        <item>⛔</item>
+        <item>🔌</item>
+        <item>🚨</item>
+        <item>⚠️</item>
+        <item>❓</item>
+        <item>✅</item>
+        <item>📡</item>
+    </string-array>
+    <string-array name="emoji_set_squares" translatable="false">
+        <item>🟥</item>
+        <item>🟥</item>
+        <item>🟥</item>
+        <item>🟨</item>
+        <item>🟧</item>
+        <item>🟩</item>
+        <item>📡</item>
+    </string-array>
+    <string-array name="emoji_set_faces" translatable="false">
+        <item>😱</item>
+        <item>😵</item>
+        <item>😱</item>
+        <item>😟</item>
+        <item>🤔</item>
+        <item>😌</item>
+        <item>📡</item>
+    </string-array>
+</resources>

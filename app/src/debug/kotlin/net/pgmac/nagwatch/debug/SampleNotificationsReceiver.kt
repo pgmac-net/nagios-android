@@ -35,6 +35,7 @@ import net.pgmac.nagwatch.profile.Profile
  *     adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver
  *     adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es action clear
  *     adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es only critical
+ *     adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.SampleNotificationsReceiver --es set faces
  *
  * To try a button against a real Nagios, name a real profile and one of its services. **Its
  * Acknowledge button is then real too**: it will acknowledge that service for everyone.
@@ -48,7 +49,9 @@ import net.pgmac.nagwatch.profile.Profile
  */
 class SampleNotificationsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val notifier = AndroidNotifier(context, AndroidNotificationPermission(context))
+        // The set to draw them with, by id (none, circles, signs, squares, faces): not the person's own setting.
+        val set = net.pgmac.nagwatch.notify.EmojiSet.of(intent.getStringExtra(EXTRA_SET))
+        val notifier = AndroidNotifier(context, AndroidNotificationPermission(context), emojiSet = { set })
         // A real profile's number, to try a button all the way to a Nagios. Without it, a profile of
         // the samples' own that does not exist, so a button's press sends nothing.
         val profile = PROFILE.copy(id = intent.getLongExtra(EXTRA_PROFILE, PROFILE.id))
@@ -108,6 +111,7 @@ class SampleNotificationsReceiver : BroadcastReceiver() {
 
     companion object {
         const val EXTRA_ACTION = "action"
+        const val EXTRA_SET = "set"
 
         /** One of down, critical, warning, unknown or recovered: post only that one. */
         const val EXTRA_ONLY = "only"

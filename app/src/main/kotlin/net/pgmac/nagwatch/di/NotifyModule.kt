@@ -9,9 +9,11 @@ import dagger.hilt.components.SingletonComponent
 import net.pgmac.nagwatch.notify.AndroidNotificationPermission
 import net.pgmac.nagwatch.notify.AndroidNotifier
 import net.pgmac.nagwatch.notify.DataStoreNotificationHistory
+import net.pgmac.nagwatch.notify.DataStoreNotifierSettings
 import net.pgmac.nagwatch.notify.NotificationHistory
 import net.pgmac.nagwatch.notify.NotificationPermission
 import net.pgmac.nagwatch.notify.Notifier
+import net.pgmac.nagwatch.notify.NotifierSettings
 import net.pgmac.nagwatch.notify.PollScheduler
 import net.pgmac.nagwatch.notify.WorkManagerPollScheduler
 
@@ -26,6 +28,9 @@ abstract class NotifyModule {
 
     @Binds
     abstract fun permission(permission: AndroidNotificationPermission): NotificationPermission
+
+    @Binds
+    abstract fun settings(settings: DataStoreNotifierSettings): NotifierSettings
 
     @Binds
     abstract fun history(history: DataStoreNotificationHistory): NotificationHistory

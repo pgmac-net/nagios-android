@@ -27,6 +27,7 @@ import net.pgmac.nagwatch.ui.home.HomeScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 import net.pgmac.nagwatch.ui.profile.ProfilesScreen
+import net.pgmac.nagwatch.ui.settings.SettingsScreen
 
 /**
  * @param target where a tapped notification asked to go; [onTargetOpened] is called once it has been acted on.
@@ -51,6 +52,7 @@ fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Un
                 onEdit = { id -> navController.navigate(Routes.profile(id)) },
             )
         }
+        composable(Routes.SETTINGS) { SettingsScreen() }
         composable(
             route = Routes.PROFILE,
             arguments = listOf(navArgument(ProfileEditorViewModel.ARG_PROFILE_ID) { type = NavType.LongType }),
@@ -155,6 +157,8 @@ private fun homeNavigation(navController: NavHostController) = object : HomeNavi
     override fun editProfile(id: Long) = navController.navigate(Routes.profile(id))
 
     override fun manageProfiles() = navController.navigate(Routes.PROFILES)
+
+    override fun openSettings() = navController.navigate(Routes.SETTINGS)
 
     override fun openHost(profileId: Long, hostName: String) = navController.navigate(Routes.host(profileId, hostName))
 

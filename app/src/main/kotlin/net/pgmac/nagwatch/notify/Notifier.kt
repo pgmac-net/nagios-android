@@ -15,6 +15,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.Refusal
@@ -115,11 +117,22 @@ class AndroidNotifier internal constructor(
     private val context: Context,
     private val permission: NotificationPermission,
     /** What Android says is showing. It lags: see [tidyGroup]. A parameter so a test can make it lag. */
-    private val showing: (NotificationManager) -> List<StatusBarNotification>,
+    private val showing: (NotificationManager) -> List<StatusBarNotification> = { it.activeNotifications.toList() },
+    /** The set the person chose, read each time something is posted so that a change shows on the next one. */
+    private val emojiSet: () -> EmojiSet = { EmojiSet.DEFAULT },
 ) : Notifier {
     @Inject
-    constructor(@ApplicationContext context: Context, permission: NotificationPermission) :
-        this(context, permission, { it.activeNotifications.toList() })
+    constructor(
+        @ApplicationContext context: Context,
+        permission: NotificationPermission,
+        settings: NotifierSettings,
+    ) : this(
+        context,
+        permission,
+        { it.activeNotifications.toList() },
+        // Posting runs on a worker, off the main thread, and a DataStore read is a small file.
+        { runBlocking { settings.emojiSet.first() } },
+    )
 
     private val manager: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
 
@@ -284,7 +297,8 @@ class AndroidNotifier internal constructor(
 
     private fun raised(profile: Profile, notice: Notice.Raised, mayAct: Boolean): Notification {
         val what = context.getString(notice.problem.severity.word(), notice.ref.describe())
-        val title = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
+        val words = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
+        val title = emojis().of(notice.problem.severity).before(words)
         val channel = NotifyChannel.of(notice.problem.severity)
         val color = stateColors().of(notice.problem.severity)
         val text = notice.problem.check.firstOutputLine()
@@ -317,7 +331,7 @@ class AndroidNotifier internal constructor(
         return builder(profile, NotifyChannel.RECOVERED, NotificationTarget(profile.id, ref))
             .setSmallIcon(R.drawable.ic_check)
             .setColor(stateColors().ok.toArgb())
-            .setContentTitle(context.getString(title, ref.describe()))
+            .setContentTitle(emojis().recovered.before(context.getString(title, ref.describe())))
             .setSilent(true)
             // Good news goes stale: it clears itself, where a problem stays until dealt with.
             .setTimeoutAfter(RECOVERY_SHOWN_FOR_MS)
@@ -336,7 +350,7 @@ class AndroidNotifier internal constructor(
     private fun outage(profile: Profile, notice: Notice.Outage): Notification =
         builder(profile, NotifyChannel.OUTAGE, NotificationTarget(profile.id))
             .setSmallIcon(R.drawable.ic_tab_problems)
-            .setContentTitle(context.getString(R.string.notify_outage_title, profile.name))
+            .setContentTitle(emojis().outage.before(context.getString(R.string.notify_outage_title, profile.name)))
             .text(context.getString(notice.cause.sentence()))
             .setSilent(notice.quiet)
             .build()
@@ -415,6 +429,16 @@ class AndroidNotifier internal constructor(
         Severity.WARNING -> warning
         Severity.UNKNOWN -> unknown
     }.toArgb()
+
+    /**
+     * The set the person chose, for the next notification. A second signal in the title for a shade
+     * that will not show the tint (pgmac-net/nagios-android#81). A summary and the group's entry
+     * have none, as they have no tint: no state is true of them.
+     */
+    private fun emojis(): EmojiTable = emojiSet().table(context.resources)
+
+    /** The emoji and a space, or nothing at all, not a stray space, for the set that has none. */
+    private fun String.before(title: String): String = if (isEmpty()) title else "$this $title"
 
     private fun ObjectRef.describe(): String =
         description?.let { context.getString(R.string.notify_service_on_host, it, hostName) } ?: hostName

@@ -97,7 +97,7 @@ class NotificationButtonsTest {
         assertTrue("the intent cannot be altered", acknowledge.flags and PendingIntent.FLAG_IMMUTABLE != 0)
         val asked = checkNotNull(ActionRequest.from(acknowledge.savedIntent))
         assertEquals(Triple(home.id, disk, NoticeAction.ACKNOWLEDGE), Triple(asked.profileId, asked.ref, asked.action))
-        assertEquals("CRITICAL: Disk / on web01", asked.title)
+        assertEquals("\uD83D\uDD34 CRITICAL: Disk / on web01", asked.title)
         assertEquals("DISK CRITICAL - 3% free", asked.text)
         assertEquals("problems_critical", asked.channelId)
         val other = checkNotNull(ActionRequest.from(recheck.savedIntent))
@@ -126,7 +126,7 @@ class NotificationButtonsTest {
         notifier.needsUnlock(request)
 
         val shown = problem(disk)
-        assertEquals("CRITICAL: Disk / on web01", shown.title())
+        assertEquals("\uD83D\uDD34 CRITICAL: Disk / on web01", shown.title())
         assertEquals("Unlock the phone to do this. Nothing was sent.", shown.text())
         assertEquals(listOf("Acknowledge", "Recheck"), shown.buttons())
         assertTrue(shown.actions.all { it.isAuthenticationRequired })
@@ -189,7 +189,7 @@ class NotificationButtonsTest {
         notifier.acting(request)
 
         val shown = problems().single().notification
-        assertEquals("CRITICAL: Disk / on web01", shown.title())
+        assertEquals("\uD83D\uDD34 CRITICAL: Disk / on web01", shown.title())
         assertEquals("Acknowledging\u2026", shown.text())
         assertTrue(shown.buttons().isEmpty())
         assertTrue("it cannot be swiped away half way", shown.flags and Notification.FLAG_ONGOING_EVENT != 0)
@@ -242,7 +242,7 @@ class NotificationButtonsTest {
         val said = answers.map { answer ->
             notifier.acted(request, answer)
             val shown = problem(disk)
-            assertEquals("CRITICAL: Disk / on web01", shown.title())
+            assertEquals("\uD83D\uDD34 CRITICAL: Disk / on web01", shown.title())
             assertEquals(listOf("Acknowledge", "Recheck"), shown.buttons())
             checkNotNull(shown.text())
         }
@@ -259,7 +259,7 @@ class NotificationButtonsTest {
 
         notifier.acted(request, ActionProgress.Confirmed(Command.ForceCheck(disk)))
 
-        assertEquals("CRITICAL: Disk / on web01", problem(disk).title())
+        assertEquals("\uD83D\uDD34 CRITICAL: Disk / on web01", problem(disk).title())
         assertEquals("Home", shown(home, AndroidNotifier.ID_GROUP).title())
     }
 
@@ -297,7 +297,7 @@ class NotificationButtonsTest {
         ref = ref,
         action = action,
         channelId = "problems_critical",
-        title = "CRITICAL: Disk / on web01",
+        title = "\uD83D\uDD34 CRITICAL: Disk / on web01",
         text = "plugin output",
         color = LightStateColors.critical.toArgb(),
     )

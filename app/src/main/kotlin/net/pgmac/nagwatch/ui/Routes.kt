@@ -14,6 +14,7 @@ import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 internal object Routes {
     const val HOME = "home"
     const val PROFILES = "profiles"
+    const val SETTINGS = "settings"
     const val PROFILE = "profile/{${ProfileEditorViewModel.ARG_PROFILE_ID}}"
 
     const val ARG_PROFILE = DetailViewModel.ARG_PROFILE
