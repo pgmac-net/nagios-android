@@ -15,6 +15,7 @@ import net.pgmac.nagwatch.nagios.graph.GraphSize
 import net.pgmac.nagwatch.nagios.graph.PngHeader
 import net.pgmac.nagwatch.nagios.http.AnnotationParser
 import net.pgmac.nagwatch.nagios.http.MAX_REPAIRS
+import net.pgmac.nagwatch.nagios.http.ObjectParser
 import net.pgmac.nagwatch.nagios.http.StatusParser
 import net.pgmac.nagwatch.nagios.http.interpretResponseBody
 import net.pgmac.nagwatch.nagios.http.obj
@@ -120,6 +121,9 @@ object FuzzEntryPoints {
         StatusParser.serverInfo(body)
         StatusParser.service(body)
         StatusParser.host(body)
+        // Configuration, from objectjson.cgi: the same server, the same trust.
+        ObjectParser.hostGroups(body)
+        ObjectParser.serviceGroups(body)
         // The next stage after parsing, which reads every field the parser produced.
         ProblemClassifier.classify(
             StatusSnapshot(

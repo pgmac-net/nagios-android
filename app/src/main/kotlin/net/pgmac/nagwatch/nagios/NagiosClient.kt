@@ -16,13 +16,16 @@ import net.pgmac.nagwatch.nagios.graph.OkHttpGraphClient
 import net.pgmac.nagwatch.nagios.http.AnnotationParser
 import net.pgmac.nagwatch.nagios.http.ConnectionInterceptor
 import net.pgmac.nagwatch.nagios.http.NagiosApi
+import net.pgmac.nagwatch.nagios.http.ObjectParser
 import net.pgmac.nagwatch.nagios.http.ResilientListFetcher
 import net.pgmac.nagwatch.nagios.http.StatusParser
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
+import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostStatus
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServerInfo
+import net.pgmac.nagwatch.nagios.model.ServiceGroup
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
@@ -52,6 +55,12 @@ interface NagiosClient {
 
     /** The object's own scheduled downtimes, soonest first, at most [MAX_ANNOTATIONS]. */
     suspend fun fetchDowntimes(ref: ObjectRef): NagiosResult<List<Downtime>>
+
+    /** Every host group, with its members (pgmac-net/nagios-android#82). */
+    suspend fun fetchHostGroups(): NagiosResult<List<HostGroup>>
+
+    /** Every service group, with its members. */
+    suspend fun fetchServiceGroups(): NagiosResult<List<ServiceGroup>>
 
     data class Connection(val cgiBase: HttpUrl, val server: ServerInfo)
 
@@ -169,6 +178,17 @@ internal class OkHttpNagiosClient(
         }
     }
 
+    override suspend fun fetchHostGroups(): NagiosResult<List<HostGroup>> = withBase { base ->
+        api.query(base, OBJECT_CGI, configParams("hostgrouplist")).map(ObjectParser::hostGroups)
+    }
+
+    override suspend fun fetchServiceGroups(): NagiosResult<List<ServiceGroup>> = withBase { base ->
+        api.query(base, OBJECT_CGI, configParams("servicegrouplist")).map(ObjectParser::serviceGroups)
+    }
+
+    /** A list from `objectjson.cgi`, each entry in full rather than by name only. */
+    private fun configParams(query: String): List<Pair<String, String>> = listOf("query" to query, "details" to "true")
+
     /** The CGI directory, finding it first if this client has not yet. */
     suspend fun cgiBase(): NagiosResult<HttpUrl> = withBase { NagiosResult.Success(it) }
 
@@ -236,6 +256,9 @@ internal class OkHttpNagiosClient(
 
     private companion object {
         const val STATUS_CGI = ResilientListFetcher.STATUS_CGI
+
+        /** How Nagios is configured, where `statusjson.cgi` is how it is doing. */
+        const val OBJECT_CGI = "objectjson.cgi"
         const val CGI_DIR = "cgi-bin"
         const val NAGIOS_DIR = "nagios"
 

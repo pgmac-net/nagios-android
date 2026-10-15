@@ -1,0 +1,58 @@
+{
+  "format_version": 0,
+  "result": {
+    "query_time": 1791540236000,
+    "cgi": "objectjson.cgi",
+    "user": "nagwatch",
+    "query": "servicegrouplist",
+    "query_status": "released",
+    "program_start": 1791538672000,
+    "last_data_update": 1791540232000,
+    "type_code": 0,
+    "type_text": "Success",
+    "message": ""
+  },
+  "data": {
+    "selectors": {},
+    "servicegrouplist": {
+      "storage": {
+        "group_name": "storage",
+        "alias": "Disks",
+        "members": [
+          {
+            "host_name": "host01",
+            "service_description": "Disk /"
+          },
+          {
+            "host_name": "host02",
+            "service_description": "Disk /"
+          },
+          {
+            "host_name": "host04",
+            "service_description": "Disk /var"
+          }
+        ],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      },
+      "network": {
+        "group_name": "network",
+        "alias": "Network checks",
+        "members": [
+          {
+            "host_name": "host01",
+            "service_description": "PING"
+          },
+          {
+            "host_name": "host03",
+            "service_description": "DNS"
+          }
+        ],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      }
+    }
+  }
+}

@@ -58,9 +58,12 @@ import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.status.ActionProgress
+import net.pgmac.nagwatch.status.Inventory
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
+import net.pgmac.nagwatch.ui.browse.BrowseInventory
 import net.pgmac.nagwatch.ui.browse.HostsTab
+import net.pgmac.nagwatch.ui.browse.InventoryViewModel
 import net.pgmac.nagwatch.ui.browse.ServicesTab
 import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
@@ -132,8 +135,10 @@ fun HomeScreen(
     navigation: HomeNavigation,
     viewModel: HomeViewModel = hiltViewModel(),
     quickViewModel: QuickActionsViewModel = hiltViewModel(),
+    inventoryViewModel: InventoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val inventories by inventoryViewModel.inventories.collectAsStateWithLifecycle()
     val quickState by quickViewModel.state.collectAsStateWithLifecycle()
     // Coming back to the screen refreshes, but only if what is held is old. The first load does
     // not depend on this: the view model loads as soon as it knows which profile is shown.
@@ -141,7 +146,10 @@ fun HomeScreen(
 
     val request = rememberLocalNetworkRequest(viewModel::localNetworkAnswered)
     val actions = object : HomeActions {
-        override fun refresh() = viewModel.refresh()
+        override fun refresh() {
+            viewModel.refresh()
+            state.selected?.id?.let(inventoryViewModel::refresh)
+        }
 
         override fun localNetworkContinue() {
             viewModel.localNetworkExplained()
@@ -188,7 +196,17 @@ fun HomeScreen(
             },
         )
     }
-    HomeContent(state, actions, quick = quick)
+    // The configuration the grouped views read, for the profile on screen.
+    val inventory = state.selected?.id?.let { profileId ->
+        val held = inventories[profileId] ?: Inventory()
+        BrowseInventory(
+            hostGroups = held.hostGroups,
+            serviceGroups = held.serviceGroups,
+            loadHostGroups = { force -> inventoryViewModel.loadHostGroups(profileId, force) },
+            loadServiceGroups = { force -> inventoryViewModel.loadServiceGroups(profileId, force) },
+        )
+    }
+    HomeContent(state, actions, quick = quick, inventory = inventory)
     // One question at a time: the offer waits while local network access is being explained.
     if (!state.explainLocalNetwork) NotificationOffer()
 }
@@ -201,6 +219,7 @@ fun HomeContent(
     modifier: Modifier = Modifier,
     initialTab: HomeTab = HomeTab.PROBLEMS,
     quick: QuickMenu? = null,
+    inventory: BrowseInventory? = null,
 ) {
     // The tabs are pages: a swipe moves between them, and the bar says which is showing. The bar
     // and Back move the same pager, so there is one answer to "which tab" (pgmac-net/nagios-android#63).
@@ -236,7 +255,7 @@ fun HomeContent(
                 else -> ProfileBody(state, selected, pager, actions) { page ->
                     // Keyed by profile as well: another profile's hosts need another search.
                     tabStates.SaveableStateProvider("${selected.id}:${page.name}") {
-                        TabBody(page, state, checkNotNull(state.status), actions, quick)
+                        TabBody(page, state, checkNotNull(state.status), actions, quick, inventory)
                     }
                 }
             }
@@ -373,11 +392,21 @@ private fun ProfileBody(
 }
 
 @Composable
-private fun TabBody(tab: HomeTab, state: HomeUiState, status: ProfileStatus, actions: HomeActions, quick: QuickMenu?) {
+private fun TabBody(
+    tab: HomeTab,
+    state: HomeUiState,
+    status: ProfileStatus,
+    actions: HomeActions,
+    quick: QuickMenu?,
+    inventory: BrowseInventory?,
+) {
     when (tab) {
         HomeTab.PROBLEMS -> ProblemsTab(state, status, actions, quick)
-        HomeTab.HOSTS -> HostsTab(status, state.now, actions::openHost, actions::allowLocalNetwork, quick)
-        HomeTab.SERVICES -> ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork, quick)
+
+        HomeTab.HOSTS -> HostsTab(status, state.now, actions::openHost, actions::allowLocalNetwork, quick, inventory)
+
+        HomeTab.SERVICES ->
+            ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork, quick, inventory)
     }
 }
 

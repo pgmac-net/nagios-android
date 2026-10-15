@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,14 @@ object BrowseTags {
     const val HANDLED = "browse_handled"
     const val EMPTY = "browse_empty"
     const val EMPTY_HANDLED_HIDDEN = "browse_empty_handled_hidden"
+    const val MODES = "browse_modes"
+    const val GROUPS_PENDING = "browse_groups_pending"
+    const val GROUPS_RETRY = "browse_groups_retry"
+    const val GROUPS_NONE = "browse_groups_none"
+
+    fun mode(mode: BrowseMode) = "browse_mode_${mode.name}"
+
+    fun group(key: String) = "browse_group_$key"
 
     fun chip(state: Enum<*>) = "browse_chip_${state.name}"
 
@@ -156,11 +165,16 @@ internal fun HostsTab(
     onOpen: (hostName: String) -> Unit,
     onAllowLocalNetwork: () -> Unit,
     quick: QuickMenu? = null,
+    inventory: BrowseInventory? = null,
 ) {
     val snapshot = status.snapshot
     val report = status.report
     val rows = remember(snapshot, report) {
         if (snapshot == null || report == null) emptyList() else BrowseRows.hosts(snapshot, report)
+    }
+    val groups = inventory?.let { inv ->
+        val part = remember(inv.hostGroups) { inv.hostGroups.mapValue(BrowseGroups::hostGroups) }
+        GroupsSource(part, inv.loadHostGroups)
     }
     BrowseList(
         rows,
@@ -170,6 +184,7 @@ internal fun HostsTab(
         onOpen = { onOpen(it.hostName) },
         onAllowLocalNetwork = onAllowLocalNetwork,
         quick = quick,
+        groups = groups,
     )
 }
 
@@ -180,11 +195,16 @@ internal fun ServicesTab(
     onOpen: (hostName: String, description: String) -> Unit,
     onAllowLocalNetwork: () -> Unit,
     quick: QuickMenu? = null,
+    inventory: BrowseInventory? = null,
 ) {
     val snapshot = status.snapshot
     val report = status.report
     val rows = remember(snapshot, report) {
         if (snapshot == null || report == null) emptyList() else BrowseRows.services(snapshot, report)
+    }
+    val groups = inventory?.let { inv ->
+        val part = remember(inv.serviceGroups) { inv.serviceGroups.mapValue(BrowseGroups::serviceGroups) }
+        GroupsSource(part, inv.loadServiceGroups)
     }
     BrowseList(
         rows,
@@ -194,6 +214,7 @@ internal fun ServicesTab(
         onOpen = { onOpen(it.hostName, it.service.orEmpty()) },
         onAllowLocalNetwork = onAllowLocalNetwork,
         quick = quick,
+        groups = groups,
     )
 }
 
@@ -211,6 +232,8 @@ internal fun <S : Enum<S>> BrowseList(
     onAllowLocalNetwork: (() -> Unit)? = null,
     initialStates: Set<S> = style.defaultStates,
     quick: QuickMenu? = null,
+    /** Null: the tab has no grouped view, and no switch for one. */
+    groups: GroupsSource? = null,
 ) {
     // Kept here rather than in the view model: what is typed must reach the text field in the
     // same frame, and the tab's saved state already outlives switching to another tab.
@@ -218,6 +241,15 @@ internal fun <S : Enum<S>> BrowseList(
     var states by rememberSaveable { mutableStateOf(initialStates) }
     var showHandled by rememberSaveable { mutableStateOf(BrowseFilter<S>().showHandled) }
     val view = remember(rows, query, states, showHandled) { BrowseFilter(query, states, showHandled).apply(rows) }
+    var chosenMode by rememberSaveable { mutableStateOf(BrowseMode.ALL) }
+    val mode = if (groups == null) BrowseMode.ALL else chosenMode
+    // Which groups the person opened or closed, against where each starts (open if it needs someone).
+    var toggled by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    val part = groups?.part
+    // The groups are read the first time they are wanted, and not again until a refresh.
+    LaunchedEffect(mode, part?.value == null, part?.loading, part?.error) {
+        if (mode == BrowseMode.GROUPS && groups?.wanted() == true) groups.load(false)
+    }
 
     Column(Modifier.fillMaxSize()) {
         SearchBox(query, style.searchHint, onChange = { query = it })
@@ -227,6 +259,7 @@ internal fun <S : Enum<S>> BrowseList(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    if (groups != null) ModeSwitch(mode) { chosenMode = it }
                     FilterChips(
                         style = style,
                         view = view,
@@ -239,7 +272,11 @@ internal fun <S : Enum<S>> BrowseList(
                 }
             }
             item { StatusBanners(status, now, onAllowLocalNetwork) }
-            if (view.rows.isEmpty()) {
+            val grouped = mode == BrowseMode.GROUPS && groups != null &&
+                groupsBody(groups, view.rows, GroupOpenness(toggled) { toggled = it }, style) { row ->
+                    BrowseRowItem(row, style, now, onOpen, quick)
+                }
+            if (!grouped && view.rows.isEmpty()) {
                 // Hiding handled problems is the default, so when that is all that stands between
                 // the person and a row, the list has to say so.
                 val hiddenHandled = if (showHandled) {
@@ -252,7 +289,7 @@ internal fun <S : Enum<S>> BrowseList(
                 } else {
                     item { Empty(emptyText(rows.isEmpty(), query.isNotBlank(), states.isNotEmpty(), style)) }
                 }
-            } else {
+            } else if (!grouped) {
                 items(view.rows, key = { it.key }) { row ->
                     BrowseRowItem(row, style, now, onOpen, quick)
                     HorizontalDivider()
@@ -356,7 +393,7 @@ private fun Empty(@StringRes text: Int) {
 }
 
 @Composable
-private fun <S : Enum<S>> BrowseRowItem(
+internal fun <S : Enum<S>> BrowseRowItem(
     row: BrowseRow<S>,
     style: BrowseStyle<S>,
     now: Instant,

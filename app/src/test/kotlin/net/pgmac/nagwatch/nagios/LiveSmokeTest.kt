@@ -119,4 +119,24 @@ class LiveSmokeTest {
         println("live: ${services.size} services in full, ${services.count { !it.check.detailsAvailable }} degraded")
         assertTrue("no services returned", services.isNotEmpty())
     }
+
+    /** The configuration the grouped views read (pgmac-net/nagios-android#82). Counts only. */
+    @Test
+    fun `reads the host and service groups, and their members are hosts and services that exist`() {
+        val client = NagiosClientFactory(http, TEST_JSON, Dispatchers.IO, Clock.systemUTC()).create(settings)
+        val snapshot = runBlocking { client.fetchStatus() }.valueOrFail()
+        val hostGroups = runBlocking { client.fetchHostGroups() }.valueOrFail()
+        val serviceGroups = runBlocking { client.fetchServiceGroups() }.valueOrFail()
+
+        val hosts = snapshot.hosts.mapTo(HashSet()) { it.name }
+        val services = snapshot.serviceStates.mapTo(HashSet()) { ObjectRef(it.hostName, it.description) }
+        val strayHosts = hostGroups.flatMap { it.members }.count { it !in hosts }
+        val strayServices = serviceGroups.flatMap { it.members }.count { it !in services }
+        println(
+            "live: ${hostGroups.size} host groups (${hostGroups.sumOf { it.members.size }} memberships), " +
+                "${serviceGroups.size} service groups (${serviceGroups.sumOf { it.members.size }} memberships)",
+        )
+        assertTrue("$strayHosts host group members are not hosts the status lists", strayHosts == 0)
+        assertTrue("$strayServices service group members are not services the status lists", strayServices == 0)
+    }
 }
