@@ -37,6 +37,7 @@ jazzer = "0.30.0"
 # libraries below and docs/development.md. Each can go once its tool catches up.
 floorBouncycastle = "1.85"
 floorCommonsLang3 = "3.18.0"
+floorFreemarker = "2.3.35"
 floorHttpclient = "4.5.14"
 floorJackson = "2.22.3"
 floorJdom2 = "2.0.6.1"
@@ -87,6 +88,7 @@ floor-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "floo
 floor-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "floorBouncycastle" }
 floor-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "floorBouncycastle" }
 floor-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "floorCommonsLang3" }
+floor-freemarker = { module = "org.freemarker:freemarker", version.ref = "floorFreemarker" }
 floor-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "floorHttpclient" }
 floor-jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "floorJackson" }
 floor-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "floorJackson" }
