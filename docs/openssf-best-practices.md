@@ -142,8 +142,8 @@ Project page: *to be added when registered.*
 
 | Criterion | | Answer | Why | Evidence |
 |---|---|---|---|---|
-| `know_secure_design` | MUST | Met (maintainer to confirm) | A self-attestation. The design document's security notes and the ADRs show the principles applied: least privilege, a signing key kept outside the build, untrusted input bounded and fuzzed, no ignore-TLS switch. | [docs/design.md section 11](https://github.com/pgmac-net/nagios-android/blob/main/docs/design.md#11-security-notes) |
-| `know_common_errors` | MUST | Met (maintainer to confirm) | A self-attestation. For this kind of software the common errors are untrusted input parsing, credential storage, TLS handling and intent spoofing; each has a mitigation in the design notes (size and nesting caps, fuzzing, Keystore AES-GCM, system trust store with no bypass, non-exported intent target). | [docs/design.md section 11](https://github.com/pgmac-net/nagios-android/blob/main/docs/design.md#11-security-notes) |
+| `know_secure_design` | MUST | Met | A self-attestation. The design document's security notes and the ADRs show the principles applied: least privilege, a signing key kept outside the build, untrusted input bounded and fuzzed, no ignore-TLS switch. | [docs/design.md section 11](https://github.com/pgmac-net/nagios-android/blob/main/docs/design.md#11-security-notes) |
+| `know_common_errors` | MUST | Met | A self-attestation. For this kind of software the common errors are untrusted input parsing, credential storage, TLS handling and intent spoofing; each has a mitigation in the design notes (size and nesting caps, fuzzing, Keystore AES-GCM, system trust store with no bypass, non-exported intent target). | [docs/design.md section 11](https://github.com/pgmac-net/nagios-android/blob/main/docs/design.md#11-security-notes) |
 
 **Use basic good cryptographic practices**
 
@@ -198,7 +198,7 @@ Project page: *to be added when registered.*
 | `dynamic_analysis` | SUGGESTED | Met | Jazzer fuzzing of the parsers that read a Nagios server's responses, on every pull request and weekly for longer. | [fuzz.yml](https://github.com/pgmac-net/nagios-android/blob/main/.github/workflows/fuzz.yml); [docs/development.md#fuzzing](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#fuzzing) |
 | `dynamic_analysis_unsafe` | SUGGESTED | N/A | Kotlin on the JVM; no memory-unsafe code. | [app/build.gradle.kts](https://github.com/pgmac-net/nagios-android/blob/main/app/build.gradle.kts) |
 | `dynamic_analysis_enable_assertions` | SUGGESTED | Met | Tests and fuzz targets run under Gradle's test and JVM defaults, which enable assertions, with Kotlin `require` and `check` throughout. | [docs/development.md#fuzzing](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#fuzzing) |
-| `dynamic_analysis_fixed` | MUST | Met (maintainer to confirm) | The documented process turns any fuzz crash into a fixed regression input. No confirmed exploitable finding is open. | [docs/development.md#fuzzing](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#fuzzing) |
+| `dynamic_analysis_fixed` | MUST | Met | The documented process turns any fuzz crash into a fixed regression input. No confirmed exploitable finding is open. | [docs/development.md#fuzzing](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#fuzzing) |
 
 ## Silver: what is not met
 
