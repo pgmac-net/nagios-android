@@ -1,6 +1,6 @@
 # OpenSSF Best Practices: the answer sheet
 
-Ticket: pgmac-net/nagios-android#83. Raised from #70 (README badges). Related: #85 (freemarker), which one answer waits on.
+Ticket: pgmac-net/nagios-android#83. Raised from #70 (README badges). Related: #85 (freemarker), fixed in #87.
 
 ## What was built
 
@@ -25,12 +25,11 @@ Ticket: pgmac-net/nagios-android#83. Raised from #70 (README badges). Related: #
 
 - **The criteria text had to come from upstream.** Fetched `criteria/criteria.yml` and `config/locales/en.yml` from the badge project: 67 Passing, 55 Silver, 23 Gold. The two files nest differently; the descriptions are under `criteria.<level>.<id>.description`.
 - **Three answers are not facts about files.** `know_secure_design`, `know_common_errors` and `dynamic_analysis_fixed` are marked for the maintainer to confirm.
-- **One answer waits on a fix.** `vulnerabilities_critical_fixed`: a critical freemarker alert opened 2026-10-15 on the build classpath (not shipped), tracked as #85.
+- **The critical alert is fixed.** `vulnerabilities_critical_fixed`: a critical freemarker alert opened and fixed on 2026-10-15 (#85, #87), on the build classpath only.
 - **Evidence links were checked.** Every repository URL in the sheet returned 200 except the code-scanning page, which needs a login; replaced by the public Scorecard result. Release tags verify as signed (`git tag -v v0.1.1`).
 - **Silver gaps that need a second person** (`access_continuity`, `bus_factor`) are marked; Gold is out of reach for a solo project.
 
 ## What is left
 
 - The maintainer registers the project, pastes the answers, and gives back the project ID.
-- #85 merges, and `vulnerabilities_critical_fixed` is answered Met.
 - Pull request 2: the badge in the README row after Scorecard, and the project URL at the top of the sheet.

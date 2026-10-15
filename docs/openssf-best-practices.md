@@ -8,7 +8,7 @@ Criteria and their wording are those of the badge project's `criteria.yml` and E
 
 **Keep it true.** The badge is a claim about the project, so this sheet is revisited on each release, and whenever a process in it changes (for example, a different CI, a second maintainer, or a new way to report problems).
 
-**Three answers are the maintainer's to confirm**, because they are about people and not files: `know_secure_design`, `know_common_errors` and `dynamic_analysis_fixed`. One is waiting on a fix: `vulnerabilities_critical_fixed` (#85).
+**Three answers are the maintainer's to confirm**, because they are about people and not files: `know_secure_design`, `know_common_errors` and `dynamic_analysis_fixed`.
 
 Project page: *to be added when registered.*
 
@@ -170,8 +170,8 @@ Project page: *to be added when registered.*
 
 | Criterion | | Answer | Why | Evidence |
 |---|---|---|---|---|
-| `vulnerabilities_fixed_60_days` | MUST | Met | Dependency-Track reports none for 0.1.1. The one open Dependabot alert (freemarker, a build-classpath dependency, not in the APK) was opened 2026-10-15 and is tracked as #85. | [#85](https://github.com/pgmac-net/nagios-android/issues/85) |
-| `vulnerabilities_critical_fixed` | SHOULD | Pending #85 | The critical Dependabot alert on freemarker (build classpath only, not shipped) is fixed by #85. Answer after that merges. | [#85](https://github.com/pgmac-net/nagios-android/issues/85) |
+| `vulnerabilities_fixed_60_days` | MUST | Met | Dependency-Track reports none for 0.1.1. The one Dependabot alert raised in October (freemarker, a build-classpath dependency, not in the APK) was opened 2026-10-15 and fixed the same day by [#87](https://github.com/pgmac-net/nagios-android/pull/87), which raised it to 2.3.35; the alert closed as fixed on the dependency-submission run after the merge. | [#85](https://github.com/pgmac-net/nagios-android/issues/85), [#87](https://github.com/pgmac-net/nagios-android/pull/87) |
+| `vulnerabilities_critical_fixed` | SHOULD | Met | The only critical Dependabot alert raised against the project (freemarker, CVE-2026-84939) was opened and fixed on 2026-10-15, the same day. It was on the build classpath only and not in the shipped app. | [#85](https://github.com/pgmac-net/nagios-android/issues/85), [#87](https://github.com/pgmac-net/nagios-android/pull/87) |
 
 **Other security issues**
 
