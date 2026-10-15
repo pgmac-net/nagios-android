@@ -3,6 +3,7 @@
 package net.pgmac.nagwatch.ui.settings
 
 import android.content.Context
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -29,8 +30,18 @@ class SettingsScreenTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val chosen = mutableListOf<EmojiSet>()
 
-    private fun show(set: EmojiSet) = composeRule.setContent {
-        NagwatchTheme { SettingsContent(set, onChoose = { chosen += it }, resources = context.resources) }
+    private val largeIcons = mutableListOf<Boolean>()
+
+    private fun show(set: EmojiSet, largeIcon: Boolean = true) = composeRule.setContent {
+        NagwatchTheme {
+            SettingsContent(
+                chosen = set,
+                onChoose = { chosen += it },
+                largeIcon = largeIcon,
+                onLargeIcon = { largeIcons += it },
+                resources = context.resources,
+            )
+        }
     }
 
     @Test
@@ -50,5 +61,14 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag(SettingsTags.emojiSet(EmojiSet.FACES)).performScrollTo().performClick()
 
         assertEquals(listOf(EmojiSet.FACES), chosen)
+    }
+
+    @Test
+    fun `the coloured picture has a switch that is on, and turning it off says so`() {
+        show(EmojiSet.CIRCLES, largeIcon = true)
+
+        composeRule.onNodeWithTag(SettingsTags.LARGE_ICON).performScrollTo().assertIsOn().performClick()
+
+        assertEquals(listOf(false), largeIcons)
     }
 }

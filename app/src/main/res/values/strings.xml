@@ -304,6 +304,8 @@
     <string name="settings_notifications">Notifications</string>
     <string name="settings_emoji_title">Emoji in the title</string>
     <string name="settings_emoji_text">A symbol at the start of each notification, in case your phone does not colour the icon. It applies to every profile, from the next notification.</string>
+    <string name="settings_large_icon_title">Coloured picture</string>
+    <string name="settings_large_icon_text">A circle in the state\u2019s colour beside each notification. Where your phone draws the app\u2019s own icon there, this replaces it. It applies from the next notification.</string>
     <string name="emoji_set_none">None</string>
     <string name="emoji_set_circles">Coloured circles</string>
     <string name="emoji_set_signs">Signs</string>

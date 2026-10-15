@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.notify
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import javax.inject.Inject
@@ -17,6 +18,11 @@ interface NotifierSettings {
     val emojiSet: Flow<EmojiSet>
 
     suspend fun setEmojiSet(set: EmojiSet)
+
+    /** A coloured picture as the notification's large icon. On unless the person turned it off. */
+    val largeIcon: Flow<Boolean>
+
+    suspend fun setLargeIcon(on: Boolean)
 }
 
 @Singleton
@@ -27,7 +33,14 @@ class DataStoreNotifierSettings @Inject constructor(private val store: DataStore
         store.edit { it[KEY] = set.id }
     }
 
+    override val largeIcon: Flow<Boolean> = store.data.map { it[LARGE_ICON_KEY] ?: true }.distinctUntilChanged()
+
+    override suspend fun setLargeIcon(on: Boolean) {
+        store.edit { it[LARGE_ICON_KEY] = on }
+    }
+
     private companion object {
         val KEY = stringPreferencesKey("notification_emoji_set")
+        val LARGE_ICON_KEY = booleanPreferencesKey("notification_large_icon")
     }
 }

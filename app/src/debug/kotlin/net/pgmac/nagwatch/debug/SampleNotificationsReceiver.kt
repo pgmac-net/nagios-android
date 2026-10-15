@@ -20,8 +20,10 @@ import net.pgmac.nagwatch.notify.AndroidNotifier
 import net.pgmac.nagwatch.notify.AnnouncedState
 import net.pgmac.nagwatch.notify.Decision
 import net.pgmac.nagwatch.notify.Notice
+import net.pgmac.nagwatch.notify.OutageCause
 import net.pgmac.nagwatch.notify.ref
 import net.pgmac.nagwatch.profile.Profile
+import net.pgmac.nagwatch.status.StatusError
 
 /**
  * Posts one notification of every kind the app can send, to see them. Debug builds only; a
@@ -51,7 +53,12 @@ class SampleNotificationsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         // The set to draw them with, by id (none, circles, signs, squares, faces): not the person's own setting.
         val set = net.pgmac.nagwatch.notify.EmojiSet.of(intent.getStringExtra(EXTRA_SET))
-        val notifier = AndroidNotifier(context, AndroidNotificationPermission(context), emojiSet = { set })
+        val notifier = AndroidNotifier(
+            context,
+            AndroidNotificationPermission(context),
+            emojiSet = { set },
+            largeIcon = { intent.getBooleanExtra(EXTRA_LARGE, true) },
+        )
         // A real profile's number, to try a button all the way to a Nagios. Without it, a profile of
         // the samples' own that does not exist, so a button's press sends nothing.
         val profile = PROFILE.copy(id = intent.getLongExtra(EXTRA_PROFILE, PROFILE.id))
@@ -103,7 +110,8 @@ class SampleNotificationsReceiver : BroadcastReceiver() {
         val down = HostStatus("db01", HostState.DOWN, CheckStatus(pluginOutput = "no reply"))
         val report = ProblemClassifier.classify(StatusSnapshot(listOf(up, down), services, Instant.now()))
         val raised = report.unhandled.map { Notice.Raised(it.ref, it, Notice.Change.NEW) }
-        return raised + Notice.Recovered(ObjectRef("web02", "Ping"))
+        return raised + Notice.Recovered(ObjectRef("web02", "Ping")) +
+            Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)
     }
 
     private fun sample(description: String, state: ServiceState, output: String) =
@@ -112,6 +120,9 @@ class SampleNotificationsReceiver : BroadcastReceiver() {
     companion object {
         const val EXTRA_ACTION = "action"
         const val EXTRA_SET = "set"
+
+        /** `--ez large false` draws the samples without the large icon. */
+        const val EXTRA_LARGE = "large"
 
         /** One of down, critical, warning, unknown or recovered: post only that one. */
         const val EXTRA_ONLY = "only"
