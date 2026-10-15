@@ -298,6 +298,17 @@
     </plurals>
 
     <string name="profiles_title">Profiles</string>
+
+    <string name="problems_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_emoji_title">Emoji in the title</string>
+    <string name="settings_emoji_text">A symbol at the start of each notification, in case your phone does not colour the icon. It applies to every profile, from the next notification.</string>
+    <string name="emoji_set_none">None</string>
+    <string name="emoji_set_circles">Coloured circles</string>
+    <string name="emoji_set_signs">Signs</string>
+    <string name="emoji_set_squares">Coloured squares</string>
+    <string name="emoji_set_faces">Faces</string>
     <string name="profiles_add">Add profile</string>
     <string name="profiles_empty_title">No profiles yet</string>
     <string name="profiles_empty_text">A profile is a connection to one Nagios instance. Add one to get started.</string>

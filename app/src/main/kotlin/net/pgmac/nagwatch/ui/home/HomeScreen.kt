@@ -105,6 +105,8 @@ interface HomeActions : LocalNetworkActions {
 
     fun manageProfiles()
 
+    fun openSettings()
+
     fun openHost(hostName: String)
 
     fun openService(hostName: String, description: String)
@@ -117,6 +119,8 @@ interface HomeNavigation {
     fun editProfile(id: Long)
 
     fun manageProfiles()
+
+    fun openSettings()
 
     fun openHost(profileId: Long, hostName: String)
 
@@ -157,6 +161,8 @@ fun HomeScreen(
         override fun editProfile(id: Long) = navigation.editProfile(id)
 
         override fun manageProfiles() = navigation.manageProfiles()
+
+        override fun openSettings() = navigation.openSettings()
 
         override fun openHost(hostName: String) {
             state.selected?.let { navigation.openHost(it.id, hostName) }
@@ -300,6 +306,13 @@ private fun ProfileSwitcher(state: HomeUiState, actions: HomeActions) {
                 onClick = {
                     open = false
                     actions.manageProfiles()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.problems_settings)) },
+                onClick = {
+                    open = false
+                    actions.openSettings()
                 },
             )
         }

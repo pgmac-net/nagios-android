@@ -49,7 +49,7 @@ class AndroidNotifierTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val manager: NotificationManager = context.getSystemService(NotificationManager::class.java)
     private var allowed = true
-    private val notifier = AndroidNotifier(context, NotificationPermission { allowed })
+    private var notifier = AndroidNotifier(context, NotificationPermission { allowed })
 
     private val home = profile(1, "Home")
     private val office = profile(2, "Office")
@@ -181,6 +181,36 @@ class AndroidNotifierTest {
         deliver(home, post = listOf(Notice.Summary(count = 6, first = true)))
         assertEquals("6 problems on Home", shown(home, AndroidNotifier.ID_SUMMARY).title())
         assertEquals("Home", shown(home, AndroidNotifier.ID_GROUP).title())
+    }
+
+    @Test
+    fun `the chosen set decides the emoji, and one that has none adds nothing, not even a space`() {
+        val expected = mapOf(
+            EmojiSet.SIGNS to listOf("\uD83D\uDEA8 CRITICAL: Disk / on web01", "\u26D4 DOWN: db01"),
+            EmojiSet.SQUARES to listOf("\uD83D\uDFE5 CRITICAL: Disk / on web01", "\uD83D\uDFE5 DOWN: db01"),
+            EmojiSet.FACES to listOf("\uD83D\uDE31 CRITICAL: Disk / on web01", "\uD83D\uDE31 DOWN: db01"),
+            EmojiSet.NONE to listOf("CRITICAL: Disk / on web01", "DOWN: db01"),
+        )
+        expected.forEach { (set, titles) ->
+            notifier = AndroidNotifier(context, { allowed }, emojiSet = { set })
+            raise(disk, ServiceState.CRITICAL)
+            raiseHost("db01", HostState.DOWN)
+            assertEquals(set.name, titles[0], problem(disk).title())
+            assertEquals(set.name, titles[1], problem(ObjectRef("db01")).title())
+        }
+    }
+
+    @Test
+    fun `a recovery and an outage take the set's emoji too, and none for the set with none`() {
+        notifier = AndroidNotifier(context, { allowed }, emojiSet = { EmojiSet.FACES })
+        deliver(home, post = listOf(Notice.Recovered(disk)))
+        deliver(home, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+        assertEquals("\uD83D\uDE0C Recovered: Disk / on web01", problem(disk).title())
+        assertEquals("\uD83D\uDCE1 Can\u2019t check Home", shown(home, AndroidNotifier.ID_OUTAGE).title())
+
+        notifier = AndroidNotifier(context, { allowed }, emojiSet = { EmojiSet.NONE })
+        deliver(home, post = listOf(Notice.Recovered(disk)))
+        assertEquals("Recovered: Disk / on web01", problem(disk).title())
     }
 
     @Test
