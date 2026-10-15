@@ -371,6 +371,14 @@ Beside those three, and not required for a merge:
 - **Release** (`release.yml`) runs on a `v*` tag, and by hand as a rehearsal. See [Releasing](#releasing).
 - **The Gradle wrapper is verified** in the `build` job. `gradle-wrapper.jar` is a binary in the repository that runs on every build; it is checked against the checksums Gradle publishes before anything runs it.
 
+## Badges, coverage and Scorecard
+
+The README's badge row is a view of things that already run; none of them is a required check.
+
+- **Coverage.** `koverXmlReportDebug` runs in the `build` job after the unit tests, and `codecov/codecov-action` uploads `app/build/reports/kover/reportDebug.xml` with the organisation's `CODECOV_TOKEN`. It is informational: `codecov.yml` makes the project and patch statuses informational and turns pull request comments off, and the upload step does not fail the build. Generated code (Hilt, Room, `BuildConfig`, Compose singletons, previews) is excluded in `app/build.gradle.kts`. Locally: `./gradlew koverXmlReportDebug`.
+- **Scorecard.** `scorecard.yml` is this repository's own workflow, not the shared `pg-actions` one, because the shared one sets `publish_results: false` and the badge needs a published result. The Scorecard API rejects a result from a workflow that breaks its rules (no workflow-level env or defaults, no workflow-level write permissions, only checkout, upload-artifact, upload-sarif and scorecard-action in the job, no `run` steps), and `fail_on_publish_error: true` makes a rejection fail the run. Weekly and by hand, never on push (see the comment in the file). After changing it, run it by hand and check `https://api.scorecard.dev/projects/github.com/pgmac-net/nagios-android` answers.
+- **Dependency-Track.** See [Releasing](#releasing): the badge names a released version and `checkReadmeBadges` keeps it honest.
+
 ## Releasing
 
 A release is a signed APK, its SBOM and a checksum file on a GitHub Release, made by `.github/workflows/release.yml` when a `v*` tag is pushed. The reasoning is [ADR 0011](adr/0011-the-apk-is-signed-outside-the-build.md).
@@ -382,7 +390,7 @@ A release is a signed APK, its SBOM and a checksum file on a GitHub Release, mad
 
 **Cutting a release.**
 
-1. A pull request that raises `versionName` and adds one to `versionCode` in `app/build.gradle.kts`. Android refuses an update whose `versionCode` is not higher. Merge it.
+1. A pull request that raises `versionName` and adds one to `versionCode` in `app/build.gradle.kts`, **and the version in the README's Dependency-Track badge** (`.../badge/vulns/project/pgmac-net%2Fnagios-android/<versionName>`). Dependency-Track has no badge for "latest", so the badge names a version; `checkReadmeBadges` (in the `lint` job) fails the pull request if it is not `versionName`. The badge reads "not found" from the merge until the release uploads its SBOM. Android refuses an update whose `versionCode` is not higher. Merge it.
 2. On `main`, at that merge: `git tag -s vX.Y.Z -m "Nagwatch X.Y.Z" && git push origin vX.Y.Z`. The tag must be `v` plus `versionName` exactly, and on `main`, or `build` fails before doing anything else.
 3. When `build` is green the run waits. Approve the `release` environment.
 4. The run leaves a **draft** Release. Download its APK and install it on a phone: over the previous release, not onto a clean phone. That it installs as an update is the only real proof it was signed with the right key and a higher `versionCode`. Open a profile. On a phone with Advanced Protection on, the only way in is `adb install -r`; the browser and Obtainium are refused.
