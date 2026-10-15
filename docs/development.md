@@ -51,7 +51,7 @@ Build tools bring libraries of their own, and a tool's latest release can still 
 - Where a library is one of a family released together (Bouncy Castle, Jackson, logback), every member in use is raised, not only the one named in the advisory.
 - `build-logic` does not use the `kotlin-dsl` plugin, because that brings the Kotlin Gradle plugin of whichever version Gradle embeds, which cannot be raised without a new Gradle. It uses the project's own Kotlin plugin instead. The cost: in `build-logic`, a lambda passed to a Gradle `Action` takes its argument as a parameter (`{ task -> task.dependsOn(...) }`), not as an implicit receiver.
 - **When an alert appears:** find where the version comes from (`./gradlew buildEnvironment` for the build script, `./gradlew :app:dependencies` for everything else), add or raise a floor, refresh the lockfile, and run the full `check`: a raised library is being run by a tool that was not released against it.
-- **When to remove one:** when the tool that needed it asks for a fixed version itself. A floor below what is already resolved does nothing and can go.
+- **When to remove one:** when the tool that needed it asks for a fixed version itself. FreeMarker is raised for Kover's HTML and XML report generator (CVE-2026-84939, #85): remove it once Kover ships a release that asks for 2.3.35 or later. A floor below what is already resolved does nothing and can go.
 
 ## Tests
 
