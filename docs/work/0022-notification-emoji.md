@@ -19,9 +19,20 @@ Ticket: pgmac-net/nagios-android#81.
 
 ## Deviations from the plan
 
-- The spike (coloured title text, coloured large icon) was **not run**: no phone or emulator was available to the session. Nothing was shipped for either.
+- None. The spike was run afterwards, on the Pixel 8a (Android 17), once the phone was connected. Nothing was shipped for either alternative.
+
+## Spike results (Pixel 8a, Android 17)
+
+| Option | Result |
+|---|---|
+| Emoji in the title | Drawn in colour, alone and grouped. Shipped |
+| `ForegroundColorSpan` on the title | **Colour stripped**: title drawn in the normal text colour. Bold from a `StyleSpan` survived |
+| `setColorized(true)` with `DecoratedCustomViewStyle` | **Ignored**: no tinted background. Colorized is reserved for foreground-service and ongoing media-style notifications |
+| `setLargeIcon` (red square, white dot) | **Drawn**, in full colour, untinted, in place of the launcher icon at the left. Works on this phone, where the small-icon tint does not |
+
+A large icon is the one real alternative: it would need one drawn bitmap per state (or a tinted vector rendered to a bitmap), and it replaces the launcher icon in the shade for those notifications. Not built; the emoji already carries the signal.
 
 ## Follow-ups
 
-- Run the spike on the Pixel 8a via `SampleNotificationsReceiver` if wanted; a large icon is the likelier of the two.
-- Look at the emoji in the shade on the phone.
+- A large icon per state, if the emoji is not enough (own ticket).
+- Seen on the phone: the emoji draw in colour in the shade, alone and in the group.
