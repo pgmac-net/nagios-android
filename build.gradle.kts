@@ -36,4 +36,5 @@ plugins {
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.licensee) apply false
     alias(libs.plugins.cyclonedx) apply false
+    alias(libs.plugins.kover) apply false
 }

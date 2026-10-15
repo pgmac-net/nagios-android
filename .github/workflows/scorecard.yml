@@ -1,4 +1,11 @@
-# OpenSSF Scorecard, via the shared pgmac-net workflow. Not a required check.
+# OpenSSF Scorecard, run from this repository so the result can be published.
+#
+# Publishing is what gives the README its badge (api.scorecard.dev). The Scorecard API only
+# accepts a result from a workflow that follows its rules: no workflow-level env or defaults, no
+# workflow-level write permissions, and only checkout, upload-artifact, upload-sarif and
+# scorecard-action in the job, with no `run` steps. That is why this does not call the shared
+# pgmac-net/pg-actions workflow, which sets publish_results: false. Keep it to those rules.
+# https://github.com/ossf/scorecard-action#workflow-restrictions
 #
 # Deliberately NOT run on push. Scorecard only accepts that gradle-wrapper.jar is
 # verified if the newest commit already has a finished, successful CI run. On a push
@@ -13,13 +20,39 @@ on:
     - cron: "0 16 * * 0" # 02:00 AEST Monday
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   scorecard:
-    uses: pgmac-net/pg-actions/.github/workflows/scorecard-public.yml@46b53a99853554f27dbac5838d935ec371c45e6d # main
+    name: scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
+      # Upload the SARIF to the Security tab.
       security-events: write
+      # Publish the result to the Scorecard API (OIDC).
+      id-token: write
       contents: read
       actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+          # A rejection by the Scorecard API (see the rules above) fails the run instead of passing quietly.
+          fail_on_publish_error: true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: results.sarif

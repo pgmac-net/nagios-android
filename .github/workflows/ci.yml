@@ -41,8 +41,18 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      - name: Build debug and release, run unit tests
-        run: ./gradlew --console=plain assembleDebug assembleRelease testDebugUnitTest
+      - name: Build debug and release, run unit tests, write the coverage report
+        run: ./gradlew --console=plain assembleDebug assembleRelease testDebugUnitTest koverXmlReportDebug
+
+      # Coverage is information, not a gate (codecov.yml). A Codecov outage must not cost a merge.
+      # No token on a fork's pull request: secrets are not passed to it, and the step says so and moves on.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: app/build/reports/kover/reportDebug.xml
+          fail_ci_if_error: false
+          disable_search: true
 
       - name: Upload debug APK
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -78,8 +88,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      - name: ktlint, detekt, Android Lint, SPDX headers
-        run: ./gradlew --console=plain --continue ktlintCheck detekt lintDebug checkSpdxHeaders
+      - name: ktlint, detekt, Android Lint, SPDX headers, README badges
+        run: ./gradlew --console=plain --continue ktlintCheck detekt lintDebug checkSpdxHeaders checkReadmeBadges
 
       - name: Upload lint reports
         if: failure()

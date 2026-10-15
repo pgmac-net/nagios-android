@@ -1,5 +1,13 @@
 # Nagwatch
 
+[![CI](https://github.com/pgmac-net/nagios-android/actions/workflows/ci.yml/badge.svg)](https://github.com/pgmac-net/nagios-android/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/pgmac-net/nagios-android/actions/workflows/codeql.yml/badge.svg)](https://github.com/pgmac-net/nagios-android/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pgmac-net/nagios-android/badge)](https://scorecard.dev/viewer/?uri=github.com/pgmac-net/nagios-android)
+[![codecov](https://codecov.io/gh/pgmac-net/nagios-android/branch/main/graph/badge.svg)](https://codecov.io/gh/pgmac-net/nagios-android)
+[![Dependency-Track vulnerabilities](https://sbom.pgmac.net.au/api/v1/badge/vulns/project/pgmac-net%2Fnagios-android/0.1.1)](https://github.com/pgmac-net/nagios-android/releases/latest)
+[![Release](https://img.shields.io/github/v/release/pgmac-net/nagios-android)](https://github.com/pgmac-net/nagios-android/releases/latest)
+[![License: GPL-3.0-or-later](https://img.shields.io/github/license/pgmac-net/nagios-android)](LICENSE)
+
 A modern Android client for [Nagios Core](https://www.nagios.org/): see what is broken, acknowledge it, schedule downtime, look at the graphs, and keep a status widget on your home screen.
 
 > **Status: early development (0.1.1 released; M8, F-Droid, next).** You can add Nagios profiles, see what is currently wrong (unhandled problems, sorted by severity, with hosts that are down and the services behind them grouped together), browse and search every host and service, and open any of them to see its output, status, comments and scheduled downtime. What was last seen is kept on the device, so the app opens with something to show and works offline. You can swipe between the three lists, and press and hold a row to acknowledge, remove an acknowledgement or ask for a recheck without opening it. From a host or service you can acknowledge a problem, remove an acknowledgement, add a comment and ask for a recheck; the app tells you when Nagios has accepted a command and, separately, when it has seen it take effect. You can also schedule a fixed downtime and cancel one: the app reads every downtime back from Nagios and tells you if it landed anywhere other than where you asked. You can have it check a Nagios in the background and notify you about new problems (see below). There is a home-screen widget, from a single number up to a scrolling list (see below). Where the server has nagiosgraph, a service's screen shows its graph (see below). The v1 design is locked in [`docs/design.md`](docs/design.md); work is tracked in this repo's issues (milestones M0-M8).

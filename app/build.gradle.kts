@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import net.pgmac.nagwatch.buildlogic.CheckReadmeBadgesTask
 import net.pgmac.nagwatch.buildlogic.FossCheckPlugin
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -12,6 +13,7 @@ plugins {
     alias(libs.plugins.ktlint)
     alias(libs.plugins.licensee)
     alias(libs.plugins.cyclonedx)
+    alias(libs.plugins.kover)
     id("nagwatch.foss-check")
 }
 
@@ -301,4 +303,37 @@ dependencies {
 
     // The fuzzing engine itself; see the "fuzzer" configuration above.
     add("fuzzer", libs.jazzer)
+}
+
+// Coverage is read, not enforced: it goes to Codecov as information (codecov.yml). Generated code is
+// left out so the number is about code somebody wrote.
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "*_Factory",
+                    "*_Factory\$*",
+                    "*_HiltModules*",
+                    "*_MembersInjector",
+                    "Hilt_*",
+                    "dagger.hilt.*",
+                    "hilt_aggregated_deps.*",
+                    "*_Impl",
+                    "*_Impl\$*",
+                    "*.BuildConfig",
+                    "*ComposableSingletons*",
+                )
+                annotatedBy("androidx.compose.ui.tooling.preview.Preview")
+            }
+        }
+    }
+}
+
+// The README's Dependency-Track badge names a version, and Dependency-Track has no "latest".
+tasks.register<CheckReadmeBadgesTask>("checkReadmeBadges") {
+    group = "verification"
+    description = "Fails if the README's Dependency-Track badge is not for versionName."
+    readme.set(rootProject.layout.projectDirectory.file("README.md"))
+    versionName.set(android.defaultConfig.versionName)
 }
