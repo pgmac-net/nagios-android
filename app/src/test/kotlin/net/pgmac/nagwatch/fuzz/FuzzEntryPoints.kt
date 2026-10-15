@@ -104,6 +104,13 @@ object FuzzEntryPoints {
         }
     }
 
+    /**
+     * A whole conversation with a server that answers from the input, as the list fetcher has
+     * it: see [ListFetcherScript] for the format and the properties.
+     */
+    @JvmStatic
+    fun listFetcher(data: ByteArray) = ListFetcherScript.run(data)
+
     /** Whatever survives as a JSON object goes through every function that reads status. */
     @JvmStatic
     fun statusParser(data: ByteArray) {

@@ -298,7 +298,7 @@ nagiosgraph's pictures, on service detail (`nagios/graph/`, `status/GraphReposit
 
 What a Nagios server sends back is the app's main untrusted input, so it is fuzzed with [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer).
 
-**What is covered.** Five targets, in `app/src/test/kotlin/net/pgmac/nagwatch/fuzz`:
+**What is covered.** Six targets, in `app/src/test/kotlin/net/pgmac/nagwatch/fuzz`:
 
 | Target | Takes arbitrary bytes through |
 |---|---|
@@ -307,8 +307,11 @@ What a Nagios server sends back is the app's main untrusted input, so it is fuzz
 | `AnnotationParser` | comments and downtimes |
 | `CommandPage` | the HTML pages `cmd.cgi` answers with, and the server clock read from them |
 | `Graph` | the PNG header reader and the rule that says whether bytes are a graph; and, as text, the graph path |
+| `ListFetcher` | `ResilientListFetcher` against a server that answers from the input: a whole conversation, not one body (below) |
 
-The contract under test is "a result or a `NagiosError`, nothing else". The `ResponseBody` target also asserts about `repairInvalidEscapes`, which runs on everything a server sends: repairing twice is repairing once, and a repair never grows a body by more than its allowance (65,536 exact repairs, 256 KiB; past that it writes a same-length escape instead). The `Graph` target asserts that nothing is accepted as a graph that is smaller than its plot or larger than the bound, and that an accepted graph path resolves to the profile's own scheme, host and port with no query, fragment or `..`. An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding. `ResilientListFetcher` is not covered: it is a conversation of several requests, not a function of one body.
+The contract under test is "a result or a `NagiosError`, nothing else". The `ResponseBody` target also asserts about `repairInvalidEscapes`, which runs on everything a server sends: repairing twice is repairing once, and a repair never grows a body by more than its allowance (65,536 exact repairs, 256 KiB; past that it writes a same-length escape instead). The `Graph` target asserts that nothing is accepted as a graph that is smaller than its plot or larger than the bound, and that an accepted graph path resolves to the profile's own scheme, host and port with no query, fragment or `..`. An exception of any kind, one input taking over 10 seconds, or the heap (capped at 512 MB) running out is a finding.
+
+**The `ListFetcher` target** (#32) is a conversation, so its input is a script for a fake Nagios behind a real `NagiosApi` (an OkHttp interceptor, no sockets). Four bytes choose small limits (page size 1-16, record ceiling 0-255, extra-request budget 0-40, degraded cap 0-5, and whether details are asked for), so that the edges are a few replies away. Then two bytes per reply, a kind and a number: a page of that many records (never more than asked, or whatever was asked), a 500, a 4xx, an I/O error, a 200 that is not Nagios' JSON, or what real Nagios does with a poisoned record (500 with details, a page without). When the script runs out it starts again, so a short input stands for a server that never stops. What it asserts is the fetcher's own contract: the call finishes in a few seconds, returns a result or a `NagiosError`, makes no more requests than the pages the ceiling allows plus the budget, returns no list past the ceiling and no more degraded records than allowed, and never hands the caller the internal marker for a spent budget (`Http(0)`). Seeds are `app/src/test/resources/fuzz/corpus/list-*.bin`, and the corpus test replays *every* corpus file as a script too.
 
 **The targets are Kotlin.** Each is a few lines in `FuzzTargets.kt` that hand the bytes to a function in `FuzzEntryPoints`. They were Java at first, to earn credit from OpenSSF Scorecard's Fuzzing check, which looks for Jazzer in `*.java` files. It does not earn it here: Scorecard only examines languages at least a quarter the size of the repository's average one, this repository is almost entirely Kotlin, and Scorecard has no Kotlin pattern. That alert is dismissed as "won't fix" with this reason (#29). Do not add Java or ClusterFuzzLite for the score alone.
 

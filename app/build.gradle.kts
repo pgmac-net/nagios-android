@@ -124,7 +124,7 @@ val fuzzer = configurations.create("fuzzer") {
     isCanBeResolved = true
 }
 
-val fuzzTargets = listOf("ResponseBody", "StatusParser", "AnnotationParser", "CommandPage", "Graph")
+val fuzzTargets = listOf("ResponseBody", "StatusParser", "AnnotationParser", "CommandPage", "Graph", "ListFetcher")
 
 val fuzzTasks = fuzzTargets.map { name ->
     tasks.register<JavaExec>("fuzz$name") {

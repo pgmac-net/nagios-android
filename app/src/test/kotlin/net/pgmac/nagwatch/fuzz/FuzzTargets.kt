@@ -38,3 +38,9 @@ object AnnotationParserFuzzTarget {
     @JvmStatic
     fun fuzzerTestOneInput(data: ByteArray) = FuzzEntryPoints.annotationParser(data)
 }
+
+/** The list fetcher against a server that answers from the input: a conversation, not one response. */
+object ListFetcherFuzzTarget {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray) = FuzzEntryPoints.listFetcher(data)
+}

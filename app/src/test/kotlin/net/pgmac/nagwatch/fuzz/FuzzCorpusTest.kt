@@ -62,6 +62,7 @@ object FuzzCorpus {
         "annotationParser" to FuzzEntryPoints::annotationParser,
         "commandPage" to FuzzEntryPoints::commandPage,
         "graph" to FuzzEntryPoints::graph,
+        "listFetcher" to FuzzEntryPoints::listFetcher,
     )
 
     fun directories(): List<File> =
