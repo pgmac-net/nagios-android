@@ -16,6 +16,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -42,6 +43,8 @@ import net.pgmac.nagwatch.notify.EmojiSet
 import net.pgmac.nagwatch.notify.NotifierSettings
 
 object SettingsTags {
+    const val LARGE_ICON = "settings_large_icon"
+
     fun emojiSet(set: EmojiSet) = "settings_emoji_${set.id}"
 }
 
@@ -50,8 +53,15 @@ class SettingsViewModel @Inject constructor(private val settings: NotifierSettin
     val emojiSet: StateFlow<EmojiSet> = settings.emojiSet
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), EmojiSet.DEFAULT)
 
+    val largeIcon: StateFlow<Boolean> = settings.largeIcon
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), true)
+
     fun choose(set: EmojiSet) {
         viewModelScope.launch { settings.setEmojiSet(set) }
+    }
+
+    fun chooseLargeIcon(on: Boolean) {
+        viewModelScope.launch { settings.setLargeIcon(on) }
     }
 
     private companion object {
@@ -62,7 +72,14 @@ class SettingsViewModel @Inject constructor(private val settings: NotifierSettin
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val chosen by viewModel.emojiSet.collectAsStateWithLifecycle()
-    SettingsContent(chosen, onChoose = viewModel::choose, resources = LocalResources.current)
+    val largeIcon by viewModel.largeIcon.collectAsStateWithLifecycle()
+    SettingsContent(
+        chosen = chosen,
+        onChoose = viewModel::choose,
+        largeIcon = largeIcon,
+        onLargeIcon = viewModel::chooseLargeIcon,
+        resources = LocalResources.current,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +87,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 fun SettingsContent(
     chosen: EmojiSet,
     onChoose: (EmojiSet) -> Unit,
+    largeIcon: Boolean,
+    onLargeIcon: (Boolean) -> Unit,
     resources: Resources,
     modifier: Modifier = Modifier,
 ) {
@@ -107,6 +126,23 @@ fun SettingsContent(
                         }
                     }
                 }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                    Text(
+                        stringResource(R.string.settings_large_icon_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(stringResource(R.string.settings_large_icon_text), style = MaterialTheme.typography.bodyMedium)
+                }
+                Switch(
+                    checked = largeIcon,
+                    onCheckedChange = onLargeIcon,
+                    modifier = Modifier.testTag(SettingsTags.LARGE_ICON),
+                )
             }
         }
     }

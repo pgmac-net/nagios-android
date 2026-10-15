@@ -9,6 +9,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.res.Configuration
 import android.service.notification.StatusBarNotification
+import androidx.annotation.ColorInt
+import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -120,6 +122,8 @@ class AndroidNotifier internal constructor(
     private val showing: (NotificationManager) -> List<StatusBarNotification> = { it.activeNotifications.toList() },
     /** The set the person chose, read each time something is posted so that a change shows on the next one. */
     private val emojiSet: () -> EmojiSet = { EmojiSet.DEFAULT },
+    /** Whether to give a notification a large icon, read each time something is posted. */
+    private val largeIcon: () -> Boolean = { true },
 ) : Notifier {
     @Inject
     constructor(
@@ -132,6 +136,7 @@ class AndroidNotifier internal constructor(
         { it.activeNotifications.toList() },
         // Posting runs on a worker, off the main thread, and a DataStore read is a small file.
         { runBlocking { settings.emojiSet.first() } },
+        { runBlocking { settings.largeIcon.first() } },
     )
 
     private val manager: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
@@ -200,6 +205,7 @@ class AndroidNotifier internal constructor(
         )
             .setSmallIcon(R.drawable.ic_tab_problems)
             .setColor(request.color)
+            .withLargeIcon(request.color, R.drawable.ic_tab_problems, stateColors().onState.toArgb())
             .setContentTitle(request.title)
             .setSilent(silent)
             .also(change)
@@ -305,6 +311,7 @@ class AndroidNotifier internal constructor(
         val drawn = builder(profile, channel, NotificationTarget(profile.id, notice.ref))
             .setSmallIcon(R.drawable.ic_tab_problems)
             .setColor(color)
+            .withLargeIcon(color, R.drawable.ic_tab_problems, stateColors().onState.toArgb())
             .setContentTitle(title)
             .text(text)
             // An update says nothing new enough to interrupt for.
@@ -331,6 +338,7 @@ class AndroidNotifier internal constructor(
         return builder(profile, NotifyChannel.RECOVERED, NotificationTarget(profile.id, ref))
             .setSmallIcon(R.drawable.ic_check)
             .setColor(stateColors().ok.toArgb())
+            .withLargeIcon(stateColors().ok.toArgb(), R.drawable.ic_check, stateColors().onState.toArgb())
             .setContentTitle(emojis().recovered.before(context.getString(title, ref.describe())))
             .setSilent(true)
             // Good news goes stale: it clears itself, where a problem stays until dealt with.
@@ -350,6 +358,7 @@ class AndroidNotifier internal constructor(
     private fun outage(profile: Profile, notice: Notice.Outage): Notification =
         builder(profile, NotifyChannel.OUTAGE, NotificationTarget(profile.id))
             .setSmallIcon(R.drawable.ic_tab_problems)
+            .withLargeIcon(stateColors().pending.toArgb(), R.drawable.ic_no_signal, stateColors().onState.toArgb())
             .setContentTitle(emojis().outage.before(context.getString(R.string.notify_outage_title, profile.name)))
             .text(context.getString(notice.cause.sentence()))
             .setSilent(notice.quiet)
@@ -367,6 +376,17 @@ class AndroidNotifier internal constructor(
             .setGroup(group(profileId))
             // The group's own entry never makes a sound; its members do.
             .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+
+    /**
+     * A circle in [fill] with a glyph in it, unless the person turned it off. Not for a summary or
+     * the group's entry: no state is true of them, as with the tint.
+     */
+    private fun NotificationCompat.Builder.withLargeIcon(
+        @ColorInt fill: Int,
+        @DrawableRes glyph: Int,
+        @ColorInt glyphColor: Int,
+    ): NotificationCompat.Builder =
+        if (largeIcon()) setLargeIcon(LargeIcon.render(context, fill, glyph, glyphColor)) else this
 
     private fun NotificationCompat.Builder.text(text: String): NotificationCompat.Builder =
         if (text.isEmpty()) this else setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))

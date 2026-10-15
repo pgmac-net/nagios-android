@@ -41,6 +41,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Each thing worth saying, as the notification Android is handed. */
 @RunWith(AndroidJUnit4::class)
@@ -211,6 +212,53 @@ class AndroidNotifierTest {
         notifier = AndroidNotifier(context, { allowed }, emojiSet = { EmojiSet.NONE })
         deliver(home, post = listOf(Notice.Recovered(disk)))
         assertEquals("Recovered: Disk / on web01", problem(disk).title())
+    }
+
+    // ------------------------------------------------------------ large icon
+
+    @Test
+    fun `problems, recoveries and an outage have a large icon, and a summary and the group's entry have none`() {
+        raise(disk, ServiceState.CRITICAL)
+        deliver(home, post = listOf(Notice.Recovered(load)))
+        deliver(home, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+        deliver(home, post = listOf(Notice.Summary(count = 6, first = true)))
+
+        assertTrue(problem(disk).hasLargeIcon())
+        assertTrue(problem(load).hasLargeIcon())
+        assertTrue(shown(home, AndroidNotifier.ID_OUTAGE).hasLargeIcon())
+        assertFalse(shown(home, AndroidNotifier.ID_SUMMARY).hasLargeIcon())
+        assertFalse(shown(home, AndroidNotifier.ID_GROUP).hasLargeIcon())
+    }
+
+    @Test
+    fun `with the setting off no notification has one`() {
+        notifier = AndroidNotifier(context, { allowed }, largeIcon = { false })
+        raise(disk, ServiceState.CRITICAL)
+        deliver(home, post = listOf(Notice.Recovered(load)))
+        deliver(home, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+
+        assertFalse(problem(disk).hasLargeIcon())
+        assertFalse(problem(load).hasLargeIcon())
+        assertFalse(shown(home, AndroidNotifier.ID_OUTAGE).hasLargeIcon())
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `the large icon is drawn in the state's colour with the glyph in the colour drawn on it`() {
+        val critical = LightStateColors.critical.toArgb()
+        val bitmap = LargeIcon.render(
+            context,
+            critical,
+            net.pgmac.nagwatch.R.drawable.ic_tab_problems,
+            0xFFFFFFFF.toInt(),
+        )
+
+        assertEquals("near the edge is the state's colour", critical, bitmap.getPixel(bitmap.width / 2, 2))
+        assertEquals(
+            "a corner is outside the circle",
+            0,
+            android.graphics.Color.alpha(bitmap.getPixel(0, 0)),
+        )
     }
 
     @Test
@@ -636,6 +684,8 @@ class AndroidNotifierTest {
 
     private fun shown(profile: Profile, id: Int): Notification =
         active().single { it.id == id && it.tag == AndroidNotifier.profileTag(profile.id) }.notification
+
+    private fun Notification.hasLargeIcon(): Boolean = getLargeIcon() != null
 
     private fun Notification.title(): String? = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
 

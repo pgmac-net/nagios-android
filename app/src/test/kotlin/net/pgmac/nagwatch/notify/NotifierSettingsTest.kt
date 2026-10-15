@@ -53,4 +53,15 @@ class NotifierSettingsTest {
         store.edit { it[stringPreferencesKey("notification_emoji_set")] = "from-the-future" }
         assertEquals(EmojiSet.CIRCLES, settings.emojiSet.first())
     }
+
+    @Test
+    fun `the large icon is on until turned off`() = runBlocking {
+        assertEquals(true, settings.largeIcon.first())
+
+        settings.setLargeIcon(false)
+        assertEquals(false, settings.largeIcon.first())
+
+        settings.setLargeIcon(true)
+        assertEquals(true, settings.largeIcon.first())
+    }
 }
