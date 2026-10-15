@@ -155,7 +155,7 @@ class AndroidNotifierTest {
         raise(disk, ServiceState.CRITICAL, output = "DISK CRITICAL - free space: / 3%\nsecond line")
 
         val shown = problem(disk)
-        assertEquals("CRITICAL: Disk / on web01", shown.title())
+        assertEquals("\uD83D\uDD34 CRITICAL: Disk / on web01", shown.title())
         assertEquals("DISK CRITICAL - free space: / 3%", shown.text())
         assertEquals("Home", shown.extras.getCharSequence(Notification.EXTRA_SUB_TEXT).toString())
         assertFalse("a new problem may interrupt", shown.isSilent())
@@ -166,8 +166,21 @@ class AndroidNotifierTest {
         raiseHost("db01", HostState.DOWN)
         raiseHost("db02", HostState.UNREACHABLE)
 
-        assertEquals("DOWN: db01", problem(ObjectRef("db01")).title())
-        assertEquals("UNREACHABLE: db02", problem(ObjectRef("db02")).title())
+        assertEquals("\uD83D\uDD34 DOWN: db01", problem(ObjectRef("db01")).title())
+        assertEquals("\uD83D\uDD34 UNREACHABLE: db02", problem(ObjectRef("db02")).title())
+    }
+
+    @Test
+    fun `each state has its own circle in the title, and a summary and the group's entry have none`() {
+        raise(disk, ServiceState.WARNING)
+        raise(ObjectRef("web01", "Odd"), ServiceState.UNKNOWN)
+
+        assertEquals("\uD83D\uDFE1 WARNING: Disk / on web01", problem(disk).title())
+        assertEquals("\uD83D\uDFE0 UNKNOWN: Odd on web01", problem(ObjectRef("web01", "Odd")).title())
+
+        deliver(home, post = listOf(Notice.Summary(count = 6, first = true)))
+        assertEquals("6 problems on Home", shown(home, AndroidNotifier.ID_SUMMARY).title())
+        assertEquals("Home", shown(home, AndroidNotifier.ID_GROUP).title())
     }
 
     @Test
@@ -186,7 +199,7 @@ class AndroidNotifierTest {
         raise(disk, ServiceState.CRITICAL, change = Change.WORSE)
 
         val shown = problems().single()
-        assertEquals("Now CRITICAL: Disk / on web01", shown.notification.title())
+        assertEquals("\uD83D\uDD34 Now CRITICAL: Disk / on web01", shown.notification.title())
         assertEquals("problems_critical", shown.notification.channelId)
         assertFalse(shown.notification.isSilent())
     }
@@ -198,7 +211,7 @@ class AndroidNotifierTest {
         raise(disk, ServiceState.WARNING, change = Change.UPDATED)
 
         val shown = problems().single().notification
-        assertEquals("WARNING: Disk / on web01", shown.title())
+        assertEquals("\uD83D\uDFE1 WARNING: Disk / on web01", shown.title())
         assertTrue(shown.isSilent())
     }
 
@@ -211,11 +224,11 @@ class AndroidNotifierTest {
 
         assertEquals(2, problems().size)
         val service = problem(disk)
-        assertEquals("Recovered: Disk / on web01", service.title())
+        assertEquals("\uD83D\uDFE2 Recovered: Disk / on web01", service.title())
         assertEquals("recovered", service.channelId)
         assertTrue(service.isSilent())
         assertEquals(TimeUnit.HOURS.toMillis(1), service.timeoutAfter)
-        assertEquals("Back up: db01", problem(ObjectRef("db01")).title())
+        assertEquals("\uD83D\uDFE2 Back up: db01", problem(ObjectRef("db01")).title())
     }
 
     @Test
@@ -282,7 +295,7 @@ class AndroidNotifierTest {
         val sentences = OutageCause.entries.map { cause ->
             deliver(home, post = listOf(Notice.Outage(cause, StatusError.InvalidUrl, quiet = false)))
             val shown = shown(home, AndroidNotifier.ID_OUTAGE)
-            assertEquals("Can\u2019t check Home", shown.title())
+            assertEquals("\uD83D\uDCE1 Can\u2019t check Home", shown.title())
             assertEquals("unreachable", shown.channelId)
             assertFalse(shown.isSilent())
             checkNotNull(shown.text())

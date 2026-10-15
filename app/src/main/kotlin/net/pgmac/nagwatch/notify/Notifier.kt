@@ -284,7 +284,8 @@ class AndroidNotifier internal constructor(
 
     private fun raised(profile: Profile, notice: Notice.Raised, mayAct: Boolean): Notification {
         val what = context.getString(notice.problem.severity.word(), notice.ref.describe())
-        val title = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
+        val words = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
+        val title = "${notice.problem.severity.emoji()} $words"
         val channel = NotifyChannel.of(notice.problem.severity)
         val color = stateColors().of(notice.problem.severity)
         val text = notice.problem.check.firstOutputLine()
@@ -317,7 +318,7 @@ class AndroidNotifier internal constructor(
         return builder(profile, NotifyChannel.RECOVERED, NotificationTarget(profile.id, ref))
             .setSmallIcon(R.drawable.ic_check)
             .setColor(stateColors().ok.toArgb())
-            .setContentTitle(context.getString(title, ref.describe()))
+            .setContentTitle("$EMOJI_RECOVERED ${context.getString(title, ref.describe())}")
             .setSilent(true)
             // Good news goes stale: it clears itself, where a problem stays until dealt with.
             .setTimeoutAfter(RECOVERY_SHOWN_FOR_MS)
@@ -336,7 +337,7 @@ class AndroidNotifier internal constructor(
     private fun outage(profile: Profile, notice: Notice.Outage): Notification =
         builder(profile, NotifyChannel.OUTAGE, NotificationTarget(profile.id))
             .setSmallIcon(R.drawable.ic_tab_problems)
-            .setContentTitle(context.getString(R.string.notify_outage_title, profile.name))
+            .setContentTitle("$EMOJI_OUTAGE ${context.getString(R.string.notify_outage_title, profile.name)}")
             .text(context.getString(notice.cause.sentence()))
             .setSilent(notice.quiet)
             .build()
@@ -416,6 +417,17 @@ class AndroidNotifier internal constructor(
         Severity.UNKNOWN -> unknown
     }.toArgb()
 
+    /**
+     * A second signal in the title, for a shade that will not show the tint (pgmac-net/nagios-android#81).
+     * Code and not strings: the same in every language, and a translation must not be able to drop it.
+     * A summary and the group's entry have none, as they have no tint: no state is true of them.
+     */
+    private fun Severity.emoji(): String = when (this) {
+        Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> EMOJI_CRITICAL
+        Severity.WARNING -> EMOJI_WARNING
+        Severity.UNKNOWN -> EMOJI_UNKNOWN
+    }
+
     private fun ObjectRef.describe(): String =
         description?.let { context.getString(R.string.notify_service_on_host, it, hostName) } ?: hostName
 
@@ -445,6 +457,13 @@ class AndroidNotifier internal constructor(
         const val ID_OUTAGE = 2
         const val ID_SUMMARY = 3
         const val ID_GROUP = 4
+
+        // Circles in the colours of StateColors: red, amber, orange, green.
+        const val EMOJI_CRITICAL = "\uD83D\uDD34"
+        const val EMOJI_WARNING = "\uD83D\uDFE1"
+        const val EMOJI_UNKNOWN = "\uD83D\uDFE0"
+        const val EMOJI_RECOVERED = "\uD83D\uDFE2"
+        const val EMOJI_OUTAGE = "\uD83D\uDCE1"
 
         val RECOVERY_SHOWN_FOR_MS: Long = TimeUnit.HOURS.toMillis(1)
 
