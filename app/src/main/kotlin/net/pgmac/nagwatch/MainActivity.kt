@@ -14,6 +14,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import net.pgmac.nagwatch.debug.DebugChrome
 import net.pgmac.nagwatch.notify.NotificationTarget
 import net.pgmac.nagwatch.notify.TapTargets
 import net.pgmac.nagwatch.profile.SelectedProfile
@@ -34,12 +35,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        DebugChrome.applyToWindow(this)
         // Only on a fresh start: after a rotation the same intent is still there, already acted on.
         if (savedInstanceState == null) open(intent)
         setContent {
             val opening by target.collectAsStateWithLifecycle()
             NagwatchTheme {
-                NagwatchNavHost(target = opening, onTargetOpened = { target.value = null })
+                DebugChrome.Frame {
+                    NagwatchNavHost(target = opening, onTargetOpened = { target.value = null })
+                }
             }
         }
     }

@@ -85,6 +85,20 @@ android {
     }
 }
 
+androidComponents {
+    // The release build's unit tests are off by default. The tests that pin what a release build
+    // does not do (src/testRelease: no debug indicator) need them on; see testReleaseUnitTest below.
+    beforeVariants(selector().withBuildType("release")) { builder ->
+        builder.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+    }
+}
+
+// The app's tests are written against the debug build (the Compose test activity is a debug-only
+// library), so the release unit test task runs only the tests that are about the release build.
+tasks.withType<Test>().matching { it.name == "testReleaseUnitTest" }.configureEach {
+    filter.includeTestsMatching("net.pgmac.nagwatch.debug.DebugChromeTest")
+}
+
 kotlin {
     jvmToolchain(21)
     compilerOptions {

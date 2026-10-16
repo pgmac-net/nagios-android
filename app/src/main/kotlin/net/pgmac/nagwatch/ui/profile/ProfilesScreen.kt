@@ -16,7 +16,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,6 +38,7 @@ import net.pgmac.nagwatch.AppInfo
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 
 object ProfilesTags {
     const val EMPTY = "profiles_empty"
@@ -75,7 +75,7 @@ fun ProfilesScreen(onAdd: () -> Unit, onEdit: (Long) -> Unit, viewModel: Profile
 fun ProfilesContent(state: ProfilesState, onAdd: () -> Unit, onEdit: (Long) -> Unit, modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.profiles_title)) }) },
+        topBar = { NagwatchTopAppBar(title = { Text(stringResource(R.string.profiles_title)) }) },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = onAdd, modifier = Modifier.testTag(ProfilesTags.ADD)) {
                 Text(stringResource(R.string.profiles_add))

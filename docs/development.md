@@ -17,7 +17,9 @@
 | Refresh the lockfile | `./gradlew :app:resolveAndLockAll --write-locks` |
 | The SBOM a release would carry | `./gradlew :app:cyclonedxDirectBom` (output in `app/build/reports/sbom/`) |
 
-The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", with an amber icon carrying a "D" (the release icon is green), so it sits beside a release build and the two can be told apart. The icon is two resources under `app/src/debug/res` that override the release ones. Release builds are minified with R8 and **unsigned**, here and in CI. Only the release workflow signs one; see [Releasing](#releasing).
+The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", with an amber icon carrying a "D" (the release icon is green), so it sits beside a release build and the two can be told apart. The icon is two resources under `app/src/debug/res` that override the release ones.
+
+Inside the app a debug build also draws in the same amber (`#FF8F00`, the icon's `ic_launcher_background`): a 3 dp frame round the window, the status bar, and every top bar (black text and icons, light and dark theme alike). It all lives in `DebugChrome` (`app/src/debug`); `app/src/release` has a copy of that object which changes nothing, so the signed app carries none of it. Screens use `NagwatchTopAppBar` instead of the Material top bar so there is one place for this. `src/testRelease` pins the release side (no frame, Material's own top-bar colours); the release unit test task is switched on in `app/build.gradle.kts` for that test alone, and CI runs it. Keep the two `DebugChrome` objects the same shape. Release builds are minified with R8 and **unsigned**, here and in CI. Only the release workflow signs one; see [Releasing](#releasing).
 
 ## What `check` enforces
 

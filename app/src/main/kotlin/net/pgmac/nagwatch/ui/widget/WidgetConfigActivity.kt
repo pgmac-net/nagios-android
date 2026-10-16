@@ -17,6 +17,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.MainActivity
+import net.pgmac.nagwatch.debug.DebugChrome
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.widget.StatusWidgetReceiver
 import net.pgmac.nagwatch.widget.WidgetBindings
@@ -43,6 +44,7 @@ class WidgetConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        DebugChrome.applyToWindow(this)
         val appWidgetId = ownWidgetId(intent)
         // Until a profile is chosen the answer is "cancelled": Android then removes a widget that was being placed.
         setResult(RESULT_CANCELED, result(appWidgetId))
@@ -57,13 +59,17 @@ class WidgetConfigActivity : ComponentActivity() {
             setContent {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 NagwatchTheme {
-                    WidgetConfigContent(
-                        state = state,
-                        current = current,
-                        onSave = { profile, opacity -> save(appWidgetId, profile, opacity) },
-                        onAddProfile = { startActivity(Intent(this@WidgetConfigActivity, MainActivity::class.java)) },
-                        onCancel = ::finish,
-                    )
+                    DebugChrome.Frame {
+                        WidgetConfigContent(
+                            state = state,
+                            current = current,
+                            onSave = { profile, opacity -> save(appWidgetId, profile, opacity) },
+                            onAddProfile = {
+                                startActivity(Intent(this@WidgetConfigActivity, MainActivity::class.java))
+                            },
+                            onCancel = ::finish,
+                        )
+                    }
                 }
             }
         }

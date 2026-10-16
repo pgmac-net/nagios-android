@@ -22,7 +22,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -41,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.pgmac.nagwatch.BuildConfig
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 
 object AboutTags {
     const val VERSION = "about_version"
@@ -114,7 +114,7 @@ fun AboutContent(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.about_title)) }) },
+        topBar = { NagwatchTopAppBar(title = { Text(stringResource(R.string.about_title)) }) },
     ) { innerPadding ->
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(innerPadding)

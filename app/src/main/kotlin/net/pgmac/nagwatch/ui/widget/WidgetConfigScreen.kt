@@ -24,7 +24,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -53,6 +52,7 @@ import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.widget.OPAQUE
 import net.pgmac.nagwatch.widget.WidgetBackground
@@ -113,7 +113,7 @@ fun WidgetConfigContent(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
+            NagwatchTopAppBar(
                 title = { Text(stringResource(R.string.widget_config_title)) },
                 navigationIcon = { TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) } },
             )

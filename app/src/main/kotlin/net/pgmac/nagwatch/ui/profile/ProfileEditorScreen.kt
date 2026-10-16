@@ -26,7 +26,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +47,7 @@ import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.ProfileProblem
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
@@ -138,7 +138,7 @@ fun ProfileEditorContent(state: ProfileEditorState, actions: ProfileEditorAction
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
+            NagwatchTopAppBar(
                 title = { Text(stringResource(if (state.isNew) R.string.profile_new else R.string.profile_edit)) },
                 navigationIcon = {
                     TextButton(onClick = actions::close) { Text(stringResource(R.string.action_cancel)) }
