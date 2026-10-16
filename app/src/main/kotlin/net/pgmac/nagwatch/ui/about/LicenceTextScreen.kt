@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.ui.about
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.pgmac.nagwatch.R
@@ -58,11 +60,14 @@ fun LicenceTextContent(spdxId: String, text: String?, modifier: Modifier = Modif
                 text.isEmpty() -> Text(stringResource(R.string.licences_text_unavailable))
 
                 else -> SelectionContainer {
+                    // Licence texts are laid out in columns and hard-wrapped; wrapping them again
+                    // makes a mess, so they keep their lines and scroll sideways instead.
                     Text(
                         text = text,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 14.sp),
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.testTag(LicenceTextTags.TEXT),
+                        softWrap = false,
+                        modifier = Modifier.horizontalScroll(rememberScrollState()).testTag(LicenceTextTags.TEXT),
                     )
                 }
             }
