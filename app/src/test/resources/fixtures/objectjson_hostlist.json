@@ -1,0 +1,84 @@
+{
+  "format_version": 0,
+  "result": {
+    "query_time": 1791540236000,
+    "cgi": "objectjson.cgi",
+    "user": "nagwatch",
+    "query": "hostlist",
+    "query_status": "released",
+    "program_start": 1791538672000,
+    "last_data_update": 1791540232000,
+    "type_code": 0,
+    "type_text": "Success",
+    "message": ""
+  },
+  "data": {
+    "selectors": {},
+    "hostlist": {
+      "host01": {
+        "name": "host01",
+        "display_name": "host01",
+        "alias": "host01",
+        "parent_hosts": [],
+        "child_hosts": [
+          "host02",
+          "host03"
+        ],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      },
+      "host02": {
+        "name": "host02",
+        "display_name": "host02",
+        "alias": "host02",
+        "parent_hosts": [
+          "host01"
+        ],
+        "child_hosts": [
+          "host04"
+        ],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      },
+      "host03": {
+        "name": "host03",
+        "display_name": "host03",
+        "alias": "host03",
+        "parent_hosts": [
+          "host01"
+        ],
+        "child_hosts": [
+          "host04"
+        ],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      },
+      "host04": {
+        "name": "host04",
+        "display_name": "host04",
+        "alias": "host04",
+        "parent_hosts": [
+          "host02",
+          "host03"
+        ],
+        "child_hosts": [],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      },
+      "host05": {
+        "name": "host05",
+        "display_name": "host05",
+        "alias": "host05",
+        "parent_hosts": [],
+        "child_hosts": [],
+        "notes": "",
+        "notes_url": "",
+        "action_url": ""
+      }
+    }
+  }
+}

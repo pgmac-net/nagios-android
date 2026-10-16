@@ -139,4 +139,18 @@ class LiveSmokeTest {
         assertTrue("$strayHosts host group members are not hosts the status lists", strayHosts == 0)
         assertTrue("$strayServices service group members are not services the status lists", strayServices == 0)
     }
+
+    /** Every host's parents, for the Parents view. Counts only. */
+    @Test
+    fun `reads every host's parents, and every parent is a host the status lists`() {
+        val client = NagiosClientFactory(http, TEST_JSON, Dispatchers.IO, Clock.systemUTC()).create(settings)
+        val hosts = runBlocking { client.fetchStatus() }.valueOrFail().hosts.mapTo(HashSet()) { it.name }
+        val configs = runBlocking { client.fetchHostConfigs() }.valueOrFail()
+
+        val links = configs.sumOf { it.parents.size }
+        val stray = configs.flatMap { it.parents }.count { it !in hosts }
+        println("live: ${configs.size} hosts configured, ${configs.count { it.parents.isEmpty() }} roots, $links links")
+        assertTrue("$stray parents are not hosts the status lists", stray == 0)
+        assertTrue("configured hosts are the listed hosts", configs.map { it.name }.toSet() == hosts)
+    }
 }

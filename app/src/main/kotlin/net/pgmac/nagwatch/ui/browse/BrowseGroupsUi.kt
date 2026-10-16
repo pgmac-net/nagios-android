@@ -6,8 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -21,14 +23,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
 import net.pgmac.nagwatch.status.ConfigPart
@@ -40,6 +45,7 @@ import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 enum class BrowseMode(val label: Int) {
     ALL(R.string.browse_mode_all),
     GROUPS(R.string.browse_mode_groups),
+    PARENTS(R.string.browse_mode_parents),
 }
 
 /**
@@ -51,6 +57,8 @@ class BrowseInventory(
     val serviceGroups: ConfigPart<List<ServiceGroup>>,
     val loadHostGroups: (force: Boolean) -> Unit,
     val loadServiceGroups: (force: Boolean) -> Unit,
+    val hostConfigs: ConfigPart<List<HostConfig>> = ConfigPart(),
+    val loadHostConfigs: (force: Boolean) -> Unit = {},
 )
 
 /** The state chips that are on, kept apart for All and for the grouped views. */
@@ -65,10 +73,60 @@ internal class ViewStates<S>(private val all: MutableState<Set<S>>, private val 
     private fun holder(mode: BrowseMode) = if (mode == BrowseMode.ALL) all else grouped
 }
 
-/** One tab's groups, already turned into what rows are matched against. */
-internal class GroupsSource(val part: ConfigPart<List<RowGroup>>, val load: (force: Boolean) -> Unit) {
+/**
+ * A view other than All: the configuration it needs, how to ask for it, and how it draws the
+ * shown rows once it has it.
+ */
+internal sealed class ViewSource(val mode: BrowseMode, val load: (force: Boolean) -> Unit) {
+    abstract val part: ConfigPart<*>
+
     /** Never read, not being read, and not failed: a failure waits for the button. */
     fun wanted(): Boolean = part.value == null && !part.loading && part.error == null
+
+    /**
+     * Puts the view in the list. False when it has nothing to put there because no row is
+     * shown, so the list says why it is empty exactly as All does.
+     */
+    fun <S : Enum<S>> draw(scope: LazyListScope, rows: ViewRows<S>, openness: GroupOpenness): Boolean {
+        val known = part.value
+        when {
+            known == null -> scope.item { ViewPending(this@ViewSource, onRetry = { load(true) }) }
+            rows.shown.isEmpty() -> return false
+            else -> drawKnown(scope, rows, openness)
+        }
+        return true
+    }
+
+    protected abstract fun <S : Enum<S>> drawKnown(scope: LazyListScope, rows: ViewRows<S>, openness: GroupOpenness)
+}
+
+/** What a view draws from: the rows picked, every row, how to draw each, and their style. */
+internal class ViewRows<S : Enum<S>>(
+    val shown: List<BrowseRow<S>>,
+    val all: List<BrowseRow<S>>,
+    val style: BrowseStyle<S>,
+    val row: @Composable (BrowseRow<S>) -> Unit,
+)
+
+/** One tab's groups, already turned into what rows are matched against. */
+internal class GroupsSource(override val part: ConfigPart<List<RowGroup>>, load: (force: Boolean) -> Unit) :
+    ViewSource(BrowseMode.GROUPS, load) {
+    override fun <S : Enum<S>> drawKnown(scope: LazyListScope, rows: ViewRows<S>, openness: GroupOpenness) {
+        val known = part.value.orEmpty()
+        scope.groupedRows(BrowseGroups.sections(rows.shown, known), known.isEmpty(), openness, rows.style, rows.row)
+    }
+}
+
+/** Every host's parents, for the Parents view of the Hosts tab. */
+internal class ParentsSource(override val part: ConfigPart<List<HostConfig>>, load: (force: Boolean) -> Unit) :
+    ViewSource(BrowseMode.PARENTS, load) {
+    override fun <S : Enum<S>> drawKnown(scope: LazyListScope, rows: ViewRows<S>, openness: GroupOpenness) {
+        val lines = HostTree.lines(rows.shown, rows.all, part.value.orEmpty(), openness::isOpen)
+        scope.items(lines, key = { "tree\u0001${it.key}" }) { line ->
+            TreeLineItem(line, onToggle = { openness.toggle(line.key) }, row = rows.row)
+            HorizontalDivider()
+        }
+    }
 }
 
 /**
@@ -76,29 +134,11 @@ internal class GroupsSource(val part: ConfigPart<List<RowGroup>>, val load: (for
  * group in [toggled], the ones the person tapped.
  */
 internal class GroupOpenness(private val toggled: Set<String>, private val onToggled: (Set<String>) -> Unit) {
-    fun isOpen(section: RowSection<*>): Boolean = section.needsSomeone != (section.key in toggled)
+    fun isOpen(section: RowSection<*>): Boolean = isOpen(section.key, section.needsSomeone)
+
+    fun isOpen(key: String, startsOpen: Boolean): Boolean = startsOpen != (key in toggled)
 
     fun toggle(key: String) = onToggled(if (key in toggled) toggled - key else toggled + key)
-}
-
-/**
- * What the grouped view puts in the list. False when it has nothing to put there because no
- * row is shown, so the list says why it is empty exactly as the plain view does.
- */
-internal fun <S : Enum<S>> LazyListScope.groupsBody(
-    source: GroupsSource,
-    shown: List<BrowseRow<S>>,
-    openness: GroupOpenness,
-    style: BrowseStyle<S>,
-    row: @Composable (BrowseRow<S>) -> Unit,
-): Boolean {
-    val known = source.part.value
-    when {
-        known == null -> item { GroupsPending(source.part, onRetry = { source.load(true) }) }
-        shown.isEmpty() -> return false
-        else -> groupedRows(BrowseGroups.sections(shown, known), known.isEmpty(), openness, style, row)
-    }
-    return true
 }
 
 /**
@@ -131,8 +171,7 @@ internal fun <T> ConfigPart<T>.mapValue(transform: (T) -> List<RowGroup>): Confi
     ConfigPart(value?.let(transform), loading, error)
 
 @Composable
-internal fun ModeSwitch(selected: BrowseMode, onSelect: (BrowseMode) -> Unit) {
-    val modes = BrowseMode.entries
+internal fun ModeSwitch(modes: List<BrowseMode>, selected: BrowseMode, onSelect: (BrowseMode) -> Unit) {
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().testTag(BrowseTags.MODES)) {
         modes.forEachIndexed { index, mode ->
             SegmentedButton(
@@ -145,19 +184,26 @@ internal fun ModeSwitch(selected: BrowseMode, onSelect: (BrowseMode) -> Unit) {
     }
 }
 
-/** The groups are not known yet: being read, or the read failed and can be tried again. */
+/** What a view needs is not known yet: being read, or the read failed and can be tried again. */
 @Composable
-internal fun GroupsPending(part: ConfigPart<List<RowGroup>>, onRetry: () -> Unit) {
-    val error = part.error
+internal fun ViewPending(source: ViewSource, onRetry: () -> Unit) {
+    val error = source.part.error
+    val parents = source.mode == BrowseMode.PARENTS
     Column(
         modifier = Modifier.padding(24.dp).testTag(BrowseTags.GROUPS_PENDING),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (error == null) {
-            Text(stringResource(R.string.browse_groups_loading), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(if (parents) R.string.browse_parents_loading else R.string.browse_groups_loading),
+                style = MaterialTheme.typography.bodyLarge,
+            )
         } else {
             Text(
-                stringResource(R.string.browse_groups_failed, error.message()),
+                stringResource(
+                    if (parents) R.string.browse_parents_failed else R.string.browse_groups_failed,
+                    error.message(),
+                ),
                 style = MaterialTheme.typography.bodyLarge,
             )
             TextButton(onClick = onRetry, modifier = Modifier.testTag(BrowseTags.GROUPS_RETRY)) {
@@ -209,3 +255,53 @@ internal fun <S : Enum<S>> GroupHeader(
         section.worst?.let { StateBadge(style.label(it), style.color(it, NagwatchTheme.stateColors)) }
     }
 }
+
+/**
+ * A host in the Parents view: indented by its depth, with a button that opens or closes what is
+ * below it, and its other parents named underneath so the tree never hides one.
+ */
+@Composable
+internal fun <S : Enum<S>> TreeLineItem(
+    line: TreeLine<S>,
+    onToggle: () -> Unit,
+    row: @Composable (BrowseRow<S>) -> Unit,
+) {
+    val name = line.row.hostName
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag(BrowseTags.tree(line.key)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(Modifier.width(TREE_INDENT * line.depth))
+        if (line.hasChildren) {
+            val action = stringResource(
+                if (line.open) R.string.browse_tree_close else R.string.browse_tree_open,
+                name,
+            )
+            TextButton(
+                onClick = onToggle,
+                modifier = Modifier
+                    .semantics { contentDescription = action }
+                    .testTag(BrowseTags.treeToggle(line.key)),
+            ) { Text(if (line.open) "\u25BE" else "\u25B8", style = MaterialTheme.typography.titleMedium) }
+        } else {
+            Spacer(Modifier.width(TREE_TOGGLE_WIDTH))
+        }
+        Column(modifier = Modifier.weight(1f).alpha(if (line.context) CONTEXT_ALPHA else 1f)) {
+            row(line.row)
+            if (line.alsoUnder.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.browse_tree_also_under, line.alsoUnder.joinToString(", ")),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+private val TREE_INDENT = 16.dp
+private val TREE_TOGGLE_WIDTH = 48.dp
+
+/** A host drawn only as the way down to one that was picked. */
+private const val CONTEXT_ALPHA = 0.6f

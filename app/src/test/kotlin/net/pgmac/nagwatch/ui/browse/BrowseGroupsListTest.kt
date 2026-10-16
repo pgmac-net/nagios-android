@@ -17,6 +17,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.model.CheckStatus
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
@@ -42,6 +43,8 @@ class BrowseGroupsListTest {
     private val opened = mutableListOf<String>()
     private val loads = mutableListOf<Boolean>()
     private var groups by mutableStateOf(ConfigPart<List<HostGroup>>())
+    private var parents by mutableStateOf(ConfigPart<List<HostConfig>>())
+    private val parentLoads = mutableListOf<Boolean>()
 
     private val hosts = listOf(
         HostStatus("web01", HostState.DOWN, CheckStatus(pluginOutput = "no route")),
@@ -131,6 +134,30 @@ class BrowseGroupsListTest {
         composeRule.onNodeWithTag(BrowseTags.chip(HostState.DOWN)).assertIsSelected()
     }
 
+    @Test
+    fun `Parents shows the tree, reads it once, and a branch opens to the hosts under it`() {
+        parents = ConfigPart(listOf(HostConfig("web02", listOf("db01")), HostConfig("web01", listOf("db01"))))
+        show()
+        composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.PARENTS)).performClick()
+
+        composeRule.onNodeWithTag(BrowseTags.tree("/db01")).assertExists()
+        composeRule.onNodeWithTag(BrowseTags.treeToggle("/db01")).assertExists()
+        // web01 is down and unhandled, so its branch starts open.
+        composeRule.onNodeWithTag(BrowseTags.tree("/db01/web01")).assertExists()
+        composeRule.onNodeWithTag(BrowseTags.treeToggle("/db01")).performClick()
+        composeRule.onNodeWithTag(BrowseTags.tree("/db01/web01")).assertDoesNotExist()
+        assertEquals("already known, not read again", emptyList<Boolean>(), parentLoads)
+    }
+
+    @Test
+    fun `a failed read of the parents says it was the parents`() {
+        parents = ConfigPart(error = StatusError.Nagios(NagiosError.Forbidden))
+        show()
+        composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.PARENTS)).performClick()
+
+        composeRule.onNodeWithText("Couldn\u2019t read the hosts\u2019 parents.", substring = true).assertExists()
+    }
+
     private fun show(initialStates: Set<HostState> = emptySet()) {
         val snapshot = StatusSnapshot(hosts, emptyList(), T0)
         val report = ProblemClassifier.classify(snapshot)
@@ -144,6 +171,7 @@ class BrowseGroupsListTest {
                     onOpen = { opened += it.title },
                     initialStates = initialStates,
                     groups = GroupsSource(groups.mapValue(BrowseGroups::hostGroups)) { loads += it },
+                    parents = ParentsSource(parents) { parentLoads += it },
                 )
             }
         }

@@ -5,6 +5,7 @@ package net.pgmac.nagwatch.nagios.http
 import kotlinx.serialization.json.JsonObject
 import net.pgmac.nagwatch.nagios.Fixtures
 import net.pgmac.nagwatch.nagios.TEST_JSON
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -55,6 +56,21 @@ class ObjectParserTest {
         assertTrue(ObjectParser.hostGroups(parse("""{"data": {}}""")).isEmpty())
         assertTrue(ObjectParser.hostGroups(parse("""{"data": {"hostgrouplist": {"g": "up"}}}""")).isEmpty())
         assertTrue(ObjectParser.serviceGroups(parse("""{"data": {"servicegrouplist": []}}""")).isEmpty())
+    }
+
+    @Test
+    fun `hosts have their parents, a host is never its own, and odd entries are skipped`() {
+        val hosts = ObjectParser.hostConfigs(Fixtures.json("objectjson_hostlist.json")).associateBy { it.name }
+
+        assertEquals(listOf("host02", "host03"), hosts.getValue("host04").parents)
+        assertTrue(hosts.getValue("host01").parents.isEmpty())
+
+        val odd =
+            parse(
+                """{"data": {"hostlist": {"host01": {"name": "host01", "parent_hosts": ["host01", 3, "host02"]},
+            "host02": "up"}}}""",
+            )
+        assertEquals(listOf(HostConfig("host01", listOf("host02"))), ObjectParser.hostConfigs(odd))
     }
 
     private fun parse(text: String) = TEST_JSON.parseToJsonElement(text) as JsonObject

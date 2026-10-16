@@ -21,6 +21,7 @@ import net.pgmac.nagwatch.nagios.http.ResilientListFetcher
 import net.pgmac.nagwatch.nagios.http.StatusParser
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostStatus
 import net.pgmac.nagwatch.nagios.model.ObjectRef
@@ -61,6 +62,9 @@ interface NagiosClient {
 
     /** Every service group, with its members. */
     suspend fun fetchServiceGroups(): NagiosResult<List<ServiceGroup>>
+
+    /** Every host's configuration as far as the app reads it: its parents. */
+    suspend fun fetchHostConfigs(): NagiosResult<List<HostConfig>>
 
     data class Connection(val cgiBase: HttpUrl, val server: ServerInfo)
 
@@ -184,6 +188,10 @@ internal class OkHttpNagiosClient(
 
     override suspend fun fetchServiceGroups(): NagiosResult<List<ServiceGroup>> = withBase { base ->
         api.query(base, OBJECT_CGI, configParams("servicegrouplist")).map(ObjectParser::serviceGroups)
+    }
+
+    override suspend fun fetchHostConfigs(): NagiosResult<List<HostConfig>> = withBase { base ->
+        api.query(base, OBJECT_CGI, configParams("hostlist")).map(ObjectParser::hostConfigs)
     }
 
     /** A list from `objectjson.cgi`, each entry in full rather than by name only. */

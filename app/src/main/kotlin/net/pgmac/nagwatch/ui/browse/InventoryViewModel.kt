@@ -24,6 +24,10 @@ class InventoryViewModel @Inject constructor(private val repository: InventoryRe
         viewModelScope.launch { repository.loadServiceGroups(profileId, force) }
     }
 
+    fun loadHostConfigs(profileId: Long, force: Boolean) {
+        viewModelScope.launch { repository.loadHostConfigs(profileId, force) }
+    }
+
     /** A pull to refresh reads again whatever the grouped views have read. */
     fun refresh(profileId: Long) {
         viewModelScope.launch { repository.refreshLoaded(profileId) }

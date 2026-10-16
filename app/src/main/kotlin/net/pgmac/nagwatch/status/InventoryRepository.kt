@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosResult
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
 import net.pgmac.nagwatch.profile.ProfileRepository
@@ -27,6 +28,7 @@ data class ConfigPart<T>(
 data class Inventory(
     val hostGroups: ConfigPart<List<HostGroup>> = ConfigPart(),
     val serviceGroups: ConfigPart<List<ServiceGroup>> = ConfigPart(),
+    val hostConfigs: ConfigPart<List<HostConfig>> = ConfigPart(),
 )
 
 /**
@@ -57,13 +59,18 @@ class InventoryRepository @Inject constructor(
             it.fetchServiceGroups()
         }
 
+    /** Every host's parents, for the Parents view. */
+    suspend fun loadHostConfigs(profileId: Long, force: Boolean = false) =
+        load(profileId, force, { it.hostConfigs }, { inv, part -> inv.copy(hostConfigs = part) }) {
+            it.fetchHostConfigs()
+        }
+
     /** A pull to refresh: whatever this profile has read before is read again; nothing new is. */
     suspend fun refreshLoaded(profileId: Long) {
         val known = state.value[profileId] ?: return
-        if (known.hostGroups.value != null || known.hostGroups.error != null) loadHostGroups(profileId, force = true)
-        if (known.serviceGroups.value != null || known.serviceGroups.error != null) {
-            loadServiceGroups(profileId, force = true)
-        }
+        if (known.hostGroups.wasRead()) loadHostGroups(profileId, force = true)
+        if (known.serviceGroups.wasRead()) loadServiceGroups(profileId, force = true)
+        if (known.hostConfigs.wasRead()) loadHostConfigs(profileId, force = true)
     }
 
     private suspend fun <T> load(
@@ -92,6 +99,8 @@ class InventoryRepository @Inject constructor(
         }
         set(profileId, with, outcome.copy(loading = false))
     }
+
+    private fun ConfigPart<*>.wasRead(): Boolean = value != null || error != null
 
     private fun <T> set(profileId: Long, with: (Inventory, ConfigPart<T>) -> Inventory, part: ConfigPart<T>) =
         state.update { all -> all + (profileId to with(all[profileId] ?: Inventory(), part)) }

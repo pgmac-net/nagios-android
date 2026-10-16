@@ -124,6 +124,7 @@ object FuzzEntryPoints {
         // Configuration, from objectjson.cgi: the same server, the same trust.
         ObjectParser.hostGroups(body)
         ObjectParser.serviceGroups(body)
+        ObjectParser.hostConfigs(body)
         // The next stage after parsing, which reads every field the parser produced.
         ProblemClassifier.classify(
             StatusSnapshot(
