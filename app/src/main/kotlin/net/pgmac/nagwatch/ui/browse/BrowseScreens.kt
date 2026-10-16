@@ -238,11 +238,15 @@ internal fun <S : Enum<S>> BrowseList(
     // Kept here rather than in the view model: what is typed must reach the text field in the
     // same frame, and the tab's saved state already outlives switching to another tab.
     var query by rememberSaveable { mutableStateOf("") }
-    var states by rememberSaveable { mutableStateOf(initialStates) }
+    // All opens on what is wrong; a grouped view is for looking around, so it opens on every
+    // state. Each keeps its own chips, so going back to All finds them as they were.
+    val chips =
+        ViewStates(rememberSaveable { mutableStateOf(initialStates) }, rememberSaveable { mutableStateOf(emptySet()) })
     var showHandled by rememberSaveable { mutableStateOf(BrowseFilter<S>().showHandled) }
-    val view = remember(rows, query, states, showHandled) { BrowseFilter(query, states, showHandled).apply(rows) }
     var chosenMode by rememberSaveable { mutableStateOf(BrowseMode.ALL) }
     val mode = if (groups == null) BrowseMode.ALL else chosenMode
+    val states = chips.of(mode)
+    val view = remember(rows, query, states, showHandled) { BrowseFilter(query, states, showHandled).apply(rows) }
     // Which groups the person opened or closed, against where each starts (open if it needs someone).
     var toggled by rememberSaveable { mutableStateOf(emptySet<String>()) }
     val part = groups?.part
@@ -265,7 +269,7 @@ internal fun <S : Enum<S>> BrowseList(
                         view = view,
                         selected = states,
                         showHandled = showHandled,
-                        onToggleState = { states = if (it in states) states - it else states + it },
+                        onToggleState = { chips.toggle(mode, it) },
                         onToggleHandled = { showHandled = !showHandled },
                     )
                     status.lastSuccess?.let { UpdatedLabel(it) }

@@ -115,7 +115,23 @@ class BrowseGroupsListTest {
         composeRule.onNodeWithText("Not in a group").assertExists()
     }
 
-    private fun show() {
+    @Test
+    fun `Groups opens on every state, and All keeps the chips it had`() {
+        groups = ConfigPart(known)
+        show(initialStates = HostStyle.defaultStates)
+        composeRule.onNodeWithTag(BrowseTags.row("web02")).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.GROUPS)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.group("db")).performClick()
+        composeRule.onNodeWithTag(BrowseTags.LIST).performScrollToNode(hasTestTag(BrowseTags.row("db01")))
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertExists()
+
+        composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.ALL)).performClick()
+        composeRule.onNodeWithTag(BrowseTags.row("db01")).assertDoesNotExist()
+        composeRule.onNodeWithTag(BrowseTags.chip(HostState.DOWN)).assertIsSelected()
+    }
+
+    private fun show(initialStates: Set<HostState> = emptySet()) {
         val snapshot = StatusSnapshot(hosts, emptyList(), T0)
         val report = ProblemClassifier.classify(snapshot)
         composeRule.setContent {
@@ -126,7 +142,7 @@ class BrowseGroupsListTest {
                     status = ProfileStatus(report = report, snapshot = snapshot, lastSuccess = T0),
                     now = T0,
                     onOpen = { opened += it.title },
-                    initialStates = emptySet(),
+                    initialStates = initialStates,
                     groups = GroupsSource(groups.mapValue(BrowseGroups::hostGroups)) { loads += it },
                 )
             }

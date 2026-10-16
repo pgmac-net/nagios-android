@@ -18,6 +18,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -51,6 +52,18 @@ class BrowseInventory(
     val loadHostGroups: (force: Boolean) -> Unit,
     val loadServiceGroups: (force: Boolean) -> Unit,
 )
+
+/** The state chips that are on, kept apart for All and for the grouped views. */
+internal class ViewStates<S>(private val all: MutableState<Set<S>>, private val grouped: MutableState<Set<S>>) {
+    fun of(mode: BrowseMode): Set<S> = holder(mode).value
+
+    fun toggle(mode: BrowseMode, state: S) {
+        val held = holder(mode)
+        held.value = if (state in held.value) held.value - state else held.value + state
+    }
+
+    private fun holder(mode: BrowseMode) = if (mode == BrowseMode.ALL) all else grouped
+}
 
 /** One tab's groups, already turned into what rows are matched against. */
 internal class GroupsSource(val part: ConfigPart<List<RowGroup>>, val load: (force: Boolean) -> Unit) {
