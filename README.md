@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/pgmac-net/nagios-android/branch/main/graph/badge.svg)](https://codecov.io/gh/pgmac-net/nagios-android)
 [![Dependency-Track vulnerabilities](https://sbom.pgmac.net.au/api/v1/badge/vulns/project/pgmac-net%2Fnagios-android/0.2.0)](https://github.com/pgmac-net/nagios-android/releases/latest)
 [![Release](https://img.shields.io/github/v/release/pgmac-net/nagios-android)](https://github.com/pgmac-net/nagios-android/releases/latest)
-[![License: GPL-3.0-or-later](https://img.shields.io/github/license/pgmac-net/nagios-android)](LICENSE)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
 A modern Android client for [Nagios Core](https://www.nagios.org/): see what is broken, acknowledge it, schedule downtime, look at the graphs, and keep a status widget on your home screen.
 
