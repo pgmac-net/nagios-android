@@ -32,16 +32,29 @@ data class TreeLine<S>(
  * - A branch starts open when something below it needs someone; [toggled] turns that over.
  */
 object HostTree {
+    /**
+     * The most lines drawn. A host is under every parent, so parents that cross and cross again
+     * multiply the lines (two parents a level, twenty levels deep, is a million). A real install
+     * is far below this; past it the tree is cut short and says so, rather than taking the app down.
+     */
+    const val MAX_LINES = 2_000
+
     fun <S> lines(
         shown: List<BrowseRow<S>>,
         all: List<BrowseRow<S>>,
         configs: List<HostConfig>,
         isOpen: (key: String, startsOpen: Boolean) -> Boolean,
-    ): List<TreeLine<S>> = Builder(shown, all, configs, isOpen).build()
+    ): TreeLines<S> = Builder(shown, all, configs, isOpen).build()
+
+    /**
+     * A line's key: the way down to it, each name with its length in front, so that no two ways
+     * down can be spelt the same whatever the names hold (a host called `a/b` is not `a` then `b`).
+     */
+    fun key(path: String, name: String): String = "$path${name.length}:$name"
 
     private class Builder<S>(
         shown: List<BrowseRow<S>>,
-        all: List<BrowseRow<S>>,
+        private val all: List<BrowseRow<S>>,
         configs: List<HostConfig>,
         private val isOpen: (String, Boolean) -> Boolean,
     ) {
@@ -55,22 +68,63 @@ object HostTree {
             .flatMap { (child, of) -> of.map { it to child } }
             .groupBy({ it.first }, { it.second })
             .mapValues { (_, list) -> list.distinct().sortedBy { order.getValue(it) } }
-        private val relevant = HashMap<String, Boolean>()
-        private val needsSomeone = HashMap<String, Boolean>()
-        private val lines = mutableListOf<TreeLine<S>>()
 
-        fun build(): List<TreeLine<S>> {
-            roots().forEach { visit(it, depth = 0, under = null, path = "", onPath = emptySet()) }
-            return lines
+        /** Picked, or above something picked: the way down to it. */
+        private val relevant = upFrom(picked)
+
+        /** An unhandled problem that was picked, or above one. */
+        private val needsSomeone =
+            upFrom(
+                picked.filterTo(HashSet()) {
+                    rows.getValue(it).let { r ->
+                        r.handling != null &&
+                            !r.isHandled
+                    }
+                },
+            )
+
+        fun build(): TreeLines<S> {
+            val lines = mutableListOf<TreeLine<S>>()
+            // Depth first, by hand: a server could make the chain of parents as long as the host
+            // list, and the call stack is not that deep.
+            val stack = ArrayDeque(roots().reversed().map { Visit(it, 0, null, "", emptySet()) })
+            while (stack.isNotEmpty()) {
+                if (lines.size == MAX_LINES) return TreeLines(lines, truncated = true)
+                val visit = stack.removeLast()
+                if (visit.name !in relevant) continue
+                val here = visit.onPath + visit.name
+                val below = children[visit.name].orEmpty().filter { it !in here && it in relevant }
+                val key = key(visit.path, visit.name)
+                val open = below.isNotEmpty() && isOpen(key, below.any { it in needsSomeone })
+                lines += TreeLine(
+                    row = rows.getValue(visit.name),
+                    depth = visit.depth,
+                    key = key,
+                    hasChildren = below.isNotEmpty(),
+                    open = open,
+                    alsoUnder = parents[visit.name].orEmpty().filter { it != visit.under },
+                    context = visit.name !in picked,
+                )
+                if (open) below.reversed().forEach { stack.addLast(Visit(it, visit.depth + 1, visit.name, key, here)) }
+            }
+            return TreeLines(lines, truncated = false)
         }
+
+        private class Visit(
+            val name: String,
+            val depth: Int,
+            val under: String?,
+            val path: String,
+            val onPath: Set<String>,
+        )
 
         /** Hosts with no parent, then any host no root leads to, each taking those it leads to. */
         private fun roots(): List<String> {
-            val names = all().sortedBy { order.getValue(it) }
+            val names = all.map { it.hostName }.distinct()
             val roots = names.filter { parents[it].isNullOrEmpty() }.toMutableList()
             val reached = HashSet<String>()
             roots.forEach { reach(it, reached) }
-            names.filterNot { it in reached }.forEach { name ->
+            names.forEach { name ->
                 if (name !in reached) {
                     roots += name
                     reach(name, reached)
@@ -78,8 +132,6 @@ object HostTree {
             }
             return roots
         }
-
-        private fun all(): Collection<String> = rows.keys
 
         private fun reach(from: String, reached: MutableSet<String>) {
             val stack = ArrayDeque(listOf(from))
@@ -89,35 +141,18 @@ object HostTree {
             }
         }
 
-        private fun visit(name: String, depth: Int, under: String?, path: String, onPath: Set<String>) {
-            if (!isRelevant(name, emptySet())) return
-            val here = onPath + name
-            val below = children[name].orEmpty().filter { it !in here && isRelevant(it, here) }
-            val key = "$path/$name"
-            val open = below.isNotEmpty() && isOpen(key, below.any { needs(it, here) })
-            lines += TreeLine(
-                row = rows.getValue(name),
-                depth = depth,
-                key = key,
-                hasChildren = below.isNotEmpty(),
-                open = open,
-                alsoUnder = parents[name].orEmpty().filter { it != under },
-                context = name !in picked,
-            )
-            if (open) below.forEach { visit(it, depth + 1, name, key, here) }
-        }
-
-        /** Picked, or something below it is. */
-        private fun isRelevant(name: String, onPath: Set<String>): Boolean = relevant.getOrPut(name) {
-            name in picked ||
-                children[name].orEmpty().any { it !in onPath && it != name && isRelevant(it, onPath + name) }
-        }
-
-        /** It, or something below it, is picked and has a problem nobody has handled. */
-        private fun needs(name: String, onPath: Set<String>): Boolean = needsSomeone.getOrPut(name) {
-            val row = rows.getValue(name)
-            (name in picked && row.handling != null && !row.isHandled) ||
-                children[name].orEmpty().any { it !in onPath && it != name && needs(it, onPath + name) }
+        /** [from] and every host above any of them. */
+        private fun upFrom(from: Set<String>): Set<String> {
+            val found = HashSet<String>()
+            val stack = ArrayDeque(from)
+            while (stack.isNotEmpty()) {
+                val name = stack.removeLast()
+                if (found.add(name)) parents[name].orEmpty().forEach(stack::addLast)
+            }
+            return found
         }
     }
 }
+
+/** The lines of the tree, and whether it was cut short at [HostTree.MAX_LINES]. */
+data class TreeLines<S>(val lines: List<TreeLine<S>>, val truncated: Boolean)

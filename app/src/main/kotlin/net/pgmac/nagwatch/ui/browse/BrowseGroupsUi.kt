@@ -4,11 +4,13 @@ package net.pgmac.nagwatch.ui.browse
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -25,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -121,11 +124,13 @@ internal class GroupsSource(override val part: ConfigPart<List<RowGroup>>, load:
 internal class ParentsSource(override val part: ConfigPart<List<HostConfig>>, load: (force: Boolean) -> Unit) :
     ViewSource(BrowseMode.PARENTS, load) {
     override fun <S : Enum<S>> drawKnown(scope: LazyListScope, rows: ViewRows<S>, openness: GroupOpenness) {
-        val lines = HostTree.lines(rows.shown, rows.all, part.value.orEmpty(), openness::isOpen)
-        scope.items(lines, key = { "tree\u0001${it.key}" }) { line ->
+        val tree = HostTree.lines(rows.shown, rows.all, part.value.orEmpty(), openness::isOpen)
+        // A line's key is unique by construction (see HostTree.key); "t" keeps it apart from the rest.
+        scope.items(tree.lines, key = { "t${it.key}" }) { line ->
             TreeLineItem(line, onToggle = { openness.toggle(line.key) }, row = rows.row)
             HorizontalDivider()
         }
+        if (tree.truncated) scope.item { TreeTruncated() }
     }
 }
 
@@ -154,12 +159,16 @@ internal fun <S : Enum<S>> LazyListScope.groupedRows(
     if (noGroupsDefined) item { NoGroupsDefined() }
     sections.forEach { section ->
         val open = openness.isOpen(section)
-        item(key = "group\u0001${section.key}") {
+        // List keys must never repeat, or Compose throws, and the names come from the server. So
+        // each part is written with its length in front, and nothing a name holds can make two
+        // keys alike; "h" and "r" keep headings and rows apart, "n" and "g" no group and a group.
+        val sectionId = section.group?.let { "g${it.name.length}:${it.name}" } ?: "n"
+        item(key = "h$sectionId") {
             GroupHeader(section, style, open) { openness.toggle(section.key) }
             HorizontalDivider()
         }
         if (open) {
-            items(section.rows, key = { "${section.key}\u0001${it.key}" }) {
+            items(section.rows, key = { "r$sectionId${it.key.length}:${it.key}" }) {
                 row(it)
                 HorizontalDivider()
             }
@@ -277,12 +286,15 @@ internal fun <S : Enum<S>> TreeLineItem(
                 if (line.open) R.string.browse_tree_close else R.string.browse_tree_open,
                 name,
             )
-            TextButton(
-                onClick = onToggle,
+            // As wide as the gap a host with nothing under it gets, so names line up at each depth.
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
+                    .size(TREE_TOGGLE_WIDTH)
+                    .clickable(role = Role.Button, onClick = onToggle)
                     .semantics { contentDescription = action }
                     .testTag(BrowseTags.treeToggle(line.key)),
-            ) { Text(if (line.open) "\u25BE" else "\u25B8", style = MaterialTheme.typography.titleMedium) }
+            ) { Text(if (line.open) "\u25BE" else "\u25B8", style = MaterialTheme.typography.titleLarge) }
         } else {
             Spacer(Modifier.width(TREE_TOGGLE_WIDTH))
         }
@@ -298,6 +310,16 @@ internal fun <S : Enum<S>> TreeLineItem(
             }
         }
     }
+}
+
+@Composable
+private fun TreeTruncated() {
+    Text(
+        text = pluralStringResource(R.plurals.browse_tree_truncated, HostTree.MAX_LINES, HostTree.MAX_LINES),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(16.dp).testTag(BrowseTags.TREE_TRUNCATED),
+    )
 }
 
 private val TREE_INDENT = 16.dp

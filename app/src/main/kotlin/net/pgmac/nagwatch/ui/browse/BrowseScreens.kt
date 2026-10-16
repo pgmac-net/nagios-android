@@ -65,6 +65,7 @@ object BrowseTags {
     const val GROUPS_PENDING = "browse_groups_pending"
     const val GROUPS_RETRY = "browse_groups_retry"
     const val GROUPS_NONE = "browse_groups_none"
+    const val TREE_TRUNCATED = "browse_tree_truncated"
 
     fun mode(mode: BrowseMode) = "browse_mode_${mode.name}"
 

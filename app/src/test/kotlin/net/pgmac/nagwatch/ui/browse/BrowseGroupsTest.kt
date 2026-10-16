@@ -75,6 +75,15 @@ class BrowseGroupsTest {
         assertEquals(listOf(otherHost), sections.first { it.group == null }.rows)
     }
 
+    @Test
+    fun `two groups of one name are one group`() {
+        val twice = BrowseGroups.hostGroups(
+            listOf(HostGroup("web", "A", listOf("web01")), HostGroup("web", "B", listOf("web02"))),
+        )
+
+        assertEquals(1, BrowseGroups.sections(listOf(web01, web02), twice).count { it.group != null })
+    }
+
     private fun host(name: String, state: HostState) = BrowseRow(
         hostName = name,
         service = null,

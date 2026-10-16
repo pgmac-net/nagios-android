@@ -184,7 +184,9 @@ object BrowseGroups {
     /** Groups by what people read, then the rows in no group at the end; empty sections are left out. */
     fun <S> sections(shown: List<BrowseRow<S>>, groups: List<RowGroup>): List<RowSection<S>> {
         val inAGroup = groups.flatMapTo(HashSet()) { it.members }
+        // Two groups of one name (a server can say so) would be one group shown twice.
         val grouped = groups
+            .distinctBy(RowGroup::name)
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, RowGroup::label).thenBy(RowGroup::name))
             .map { group -> RowSection(group, shown.filter { it.key in group.members }) }
         val loose = RowSection(null, shown.filter { it.key !in inAGroup })

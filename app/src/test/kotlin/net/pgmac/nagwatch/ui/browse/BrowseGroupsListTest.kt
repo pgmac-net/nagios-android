@@ -140,12 +140,12 @@ class BrowseGroupsListTest {
         show()
         composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.PARENTS)).performClick()
 
-        composeRule.onNodeWithTag(BrowseTags.tree("/db01")).assertExists()
-        composeRule.onNodeWithTag(BrowseTags.treeToggle("/db01")).assertExists()
+        composeRule.onNodeWithTag(BrowseTags.tree(HostTree.key("", "db01"))).assertExists()
+        composeRule.onNodeWithTag(BrowseTags.treeToggle(HostTree.key("", "db01"))).assertExists()
         // web01 is down and unhandled, so its branch starts open.
-        composeRule.onNodeWithTag(BrowseTags.tree("/db01/web01")).assertExists()
-        composeRule.onNodeWithTag(BrowseTags.treeToggle("/db01")).performClick()
-        composeRule.onNodeWithTag(BrowseTags.tree("/db01/web01")).assertDoesNotExist()
+        composeRule.onNodeWithTag(BrowseTags.tree(HostTree.key(HostTree.key("", "db01"), "web01"))).assertExists()
+        composeRule.onNodeWithTag(BrowseTags.treeToggle(HostTree.key("", "db01"))).performClick()
+        composeRule.onNodeWithTag(BrowseTags.tree(HostTree.key(HostTree.key("", "db01"), "web01"))).assertDoesNotExist()
         assertEquals("already known, not read again", emptyList<Boolean>(), parentLoads)
     }
 
@@ -156,6 +156,23 @@ class BrowseGroupsListTest {
         composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.PARENTS)).performClick()
 
         composeRule.onNodeWithText("Couldn\u2019t read the hosts\u2019 parents.", substring = true).assertExists()
+    }
+
+    @Test
+    fun `group names a server could make collide do not take the list down`() {
+        // A group named after another group's key, a repeated name, and a blank one.
+        groups = ConfigPart(
+            listOf(
+                HostGroup("group", "", listOf("web01", "web02")),
+                HostGroup("web01", "", listOf("web01")),
+                HostGroup("web01", "again", listOf("db01")),
+                HostGroup("", "", listOf("lone")),
+            ),
+        )
+        show()
+        composeRule.onNodeWithTag(BrowseTags.mode(BrowseMode.GROUPS)).performClick()
+
+        composeRule.onNodeWithTag(BrowseTags.LIST).assertExists()
     }
 
     private fun show(initialStates: Set<HostState> = emptySet()) {
