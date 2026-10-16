@@ -7,10 +7,12 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.nagios.NagiosLink
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
+import net.pgmac.nagwatch.nagios.model.ObjectConfig
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
@@ -82,6 +84,45 @@ class DetailRepositoryTest {
         )
         assertTrue(seen[2].comments.loading)
         assertEquals(listOf("service:Disk /", "comments", "downtimes"), calls)
+    }
+
+    @Test
+    fun `the definition's notes and addresses come last, and the screen stops refreshing after them`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serve()
+        client.objectConfigResult = { ref ->
+            NagiosResult.Success(
+                ObjectConfig(
+                    hostName = ref.hostName,
+                    description = ref.description,
+                    notes = "Owned by \$HOSTNAME\$",
+                    notesUrl = "https://wiki.example.org/\$SERVICEDESC\$",
+                    actionUrl = "javascript:alert(1)",
+                ),
+            )
+        }
+
+        val seen = repository.open(id, diskRef).toList()
+
+        val links = checkNotNull(seen.last().links)
+        assertEquals("Owned by web01", links.notes)
+        assertEquals(NagiosLink.Open("https://wiki.example.org/Disk+%2F"), links.notesUrl)
+        assertEquals(NagiosLink.Text("javascript:alert(1)"), links.actionUrl)
+        assertFalse(seen.last().refreshing)
+        assertTrue("still refreshing until they are in", seen.dropLast(1).last().refreshing)
+    }
+
+    @Test
+    fun `a definition that cannot be read leaves no links and no error`() = runBlocking {
+        val id = profiles.saveTestProfile()
+        serve()
+        client.objectConfigResult = { failure(NagiosError.Forbidden) }
+
+        val done = repository.open(id, diskRef).toList().last()
+
+        assertNull(done.links)
+        assertNull(done.error)
+        assertFalse(done.refreshing)
     }
 
     @Test

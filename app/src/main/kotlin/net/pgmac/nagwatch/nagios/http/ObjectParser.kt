@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
+import net.pgmac.nagwatch.nagios.model.ObjectConfig
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
 
@@ -52,6 +53,30 @@ internal object ObjectParser {
         val host = entry as? JsonObject ?: return@mapNotNull null
         val name = host.string("name").ifBlank { key }
         HostConfig(name = name, parents = host.names("parent_hosts").filter { it != name })
+    }
+
+    /** `data.host` from `objectjson.cgi` `query=host`. Null when the response holds none. */
+    fun host(body: JsonObject): ObjectConfig? {
+        val host = body.obj("data")["host"] as? JsonObject ?: return null
+        return ObjectConfig(
+            hostName = host.string("name"),
+            hostAlias = host.string("alias"),
+            hostAddress = host.string("address"),
+            notes = host.string("notes"),
+            notesUrl = host.string("notes_url"),
+            actionUrl = host.string("action_url"),
+        )
+    }
+
+    /** `data.service` from `objectjson.cgi` `query=service`: its own notes, on [host]'s name, alias and address. */
+    fun service(body: JsonObject, host: ObjectConfig): ObjectConfig? {
+        val service = body.obj("data")["service"] as? JsonObject ?: return null
+        return host.copy(
+            description = service.string("description"),
+            notes = service.string("notes"),
+            notesUrl = service.string("notes_url"),
+            actionUrl = service.string("action_url"),
+        )
     }
 
     private fun JsonObject.names(key: String): List<String> = (this[key] as? JsonArray).orEmpty()

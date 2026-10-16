@@ -18,3 +18,18 @@ data class ServiceGroup(val name: String, val alias: String, val members: List<O
 
 /** A host as configured: for now, which hosts are its parents (`parent_hosts`). */
 data class HostConfig(val name: String, val parents: List<String>)
+
+/**
+ * What a host's or service's definition says to show beside it: free text and two addresses.
+ * With the host's alias and address, which the addresses may name through macros.
+ */
+data class ObjectConfig(
+    val hostName: String,
+    val hostAlias: String = "",
+    val hostAddress: String = "",
+    /** Null for a host. */
+    val description: String? = null,
+    val notes: String = "",
+    val notesUrl: String = "",
+    val actionUrl: String = "",
+)

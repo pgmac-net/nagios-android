@@ -102,6 +102,10 @@
     <string name="detail_downtime_flexible">flexible, lasting %1$s</string>
     <string name="detail_downtime_in_effect">in effect now</string>
     <string name="detail_saved_earlier">Showing what was saved %1$s.</string>
+    <string name="detail_links">Notes</string>
+    <string name="detail_link_notes">Open notes</string>
+    <string name="detail_link_action">Open actions</string>
+    <string name="detail_link_not_opened">%1$s: not opened, as it is not a web address the app can check (%2$s)</string>
     <string name="detail_open_in_nagios">Open in Nagios</string>
     <string name="detail_actions">Actions</string>
     <string name="action_acknowledge">Acknowledge</string>
