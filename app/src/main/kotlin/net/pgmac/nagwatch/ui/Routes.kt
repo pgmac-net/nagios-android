@@ -16,6 +16,12 @@ internal object Routes {
     const val HOME = "home"
     const val PROFILES = "profiles"
     const val SETTINGS = "settings"
+    const val ABOUT = "about"
+    const val LICENCES = "about/licences"
+    const val ARG_SPDX = "spdx"
+    const val LICENCE = "about/licence/{$ARG_SPDX}"
+
+    fun licence(spdxId: String) = "about/licence/${Uri.encode(spdxId)}"
     const val PROFILE = "profile/{${ProfileEditorViewModel.ARG_PROFILE_ID}}"
 
     const val ARG_PROFILE = DetailViewModel.ARG_PROFILE

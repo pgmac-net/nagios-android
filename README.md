@@ -114,3 +114,5 @@ The APK lands in `app/build/outputs/apk/debug/`. Details, checks and conventions
 ## License
 
 GPL-3.0-or-later. See [`LICENSE`](LICENSE).
+
+**About screen.** In the profile menu, under Settings. It shows the version and what the app is licensed under, links to the source, the issue tracker and the security policy, and lists every library in the APK with the licence it is used under. Tap a library, or Nagwatch's own licence, to read the full text; all of it works offline.

@@ -250,6 +250,8 @@ licensee {
     allow("MIT")
     allow("BSD-2-Clause")
     allow("BSD-3-Clause")
+    // Ships the dependency report in the APK for the About screen's licence list.
+    bundleAndroidAsset = true
 }
 
 detekt {

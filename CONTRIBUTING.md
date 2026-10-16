@@ -29,7 +29,7 @@ Nagwatch ships **FOSS-only** dependencies so it can be distributed through F-Dro
 If a dependency you need fails:
 
 - **Denylisted:** find an alternative. Entries are not removed to make a build pass.
-- **Licence not on the allowlist:** open a PR that adds the SPDX id to the `licensee` block in `app/build.gradle.kts`, naming the dependency that needs it and confirming the licence is GPL-3.0-compatible and F-Droid-acceptable. That change is reviewed on its own merits.
+- **Licence not on the allowlist:** open a PR that adds the SPDX id to the `licensee` block in `app/build.gradle.kts`, naming the dependency that needs it and confirming the licence is GPL-3.0-compatible and F-Droid-acceptable. That change is reviewed on its own merits. The same PR adds the licence's full text under `app/src/main/res/raw` and to `LicenceTexts`, because the About screen shows it and a unit test fails without it (see `docs/development.md`, "The About screen").
 
 Add a dependency only in the change that uses it, then refresh and commit the lockfile:
 

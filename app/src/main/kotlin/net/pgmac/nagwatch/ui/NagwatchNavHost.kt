@@ -18,6 +18,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.notify.NotificationTarget
+import net.pgmac.nagwatch.ui.about.AboutScreen
+import net.pgmac.nagwatch.ui.about.LicenceTextScreen
+import net.pgmac.nagwatch.ui.about.LicencesScreen
 import net.pgmac.nagwatch.ui.detail.DetailNavigation
 import net.pgmac.nagwatch.ui.detail.DetailScreen
 import net.pgmac.nagwatch.ui.graph.GraphViewerScreen
@@ -55,6 +58,18 @@ fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Un
             )
         }
         composable(Routes.SETTINGS) { SettingsScreen() }
+        composable(Routes.ABOUT) {
+            AboutScreen(
+                onOpenUrl = { openInBrowser(context, it) },
+                onOpenLicence = { navController.navigate(Routes.licence(it)) },
+                onOpenLibraries = { navController.navigate(Routes.LICENCES) },
+            )
+        }
+        composable(Routes.LICENCES) { LicencesScreen(onOpenLicence = { navController.navigate(Routes.licence(it)) }) }
+        composable(
+            route = Routes.LICENCE,
+            arguments = listOf(navArgument(Routes.ARG_SPDX) { type = NavType.StringType }),
+        ) { entry -> LicenceTextScreen(spdxId = entry.arguments?.getString(Routes.ARG_SPDX).orEmpty()) }
         composable(
             route = Routes.MAP,
             arguments = listOf(navArgument(HostMapViewModel.ARG_PROFILE) { type = NavType.LongType }),
@@ -173,6 +188,8 @@ private fun homeNavigation(navController: NavHostController) = object : HomeNavi
     override fun openMap(profileId: Long) = navController.navigate(Routes.map(profileId)) { launchSingleTop = true }
 
     override fun openSettings() = navController.navigate(Routes.SETTINGS)
+
+    override fun openAbout() = navController.navigate(Routes.ABOUT)
 
     override fun openHost(profileId: Long, hostName: String) = navController.navigate(Routes.host(profileId, hostName))
 

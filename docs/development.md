@@ -53,6 +53,15 @@ Build tools bring libraries of their own, and a tool's latest release can still 
 - **When an alert appears:** find where the version comes from (`./gradlew buildEnvironment` for the build script, `./gradlew :app:dependencies` for everything else), add or raise a floor, refresh the lockfile, and run the full `check`: a raised library is being run by a tool that was not released against it.
 - **When to remove one:** when the tool that needed it asks for a fixed version itself. FreeMarker is raised for Kover's HTML and XML report generator (CVE-2026-84939, #85): remove it once Kover ships a release that asks for 2.3.35 or later. A floor below what is already resolved does nothing and can go.
 
+## The About screen
+
+Reached from the profile menu, under Settings (`ui/about`). Three screens: About, the list of libraries, and the text of one licence.
+
+- **The list of libraries is the build's own report.** `licensee { bundleAndroidAsset = true }` makes Licensee put its `artifacts.json` into the APK's assets (`app/cash/licensee/artifacts.json`), so the list is exactly what that build shipped, with no copy to keep up to date. `Libraries` reads it with `JsonElement`s (the serialization compiler plugin is not applied); a missing or malformed report gives an empty list and the screen says it is unavailable.
+- **The full text of each licence is in the APK** as `res/raw/license_*.txt`, mapped by SPDX id in `LicenceTexts`: `Apache-2.0`, `BSD-3-Clause` (protobuf's text, from `datastore-preferences-external-protobuf`) and `GPL-3.0-or-later` (the repository's `LICENSE`, shown for Nagwatch itself).
+- **A licence cannot be allowed without its text.** `LibrariesTest` reads the real report and fails if any library's licence has no bundled text. Allowing a new licence in the `licensee` block therefore needs its text added in the same PR.
+- The copyright line, the free-software and no-warranty notice, the privacy line and the Nagios trademark line are strings (`about_*`); the trademark wording is the README's.
+
 ## Tests
 
 JVM unit tests only, for now. Compose screens are tested under Robolectric (`app/src/test`), which is how CI stands in for "the app launches" without an emulator. Robolectric is pinned to an Android version in `app/src/test/resources/robolectric.properties`; it trails `targetSdk` deliberately.
