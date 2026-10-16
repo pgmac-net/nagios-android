@@ -25,7 +25,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,6 +59,7 @@ import net.pgmac.nagwatch.status.AnnotationSection
 import net.pgmac.nagwatch.status.ObjectLinks
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.browse.BrowseRow
 import net.pgmac.nagwatch.ui.browse.HostStyle
 import net.pgmac.nagwatch.ui.browse.ServiceStyle
@@ -196,7 +196,7 @@ fun DetailContent(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
+            NagwatchTopAppBar(
                 title = {
                     Text(
                         text = state.title,

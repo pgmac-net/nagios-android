@@ -17,7 +17,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +65,7 @@ import net.pgmac.nagwatch.status.ConfigPart
 import net.pgmac.nagwatch.status.InventoryRepository
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.StatusRepository
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.browse.BrowseRow
 import net.pgmac.nagwatch.ui.browse.BrowseRows
 import net.pgmac.nagwatch.ui.browse.HostStyle
@@ -145,7 +145,7 @@ fun HostMapScreen(
 fun HostMapContent(state: HostMapUiState, onBack: () -> Unit, onOpen: (String) -> Unit, onRetry: () -> Unit) {
     Scaffold(
         topBar = {
-            TopAppBar(
+            NagwatchTopAppBar(
                 title = { Text(stringResource(R.string.map_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag(HostMapTags.BACK)) {

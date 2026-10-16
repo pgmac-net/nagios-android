@@ -29,7 +29,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +60,7 @@ import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.Inventory
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.browse.BrowseInventory
 import net.pgmac.nagwatch.ui.browse.HostsTab
 import net.pgmac.nagwatch.ui.browse.InventoryViewModel
@@ -255,7 +255,7 @@ fun HomeContent(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { ProfileSwitcher(state, actions) }) },
+        topBar = { NagwatchTopAppBar(title = { ProfileSwitcher(state, actions) }) },
         bottomBar = { if (selected != null) HomeTabs(tab, onSelect = show) },
         snackbarHost = { SnackbarHost(snackbars, Modifier.testTag(HomeTags.SNACKBAR)) },
     ) { innerPadding ->

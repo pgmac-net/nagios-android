@@ -13,7 +13,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 
 /** The full text of the licence [spdxId]; says so if the APK has none. */
 @Composable
@@ -48,7 +48,7 @@ fun LicenceTextScreen(spdxId: String) {
 fun LicenceTextContent(spdxId: String, text: String?, modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(spdxId) }) },
+        topBar = { NagwatchTopAppBar(title = { Text(spdxId) }) },
     ) { innerPadding ->
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(innerPadding)

@@ -18,7 +18,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -41,6 +40,7 @@ import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.notify.EmojiSet
 import net.pgmac.nagwatch.notify.NotifierSettings
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 
 object SettingsTags {
     const val LARGE_ICON = "settings_large_icon"
@@ -94,7 +94,7 @@ fun SettingsContent(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
+        topBar = { NagwatchTopAppBar(title = { Text(stringResource(R.string.settings_title)) }) },
     ) { innerPadding ->
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(innerPadding)

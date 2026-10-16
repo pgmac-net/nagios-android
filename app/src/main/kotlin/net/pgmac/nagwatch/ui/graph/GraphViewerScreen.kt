@@ -18,7 +18,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.nagios.graph.GraphPeriod
 import net.pgmac.nagwatch.nagios.graph.GraphSize
+import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 
 /**
  * A service's graph with the screen to itself, on its side, where it can be pinched and dragged.
@@ -81,7 +81,7 @@ fun GraphViewerContent(
         val periodsInBar = maxWidth >= PERIODS_IN_BAR_FROM.dp
         Scaffold(
             topBar = {
-                TopAppBar(
+                NagwatchTopAppBar(
                     title = {
                         Text(
                             text = state.title,
