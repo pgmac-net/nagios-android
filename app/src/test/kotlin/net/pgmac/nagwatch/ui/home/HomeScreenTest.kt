@@ -100,6 +100,10 @@ class HomeScreenTest {
             calls += "settings"
         }
 
+        override fun openAbout() {
+            calls += "about"
+        }
+
         override fun openHost(hostName: String) {
             calls += "host:$hostName"
         }

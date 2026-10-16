@@ -82,6 +82,10 @@ class ProblemsScreenTest {
             calls += "settings"
         }
 
+        override fun openAbout() {
+            calls += "about"
+        }
+
         override fun openHost(hostName: String) {
             calls += "host:$hostName"
         }
@@ -356,6 +360,16 @@ class ProblemsScreenTest {
         composeRule.onNodeWithText("Manage profiles").performClick()
 
         assertEquals(listOf("select:2", "edit:1", "manage"), calls)
+    }
+
+    @Test
+    fun `the profile menu reaches About, also when there is no profile yet`() {
+        show(HomeUiState(loading = false, profiles = emptyList(), selected = null, status = null, now = T0))
+
+        composeRule.onNodeWithTag(HomeTags.PROFILE_MENU).performClick()
+        composeRule.onNodeWithTag(HomeTags.ABOUT).performClick()
+
+        assertEquals(listOf("about"), calls)
     }
 
     private fun show(initial: HomeUiState) {

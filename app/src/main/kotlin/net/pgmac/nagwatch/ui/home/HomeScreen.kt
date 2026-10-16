@@ -88,6 +88,7 @@ object HomeTags {
     const val BANNER_DEGRADED = "home_banner_degraded"
     const val UPDATED = "home_updated"
     const val PROFILE_MENU = "home_profile_menu"
+    const val ABOUT = "home_about"
     const val PAGER = "home_pager"
     const val SNACKBAR = "home_snackbar"
 
@@ -110,6 +111,8 @@ interface HomeActions : LocalNetworkActions {
 
     fun openSettings()
 
+    fun openAbout()
+
     fun openHost(hostName: String)
 
     fun openService(hostName: String, description: String)
@@ -124,6 +127,8 @@ interface HomeNavigation {
     fun manageProfiles()
 
     fun openSettings()
+
+    fun openAbout()
 
     /** The hosts drawn by parent, on a screen of their own. */
     fun openMap(profileId: Long) {}
@@ -174,6 +179,8 @@ fun HomeScreen(
         override fun manageProfiles() = navigation.manageProfiles()
 
         override fun openSettings() = navigation.openSettings()
+
+        override fun openAbout() = navigation.openAbout()
 
         override fun openHost(hostName: String) {
             state.selected?.let { navigation.openHost(it.id, hostName) }
@@ -338,6 +345,14 @@ private fun ProfileSwitcher(state: HomeUiState, actions: HomeActions) {
                 onClick = {
                     open = false
                     actions.openSettings()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.problems_about)) },
+                modifier = Modifier.testTag(HomeTags.ABOUT),
+                onClick = {
+                    open = false
+                    actions.openAbout()
                 },
             )
         }
