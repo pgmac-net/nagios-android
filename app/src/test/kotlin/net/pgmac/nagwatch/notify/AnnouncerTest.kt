@@ -320,7 +320,10 @@ class AnnouncerTest {
     fun `six at once are one summary, and none of them has a notification of its own`() {
         val decision = poll(quiet, report(*criticals(Announcer.CEILING + 1)))
 
-        assertEquals(listOf<Notice>(Notice.Summary(count = Announcer.CEILING + 1, first = false)), decision.post)
+        assertEquals(
+            listOf<Notice>(Notice.Summary(count = Announcer.CEILING + 1, first = false, critical = true)),
+            decision.post,
+        )
         assertEquals(Announcer.CEILING + 1, decision.state.known.size)
         assertTrue(decision.state.known.values.none { it.individually })
     }
@@ -346,7 +349,7 @@ class AnnouncerTest {
 
         assertEquals(
             "the worse one counts towards the summary",
-            Notice.Summary(Announcer.CEILING + 1, first = false),
+            Notice.Summary(Announcer.CEILING + 1, first = false, critical = true),
             storm.post.first(),
         )
         val updated = storm.post.filterIsInstance<Notice.Raised>().single()
@@ -361,7 +364,7 @@ class AnnouncerTest {
 
         val storm = poll(known, report(critical(disk), warning(load), *criticals(Announcer.CEILING + 1)))
 
-        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false)), storm.post)
+        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false, critical = true)), storm.post)
     }
 
     @Test
@@ -374,11 +377,41 @@ class AnnouncerTest {
         // One of the summarised gets worse in a poll that is itself summarised.
         val storm = poll(summarised, report(critical(first), *many.drop(1).toTypedArray(), *more))
 
-        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false)), storm.post)
+        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false, critical = true)), storm.post)
         assertEquals(Known(Severity.CRITICAL, individually = false), storm.state.known.getValue(first))
 
         val recovered = poll(storm.state, report(*many.drop(1).toTypedArray(), *more))
         assertTrue("so it has nothing to turn into a recovery", recovered.post.isEmpty())
+    }
+
+    @Test
+    fun `a summary of warnings and unknowns is not critical`() {
+        val storm = poll(quiet, report(*warnings(Announcer.CEILING), unknown(disk)))
+
+        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false)), storm.post)
+    }
+
+    @Test
+    fun `one new critical among a summary's warnings makes it critical`() {
+        val storm = poll(quiet, report(*warnings(Announcer.CEILING), critical(disk)))
+
+        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false, critical = true)), storm.post)
+    }
+
+    @Test
+    fun `a critical already known does not make a summary of new warnings critical`() {
+        val known = poll(quiet, report(critical(disk))).state
+
+        val storm = poll(known, report(critical(disk), *warnings(Announcer.CEILING + 1)))
+
+        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = false)), storm.post)
+    }
+
+    @Test
+    fun `the first poll's summary is never critical, however much is down`() {
+        val first = poll(AnnouncedState(), report(*criticals(Announcer.CEILING + 1)))
+
+        assertEquals(listOf<Notice>(Notice.Summary(Announcer.CEILING + 1, first = true)), first.post)
     }
 
     @Test

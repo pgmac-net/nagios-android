@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,6 +24,14 @@ interface NotifierSettings {
     val largeIcon: Flow<Boolean>
 
     suspend fun setLargeIcon(on: Boolean)
+
+    /**
+     * How loud a loud alert is, as a percentage of the phone's highest alarm volume: from
+     * [AlarmVolume.LOWEST] to [AlarmVolume.HIGHEST], [AlarmVolume.DEFAULT] until the person moves it.
+     */
+    val loudAlertVolume: Flow<Int>
+
+    suspend fun setLoudAlertVolume(percent: Int)
 }
 
 @Singleton
@@ -39,7 +48,15 @@ class DataStoreNotifierSettings @Inject constructor(private val store: DataStore
         store.edit { it[LARGE_ICON_KEY] = on }
     }
 
+    override val loudAlertVolume: Flow<Int> =
+        store.data.map { AlarmVolume.percent(it[LOUD_ALERT_VOLUME_KEY]) }.distinctUntilChanged()
+
+    override suspend fun setLoudAlertVolume(percent: Int) {
+        store.edit { it[LOUD_ALERT_VOLUME_KEY] = AlarmVolume.percent(percent) }
+    }
+
     private companion object {
+        val LOUD_ALERT_VOLUME_KEY = intPreferencesKey("loud_alert_volume")
         val KEY = stringPreferencesKey("notification_emoji_set")
         val LARGE_ICON_KEY = booleanPreferencesKey("notification_large_icon")
     }

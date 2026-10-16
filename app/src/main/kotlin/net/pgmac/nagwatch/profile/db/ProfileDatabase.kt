@@ -51,6 +51,8 @@ data class ProfileEntity(
     @ColumnInfo(name = "graph_path", defaultValue = "''") val graphPath: String = "",
     /** The comment a quick acknowledgement sends, or empty for the app's default. */
     @ColumnInfo(name = "ack_comment", defaultValue = "''") val ackComment: String = "",
+    /** Down and critical are heard through silent mode and Do Not Disturb. Off until switched on. */
+    @ColumnInfo(name = "loud_alerts", defaultValue = "0") val loudAlerts: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_POLL_MINUTES = 15
@@ -98,7 +100,7 @@ abstract class ProfileDatabase : RoomDatabase() {
 
     companion object {
         const val FILE_NAME = "profiles.db"
-        const val VERSION = 5
+        const val VERSION = 6
 
         /** Adds the remembered date format. Existing profiles have none, which is the truth. */
         val MIGRATION_1_2: Migration = object : Migration(1, 2) {
@@ -142,7 +144,15 @@ abstract class ProfileDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds loud alerts. Off for existing profiles, like new ones: nothing gets louder by itself. */
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE profiles ADD COLUMN loud_alerts INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** Every migration, in order. One list, so the app and the tests cannot open the database differently. */
-        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val MIGRATIONS: List<Migration> =
+            listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }

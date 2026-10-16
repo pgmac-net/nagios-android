@@ -5,6 +5,7 @@ package net.pgmac.nagwatch.ui.settings
 import android.content.Context
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -32,17 +33,25 @@ class SettingsScreenTest {
 
     private val largeIcons = mutableListOf<Boolean>()
 
-    private fun show(set: EmojiSet, largeIcon: Boolean = true) = composeRule.setContent {
-        NagwatchTheme {
-            SettingsContent(
-                chosen = set,
-                onChoose = { chosen += it },
-                largeIcon = largeIcon,
-                onLargeIcon = { largeIcons += it },
-                resources = context.resources,
-            )
+    private val asked = mutableListOf<String>()
+
+    private fun show(set: EmojiSet, largeIcon: Boolean = true, loudAlert: LoudAlertSection = LoudAlertSection()) =
+        composeRule.setContent {
+            NagwatchTheme {
+                SettingsContent(
+                    chosen = set,
+                    onChoose = { chosen += it },
+                    largeIcon = largeIcon,
+                    onLargeIcon = { largeIcons += it },
+                    resources = context.resources,
+                    loudAlert = loudAlert.copy(
+                        onTest = { asked += "test" },
+                        onStop = { asked += "stop" },
+                        onAllow = { asked += "allow" },
+                    ),
+                )
+            }
         }
-    }
 
     @Test
     fun `every set is offered, each with a look at it, and the current one is marked`() {
@@ -70,5 +79,45 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag(SettingsTags.LARGE_ICON).performScrollTo().assertIsOn().performClick()
 
         assertEquals(listOf(false), largeIcons)
+    }
+
+    @Test
+    fun `the loud alert volume shows what is set, and Test plays it`() {
+        show(EmojiSet.CIRCLES, loudAlert = LoudAlertSection(volume = 65))
+
+        composeRule.onNodeWithText("65%").performScrollTo().assertExists()
+        composeRule.onNodeWithTag(
+            SettingsTags.LOUD_ALERT_TEST,
+        ).performScrollTo().assertTextEquals("Test").performClick()
+
+        assertEquals(listOf("test"), asked)
+    }
+
+    @Test
+    fun `while one sounds the button stops it`() {
+        show(EmojiSet.CIRCLES, loudAlert = LoudAlertSection(sounding = true))
+
+        composeRule.onNodeWithTag(
+            SettingsTags.LOUD_ALERT_TEST,
+        ).performScrollTo().assertTextEquals("Stop").performClick()
+
+        assertEquals(listOf("stop"), asked)
+    }
+
+    @Test
+    fun `without the alarm permission it says loud alerts cannot sound, and offers the way to allow it`() {
+        show(EmojiSet.CIRCLES, loudAlert = LoudAlertSection(allowed = false))
+
+        composeRule.onNodeWithTag(SettingsTags.LOUD_ALERT_BLOCKED).performScrollTo().assertExists()
+        composeRule.onNodeWithText("Allow alarms").performScrollTo().performClick()
+
+        assertEquals(listOf("allow"), asked)
+    }
+
+    @Test
+    fun `with the permission held nothing is said about it`() {
+        show(EmojiSet.CIRCLES)
+
+        composeRule.onNodeWithTag(SettingsTags.LOUD_ALERT_BLOCKED).assertDoesNotExist()
     }
 }

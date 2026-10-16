@@ -1,0 +1,149 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 6,
+    "identityHash": "925111fd5a6ba7a2efbd92691270f363",
+    "entities": [
+      {
+        "tableName": "profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `base_url` TEXT NOT NULL, `cgi_base` TEXT, `username` TEXT NOT NULL, `password_enc` TEXT, `access_client_id` TEXT, `access_client_secret_enc` TEXT, `custom_headers` TEXT NOT NULL, `allow_cleartext` INTEGER NOT NULL, `date_format` TEXT, `notify` INTEGER NOT NULL DEFAULT 0, `poll_minutes` INTEGER NOT NULL DEFAULT 15, `notify_unhandled_only` INTEGER NOT NULL DEFAULT 1, `notify_unreachable` INTEGER NOT NULL DEFAULT 1, `notify_offered` INTEGER NOT NULL DEFAULT 0, `graphs` INTEGER NOT NULL DEFAULT 1, `graph_path` TEXT NOT NULL DEFAULT '', `ack_comment` TEXT NOT NULL DEFAULT '', `loud_alerts` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseUrl",
+            "columnName": "base_url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cgiBase",
+            "columnName": "cgi_base",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "username",
+            "columnName": "username",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedPassword",
+            "columnName": "password_enc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "accessClientId",
+            "columnName": "access_client_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "encryptedAccessClientSecret",
+            "columnName": "access_client_secret_enc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customHeaders",
+            "columnName": "custom_headers",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowCleartext",
+            "columnName": "allow_cleartext",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateFormat",
+            "columnName": "date_format",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notify",
+            "columnName": "notify",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "pollMinutes",
+            "columnName": "poll_minutes",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "15"
+          },
+          {
+            "fieldPath": "notifyUnhandledOnly",
+            "columnName": "notify_unhandled_only",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "notifyUnreachable",
+            "columnName": "notify_unreachable",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "notifyOffered",
+            "columnName": "notify_offered",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "graphs",
+            "columnName": "graphs",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "graphPath",
+            "columnName": "graph_path",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "ackComment",
+            "columnName": "ack_comment",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "loudAlerts",
+            "columnName": "loud_alerts",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '925111fd5a6ba7a2efbd92691270f363')"
+    ]
+  }
+}

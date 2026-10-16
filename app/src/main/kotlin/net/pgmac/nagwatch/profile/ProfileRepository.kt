@@ -132,6 +132,7 @@ class ProfileRepository @Inject constructor(
             pollMinutes = draft.notifications.interval.minutes,
             notifyUnhandledOnly = draft.notifications.unhandledOnly,
             notifyUnreachable = draft.notifications.tellUnreachable,
+            loudAlerts = draft.notifications.loudAlerts,
             // Someone who switched it on in the editor has found it; there is nothing left to offer.
             notifyOffered = stored?.notifyOffered == true || draft.notifications.enabled,
             graphs = draft.graphs.enabled,
@@ -191,6 +192,7 @@ class ProfileRepository @Inject constructor(
             interval = PollInterval.ofMinutes(entity.pollMinutes),
             unhandledOnly = entity.notifyUnhandledOnly,
             tellUnreachable = entity.notifyUnreachable,
+            loudAlerts = entity.loudAlerts,
         ),
         notificationsOffered = entity.notifyOffered,
         graphs = GraphSettings(enabled = entity.graphs, path = entity.graphPath),

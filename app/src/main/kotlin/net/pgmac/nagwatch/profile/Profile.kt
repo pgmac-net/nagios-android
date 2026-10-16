@@ -33,6 +33,8 @@ data class NotificationSettings(
     val unhandledOnly: Boolean = true,
     /** Whether an outage that may pass by itself is worth a notification. */
     val tellUnreachable: Boolean = true,
+    /** Down and critical are a loud alert: heard through silent mode and Do Not Disturb. */
+    val loudAlerts: Boolean = false,
 )
 
 /**

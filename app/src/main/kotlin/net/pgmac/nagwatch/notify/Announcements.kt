@@ -125,8 +125,10 @@ sealed interface Notice {
      *
      * @param first true for the first successful poll (everything there is); false when a later
      *   poll brought more changes than are worth listing one by one.
+     * @param critical a later poll's summary stands in for at least one new or worse problem on
+     *   the critical channel, which makes it worth a loud alert. Never true of the first poll's.
      */
-    data class Summary(val count: Int, val first: Boolean) : Notice
+    data class Summary(val count: Int, val first: Boolean, val critical: Boolean = false) : Notice
 
     /**
      * Nagios could not be polled.

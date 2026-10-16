@@ -236,6 +236,11 @@ Things to know:
   ```
   To try a button against a real Nagios, add `--el profile ID --es host HOST --es service SERVICE` (and `--el profile ID --es action clear` afterwards). **That sample's Acknowledge button is real**: it will acknowledge the service for everyone.
   Same permission as the poll receiver, and not in a release build. The app takes these down itself the next time it starts, as it does for any profile it does not know.
+- **A loud alert** (ADR 0013) has to be tried from the background, where Android 17's background audio hardening applies; the Settings Test plays from the foreground, where it does not. `LoudAlertNowReceiver` (`app/src/debug`) sounds one from a worker after a delay (15 s unless given), long enough to lock the phone or put it on silent or in Do Not Disturb:
+  ```
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.LoudAlertNowReceiver --ei delay 20
+  ```
+  It sounds only if the app holds the exact-alarm permission, as the notifier does. Android 17 drops a background app's playback and volume changes **silently**; `adb shell cmd audio set-enable-hardening throw` makes them throw instead, and `adb logcat | grep AudioHardening` shows what was dropped (`level: partial` means no foreground service was running). Read the alarm volume with `adb shell cmd media_session volume --stream 4 --get` before and after: it must come back to where it was. The exact-alarm permission can be taken back to try that path with `adb shell appops set net.pgmac.nagwatch.debug SCHEDULE_EXACT_ALARM deny` (`allow` to give it back).
 - **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
 
 ## The widget

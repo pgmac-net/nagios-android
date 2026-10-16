@@ -7,9 +7,12 @@ import android.app.NotificationManager
 import android.content.Context
 import android.provider.Settings
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
@@ -20,6 +23,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.notify.NotifyChannel
@@ -27,11 +31,13 @@ import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowAlarmManager
 
 /** The "Notifications" section of the profile editor, and the offer, as the person meets them. */
 @RunWith(AndroidJUnit4::class)
@@ -195,6 +201,71 @@ class NotificationUiTest {
         assertEquals(listOf("on", "not now"), calls)
     }
 
+    // ---------------------------------------------------------------- loud alerts
+
+    private val context: Context get() = ApplicationProvider.getApplicationContext()
+
+    private fun alarmsAllowed(allowed: Boolean) = ShadowAlarmManager.setCanScheduleExactAlarms(allowed)
+
+    @Test
+    fun `off, there is no loud alert switch, and on there is, off by default`() {
+        showFields()
+        composeRule.onNodeWithTag(NotificationTags.LOUD_ALERTS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `on, loud alerts start off and can be switched on`() {
+        alarmsAllowed(true)
+        settings = NotificationSettings(enabled = true)
+        showFields()
+
+        composeRule.onNodeWithTag(NotificationTags.LOUD_ALERTS).performScrollTo().assertIsOff().performClick()
+
+        assertEquals(true, settings.loudAlerts)
+        assertNull("nothing to ask for", shadowOf(context as Application).nextStartedActivity)
+    }
+
+    @Test
+    fun `switching loud alerts on without the alarm permission goes to Android's page for it`() {
+        alarmsAllowed(false)
+        settings = NotificationSettings(enabled = true)
+        showFields()
+
+        composeRule.onNodeWithTag(NotificationTags.LOUD_ALERTS).performScrollTo().performClick()
+
+        assertEquals(true, settings.loudAlerts)
+        val started = shadowOf(context as Application).nextStartedActivity
+        assertEquals(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, started.action)
+        assertEquals("package:${context.packageName}", started.dataString)
+    }
+
+    @Test
+    fun `on without the permission, it says loud alerts cannot sound and offers the page again`() {
+        alarmsAllowed(false)
+        settings = NotificationSettings(enabled = true, loudAlerts = true)
+        showFields()
+
+        composeRule.onNodeWithTag(NotificationTags.LOUD_ALERTS_BLOCKED).performScrollTo().assertExists()
+        composeRule.onNodeWithTag(NotificationTags.ALLOW_ALARMS).performScrollTo().performClick()
+
+        assertEquals(
+            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+            shadowOf(context as Application).nextStartedActivity.action,
+        )
+    }
+
+    @Test
+    fun `with the permission held, or loud alerts off, nothing is said about it`() {
+        alarmsAllowed(true)
+        settings = NotificationSettings(enabled = true, loudAlerts = true)
+        showFields()
+        composeRule.onNodeWithTag(NotificationTags.LOUD_ALERTS_BLOCKED).assertDoesNotExist()
+
+        alarmsAllowed(false)
+        settings = NotificationSettings(enabled = true, loudAlerts = false)
+        composeRule.onNodeWithTag(NotificationTags.LOUD_ALERTS_BLOCKED).assertDoesNotExist()
+    }
+
     private fun showBackgroundChecks() {
         composeRule.setContent {
             NagwatchTheme(dynamicColor = false) {
@@ -205,7 +276,11 @@ class NotificationUiTest {
 
     private fun showFields() {
         composeRule.setContent {
-            NagwatchTheme(dynamicColor = false) { Column { NotificationFields(settings, refused, actions) } }
+            NagwatchTheme(dynamicColor = false) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    NotificationFields(settings, refused, actions)
+                }
+            }
         }
     }
 }
