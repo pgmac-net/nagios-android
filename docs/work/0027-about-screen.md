@@ -26,6 +26,6 @@ An **About** item in the profile menu, under Settings, opening three screens:
 - The plan said to read the report with kotlinx.serialization types. The serialization compiler plugin is not applied in this module (the rest of the app reads `JsonElement`s), so `Libraries` does the same.
 - The dependency report is read from `app/cash/licensee/artifacts.json` in the assets, the path Licensee uses.
 
-## Not verified
+## Verification
 
-No phone was connected, so the three screens were not checked on a device. They are covered by Robolectric Compose tests, and the release APK was checked to hold the report and the three licence texts after R8 and resource shrinking.
+The three screens were checked on a phone (debug build): menu entry, About, the licences list, and the Apache and GPL texts. That showed licence text wrapping badly, so it now keeps its lines and scrolls sideways. They are also covered by Robolectric Compose tests, and the release APK was checked to hold the report and the three licence texts after R8 and resource shrinking.
