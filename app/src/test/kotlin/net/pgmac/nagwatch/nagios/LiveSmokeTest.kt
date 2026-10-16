@@ -153,4 +153,28 @@ class LiveSmokeTest {
         assertTrue("$stray parents are not hosts the status lists", stray == 0)
         assertTrue("configured hosts are the listed hosts", configs.map { it.name }.toSet() == hosts)
     }
+
+    /** Each host's and one service's definition, for the notes and their addresses. Counts only. */
+    @Test
+    fun `reads the definitions behind the notes, and every address is either opened as the web or kept as words`() {
+        val client = NagiosClientFactory(http, TEST_JSON, Dispatchers.IO, Clock.systemUTC()).create(settings)
+        val snapshot = runBlocking { client.fetchStatus() }.valueOrFail()
+        val base = runBlocking { client.connect() }.valueOrFail().cgiBase
+        val configs = snapshot.hosts.map { runBlocking { client.fetchObjectConfig(ObjectRef(it.name)) }.valueOrFail() }
+        val first = snapshot.serviceStates.first()
+        val service = runBlocking {
+            client.fetchObjectConfig(ObjectRef(first.hostName, first.description))
+        }.valueOrFail()
+
+        val links = (configs + service).flatMap { config ->
+            listOf(config.notesUrl, config.actionUrl).mapNotNull { NagiosLinks.link(it, config, base) }
+        }
+        println(
+            "live: ${configs.count { it.notes.isNotBlank() }} hosts with notes, " +
+                "${links.count {
+                    it is NagiosLink.Open
+                }} addresses opened, ${links.count { it is NagiosLink.Text }} kept as words",
+        )
+        assertTrue("the service's definition is the one asked for", service.description == first.description)
+    }
 }

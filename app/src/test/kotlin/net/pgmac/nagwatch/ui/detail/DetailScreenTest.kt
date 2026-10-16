@@ -36,6 +36,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Duration
 import java.time.ZoneOffset
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.nagios.NagiosLink
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.Refusal
@@ -55,6 +56,7 @@ import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.AnnotationSection
 import net.pgmac.nagwatch.status.CommandPermission
 import net.pgmac.nagwatch.status.ObjectDetail
+import net.pgmac.nagwatch.status.ObjectLinks
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.status.T0
@@ -376,6 +378,25 @@ class DetailScreenTest : DetailScreenFixture() {
 
         state = service(hard)
         composeRule.onNodeWithTag(DetailTags.OPEN_IN_NAGIOS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `notes are shown, a notes address opens in the browser, and one the app will not open is words`() {
+        val url = "https://wiki.example.org/disk"
+        val links = ObjectLinks(
+            notes = "Call the storage team",
+            notesUrl = NagiosLink.Open(url),
+            actionUrl = NagiosLink.Text("intent://x"),
+        )
+        show(service(hard).let { it.copy(detail = it.detail.copy(links = links)) })
+
+        composeRule.onNodeWithText("Call the storage team").assertExists()
+        composeRule.onNodeWithTag(DetailTags.NOTES_URL).performClick()
+        assertEquals(listOf("open:$url"), calls)
+        composeRule.onNodeWithTag(DetailTags.ACTION_URL).assertTextContains("intent://x", substring = true)
+
+        state = service(hard)
+        composeRule.onNodeWithTag(DetailTags.LINKS).assertDoesNotExist()
     }
 
     // Real text measurement, at phone width: a long name must not push the header off the screen.

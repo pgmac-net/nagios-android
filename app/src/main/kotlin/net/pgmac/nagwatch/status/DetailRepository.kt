@@ -12,10 +12,13 @@ import kotlinx.coroutines.flow.flow
 import net.pgmac.nagwatch.nagios.ConnectionSettings
 import net.pgmac.nagwatch.nagios.NagiosClient
 import net.pgmac.nagwatch.nagios.NagiosError
+import net.pgmac.nagwatch.nagios.NagiosLink
+import net.pgmac.nagwatch.nagios.NagiosLinks
 import net.pgmac.nagwatch.nagios.NagiosResult
 import net.pgmac.nagwatch.nagios.map
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
+import net.pgmac.nagwatch.nagios.model.ObjectConfig
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.profile.SettingsResult
@@ -52,7 +55,14 @@ data class ObjectDetail(
     val downtimes: AnnotationSection<Downtime> = AnnotationSection(),
     /** This object's page in the Nagios web interface, once the CGI directory is known. */
     val nagiosUrl: String? = null,
+    /** What its definition says to show beside it. Null until read, or if it could not be. */
+    val links: ObjectLinks? = null,
 )
+
+/** A host's or service's notes and the addresses its definition gives (pgmac-net/nagios-android#82). */
+data class ObjectLinks(val notes: String, val notesUrl: NagiosLink?, val actionUrl: NagiosLink?) {
+    val isEmpty: Boolean get() = notes.isBlank() && notesUrl == null && actionUrl == null
+}
 
 /**
  * Loads one host or service for its detail screen: what is saved first, so
@@ -132,13 +142,23 @@ class DetailRepository @Inject constructor(
         )
         emit(detail)
         detail = detail.copy(
-            refreshing = false,
             downtimes = section(client.fetchDowntimes(ref), detail.downtimes) { items ->
                 if (keep) store { cache.saveDowntimes(profileId, ref, items) }
             },
         )
         emit(detail)
+        // Configuration, which a user may not be allowed to read: without it there is simply
+        // nothing to offer, and the rest of the screen does not suffer for it.
+        val config = client.fetchObjectConfig(ref)
+        val links = (config as? NagiosResult.Success)?.value?.let { links(it, settings.cgiBase ?: settings.baseUrl) }
+        emit(detail.copy(refreshing = false, links = links ?: detail.links))
     }
+
+    private fun links(config: ObjectConfig, base: HttpUrl): ObjectLinks = ObjectLinks(
+        notes = NagiosLinks.notes(config.notes, config),
+        notesUrl = NagiosLinks.link(config.notesUrl, config, base),
+        actionUrl = NagiosLinks.link(config.actionUrl, config, base),
+    )
 
     private suspend fun fetchRecord(client: NagiosClient, ref: ObjectRef): NagiosResult<CachedDetail> {
         val now = clock.instant()

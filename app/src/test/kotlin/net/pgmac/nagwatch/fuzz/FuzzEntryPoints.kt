@@ -5,6 +5,8 @@ package net.pgmac.nagwatch.fuzz
 import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import net.pgmac.nagwatch.nagios.NagiosLink
+import net.pgmac.nagwatch.nagios.NagiosLinks
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.command.CommandPage
 import net.pgmac.nagwatch.nagios.command.ServerClock
@@ -26,6 +28,7 @@ import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceStateEntry
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * What the fuzz targets call. Kotlin, because the parsers are `internal`; the targets
@@ -42,6 +45,7 @@ object FuzzEntryPoints {
     private val json = Json { ignoreUnknownKeys = true }
     private const val BYTE = 0xFFL
 
+    private val LINK_BASE = "https://nagios.example.org/nagios/cgi-bin/".toHttpUrl()
     private val GRAPH_BASE = "https://someone:made-up@nagios.example.org:8443/nagios/?q=1".toHttpUrl()
     private val GRAPH_SIZES = (0..800 step 60).map(GraphSize::inline).distinct() + GraphSize.FULL
     private val GRAPH_MAX_PIXELS =
@@ -125,6 +129,18 @@ object FuzzEntryPoints {
         ObjectParser.hostGroups(body)
         ObjectParser.serviceGroups(body)
         ObjectParser.hostConfigs(body)
+        ObjectParser.host(body)?.let { host ->
+            ObjectParser.service(body, host)
+            // Whatever a server writes in an address, what is opened is a web address.
+            listOf(host.notesUrl, host.actionUrl).forEach { raw ->
+                val link = NagiosLinks.link(raw, host, LINK_BASE)
+                if (link is NagiosLink.Open) {
+                    val url =
+                        checkNotNull(link.url.toHttpUrlOrNull()) { "opened something that is not a web address: $raw" }
+                    check(url.username.isEmpty() && url.password.isEmpty()) { "an address with credentials: $raw" }
+                }
+            }
+        }
         // The next stage after parsing, which reads every field the parser produced.
         ProblemClassifier.classify(
             StatusSnapshot(

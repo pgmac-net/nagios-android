@@ -24,6 +24,7 @@ import net.pgmac.nagwatch.nagios.model.Downtime
 import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostStatus
+import net.pgmac.nagwatch.nagios.model.ObjectConfig
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServerInfo
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
@@ -65,6 +66,9 @@ interface NagiosClient {
 
     /** Every host's configuration as far as the app reads it: its parents. */
     suspend fun fetchHostConfigs(): NagiosResult<List<HostConfig>>
+
+    /** What the object's definition says to show beside it: notes and their addresses. */
+    suspend fun fetchObjectConfig(ref: ObjectRef): NagiosResult<ObjectConfig>
 
     data class Connection(val cgiBase: HttpUrl, val server: ServerInfo)
 
@@ -130,6 +134,9 @@ class NagiosClientFactory internal constructor(
     }
 }
 
+// One function per thing the app reads from Nagios: the interface is the API, and splitting it
+// would only move the same calls apart from the connection they share.
+@Suppress("TooManyFunctions")
 internal class OkHttpNagiosClient(
     private val settings: ConnectionSettings,
     internal val api: NagiosApi,
@@ -194,8 +201,34 @@ internal class OkHttpNagiosClient(
         api.query(base, OBJECT_CGI, configParams("hostlist")).map(ObjectParser::hostConfigs)
     }
 
-    /** A list from `objectjson.cgi`, each entry in full rather than by name only. */
-    private fun configParams(query: String): List<Pair<String, String>> = listOf("query" to query, "details" to "true")
+    override suspend fun fetchObjectConfig(ref: ObjectRef): NagiosResult<ObjectConfig> = withBase { base ->
+        val host = api.query(base, OBJECT_CGI, configParams("host", ObjectRef(ref.hostName)))
+            .flatMap { ObjectParser.host(it).orMissing() }
+        val description = ref.description
+        if (description == null) {
+            host
+        } else {
+            // The host's definition is wanted too: a service's links may name its host's address.
+            host.flatMap { config ->
+                api.query(base, OBJECT_CGI, configParams("service", ref))
+                    .flatMap { ObjectParser.service(it, config).orMissing() }
+            }
+        }
+    }
+
+    /**
+     * A query of `objectjson.cgi`: a list, each entry in full rather than by name only, or with
+     * [ref] the one object it names.
+     */
+    private fun configParams(query: String, ref: ObjectRef? = null): List<Pair<String, String>> = buildList {
+        add("query" to query)
+        if (ref == null) {
+            add("details" to "true")
+        } else {
+            add("hostname" to ref.hostName)
+            ref.description?.let { add("servicedescription" to it) }
+        }
+    }
 
     /** The CGI directory, finding it first if this client has not yet. */
     suspend fun cgiBase(): NagiosResult<HttpUrl> = withBase { NagiosResult.Success(it) }

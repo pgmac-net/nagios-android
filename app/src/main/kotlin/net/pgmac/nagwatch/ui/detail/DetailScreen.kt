@@ -45,6 +45,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Duration
 import net.pgmac.nagwatch.R
+import net.pgmac.nagwatch.nagios.NagiosLink
 import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.graph.GraphPeriod
 import net.pgmac.nagwatch.nagios.graph.GraphSize
@@ -56,6 +57,7 @@ import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.StateType
 import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.AnnotationSection
+import net.pgmac.nagwatch.status.ObjectLinks
 import net.pgmac.nagwatch.status.ProfileStatus
 import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.ui.browse.BrowseRow
@@ -231,6 +233,7 @@ fun DetailContent(
                 hostServices(state, actions)
                 comments(state.detail.comments, allComments) { allComments = !allComments }
                 downtimes(state.detail.downtimes, state.actionsEnabled) { cancelling = it }
+                state.detail.links?.takeUnless { it.isEmpty }?.let { links -> item { Links(links, actions) } }
                 state.detail.nagiosUrl?.let { url -> item { OpenInNagios(url, actions) } }
             }
         }
@@ -601,6 +604,36 @@ private fun OpenInNagios(url: String, actions: DetailActions) {
         modifier = Modifier.padding(16.dp).testTag(DetailTags.OPEN_IN_NAGIOS),
     ) {
         Text(stringResource(R.string.detail_open_in_nagios))
+    }
+}
+
+/**
+ * What the definition says to show beside it: its notes, and the notes and action addresses as
+ * buttons to the browser. An address the app will not open is shown as words (NagiosLinks).
+ */
+@Composable
+private fun Links(links: ObjectLinks, actions: DetailActions) {
+    Section(R.string.detail_links, Modifier.testTag(DetailTags.LINKS)) {
+        if (links.notes.isNotBlank()) Text(links.notes, style = MaterialTheme.typography.bodyMedium)
+        links.notesUrl?.let { LinkButton(it, R.string.detail_link_notes, DetailTags.NOTES_URL, actions) }
+        links.actionUrl?.let { LinkButton(it, R.string.detail_link_action, DetailTags.ACTION_URL, actions) }
+    }
+}
+
+@Composable
+private fun LinkButton(link: NagiosLink, label: Int, tag: String, actions: DetailActions) {
+    when (link) {
+        is NagiosLink.Open -> OutlinedButton(
+            onClick = { actions.openInNagios(link.url) },
+            modifier = Modifier.testTag(tag),
+        ) { Text(stringResource(label)) }
+
+        is NagiosLink.Text -> Text(
+            text = stringResource(R.string.detail_link_not_opened, stringResource(label), link.text),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(tag),
+        )
     }
 }
 

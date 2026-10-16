@@ -57,4 +57,7 @@ object DetailTags {
     fun downtimePreset(minutes: Long) = "detail_downtime_preset_$minutes"
 
     fun cancelDowntime(id: Long) = "detail_cancel_downtime_$id"
+    const val LINKS = "detail_links"
+    const val NOTES_URL = "detail_notes_url"
+    const val ACTION_URL = "detail_action_url"
 }

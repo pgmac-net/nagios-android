@@ -27,6 +27,7 @@ import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
+import net.pgmac.nagwatch.nagios.model.ObjectConfig
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServerInfo
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
@@ -111,6 +112,10 @@ class FakeClient(
         groupFetches++
         return hostGroupsResult()
     }
+
+    var objectConfigResult: (ObjectRef) -> NagiosResult<ObjectConfig> = { failure() }
+
+    override suspend fun fetchObjectConfig(ref: ObjectRef): NagiosResult<ObjectConfig> = objectConfigResult(ref)
 
     var hostConfigsResult: () -> NagiosResult<List<HostConfig>> = { NagiosResult.Success(emptyList()) }
 
