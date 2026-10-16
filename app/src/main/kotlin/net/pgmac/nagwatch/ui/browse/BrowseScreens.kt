@@ -66,6 +66,7 @@ object BrowseTags {
     const val GROUPS_RETRY = "browse_groups_retry"
     const val GROUPS_NONE = "browse_groups_none"
     const val TREE_TRUNCATED = "browse_tree_truncated"
+    const val MAP = "browse_map"
 
     fun mode(mode: BrowseMode) = "browse_mode_${mode.name}"
 
@@ -181,7 +182,7 @@ internal fun HostsTab(
         val part = remember(inv.hostGroups) { inv.hostGroups.mapValue(BrowseGroups::hostGroups) }
         GroupsSource(part, inv.loadHostGroups)
     }
-    val parents = inventory?.let { ParentsSource(it.hostConfigs, it.loadHostConfigs) }
+    val parents = inventory?.let { ParentsSource(it.hostConfigs, it.loadHostConfigs, it.openMap) }
     BrowseList(
         rows,
         HostStyle,

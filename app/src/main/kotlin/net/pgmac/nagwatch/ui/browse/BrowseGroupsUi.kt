@@ -62,6 +62,8 @@ class BrowseInventory(
     val loadServiceGroups: (force: Boolean) -> Unit,
     val hostConfigs: ConfigPart<List<HostConfig>> = ConfigPart(),
     val loadHostConfigs: (force: Boolean) -> Unit = {},
+    /** Opens the map of the same hosts (pgmac-net/nagios-android#95); null where there is none. */
+    val openMap: (() -> Unit)? = null,
 )
 
 /** The state chips that are on, kept apart for All and for the grouped views. */
@@ -121,9 +123,13 @@ internal class GroupsSource(override val part: ConfigPart<List<RowGroup>>, load:
 }
 
 /** Every host's parents, for the Parents view of the Hosts tab. */
-internal class ParentsSource(override val part: ConfigPart<List<HostConfig>>, load: (force: Boolean) -> Unit) :
-    ViewSource(BrowseMode.PARENTS, load) {
+internal class ParentsSource(
+    override val part: ConfigPart<List<HostConfig>>,
+    load: (force: Boolean) -> Unit,
+    private val openMap: (() -> Unit)? = null,
+) : ViewSource(BrowseMode.PARENTS, load) {
     override fun <S : Enum<S>> drawKnown(scope: LazyListScope, rows: ViewRows<S>, openness: GroupOpenness) {
+        openMap?.let { open -> scope.item(key = "map") { MapButton(open) } }
         val tree = HostTree.lines(rows.shown, rows.all, part.value.orEmpty(), openness::isOpen)
         // A line's key is unique by construction (see HostTree.key); "t" keeps it apart from the rest.
         scope.items(tree.lines, key = { "t${it.key}" }) { line ->
@@ -219,6 +225,13 @@ internal fun ViewPending(source: ViewSource, onRetry: () -> Unit) {
                 Text(stringResource(R.string.browse_groups_retry))
             }
         }
+    }
+}
+
+@Composable
+private fun MapButton(onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.padding(horizontal = 8.dp).testTag(BrowseTags.MAP)) {
+        Text(stringResource(R.string.map_open))
     }
 }
 

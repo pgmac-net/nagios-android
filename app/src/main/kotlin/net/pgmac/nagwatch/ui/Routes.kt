@@ -4,6 +4,7 @@ package net.pgmac.nagwatch.ui
 
 import android.net.Uri
 import net.pgmac.nagwatch.ui.detail.DetailViewModel
+import net.pgmac.nagwatch.ui.map.HostMapViewModel
 import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 
 /**
@@ -22,6 +23,10 @@ internal object Routes {
     const val ARG_SERVICE = DetailViewModel.ARG_SERVICE
     const val HOST = "host/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}"
     const val SERVICE = "service/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}&$ARG_SERVICE={$ARG_SERVICE}"
+
+    const val MAP = "map/{${HostMapViewModel.ARG_PROFILE}}"
+
+    fun map(profileId: Long) = "map/$profileId"
 
     const val GRAPH = "graph/{$ARG_PROFILE}?$ARG_HOST={$ARG_HOST}&$ARG_SERVICE={$ARG_SERVICE}"
 

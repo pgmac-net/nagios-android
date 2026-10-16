@@ -125,6 +125,9 @@ interface HomeNavigation {
 
     fun openSettings()
 
+    /** The hosts drawn by parent, on a screen of their own. */
+    fun openMap(profileId: Long) {}
+
     fun openHost(profileId: Long, hostName: String)
 
     fun openService(profileId: Long, hostName: String, description: String)
@@ -206,6 +209,7 @@ fun HomeScreen(
             loadServiceGroups = { force -> inventoryViewModel.loadServiceGroups(profileId, force) },
             hostConfigs = held.hostConfigs,
             loadHostConfigs = { force -> inventoryViewModel.loadHostConfigs(profileId, force) },
+            openMap = { navigation.openMap(profileId) },
         )
     }
     HomeContent(state, actions, quick = quick, inventory = inventory)

@@ -10,7 +10,13 @@ package net.pgmac.nagwatch.ui.graph
  * same factor, and may be dragged until its edge meets the frame's edge and no further: nobody
  * should be able to lose the picture off the side of the screen.
  */
-data class Zoom(val scale: Float = 1f, val offsetX: Float = 0f, val offsetY: Float = 0f) {
+data class Zoom(
+    val scale: Float = 1f,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    /** How far it may be magnified: a picture blurs, a drawing does not. */
+    val max: Float = MAX,
+) {
     val isZoomed: Boolean get() = scale > 1f
 
     /**
@@ -32,10 +38,11 @@ data class Zoom(val scale: Float = 1f, val offsetX: Float = 0f, val offsetY: Flo
         focusY: Float = height / 2f,
     ): Zoom {
         val factor = if (zoomBy.isFinite() && zoomBy > 0f) zoomBy else 1f
-        val next = (scale * factor).coerceIn(1f, MAX)
+        val next = (scale * factor).coerceIn(1f, max)
         // What the picture actually grew by, which is less than was asked for at either limit.
         val grew = next / scale
         return Zoom(
+            max = max,
             scale = next,
             offsetX = within(about(focusX, width, offsetX, grew) + finite(panX), limit(width, next)),
             offsetY = within(about(focusY, height, offsetY, grew) + finite(panY), limit(height, next)),
@@ -47,7 +54,7 @@ data class Zoom(val scale: Float = 1f, val offsetX: Float = 0f, val offsetY: Flo
      * out to fitted if it is not.
      */
     fun toggled(width: Float, height: Float, focusX: Float = width / 2f, focusY: Float = height / 2f): Zoom =
-        if (isZoomed) Zoom() else Zoom().moved(DOUBLE_TAP, 0f, 0f, width, height, focusX, focusY)
+        if (isZoomed) Zoom(max = max) else Zoom(max = max).moved(DOUBLE_TAP, 0f, 0f, width, height, focusX, focusY)
 
     /**
      * Where the picture has to sit, along one axis, for the point under [focus] to stay there
