@@ -5,10 +5,12 @@ package net.pgmac.nagwatch.ui.browse
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Handling
+import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostProblem
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.Marker
 import net.pgmac.nagwatch.nagios.model.ProblemReport
+import net.pgmac.nagwatch.nagios.model.ServiceGroup
 import net.pgmac.nagwatch.nagios.model.ServiceProblem
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
@@ -33,10 +35,13 @@ data class BrowseRow<S>(
     val title: String get() = if (service == null) hostName else "$hostName / $service"
 
     /** Stable per object, so the list keeps its place across refreshes. */
-    val key: String get() = if (service == null) hostName else "$hostName\u0000$service"
+    val key: String get() = rowKey(hostName, service)
 
     val isHandled: Boolean get() = handling?.isHandled == true
 }
+
+/** A row's [BrowseRow.key], made from the object it is about. Group members are matched by it. */
+fun rowKey(hostName: String, service: String?): String = if (service == null) hostName else "$hostName\u0000$service"
 
 /**
  * What the user has asked to see. An empty [states] means every state.
@@ -144,4 +149,45 @@ object BrowseRows {
             .thenBy { it.isHandled }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.hostName }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.service.orEmpty() }
+}
+
+/** A group the rows can be put in: its name, what to call it, and the keys of its members. */
+data class RowGroup(val name: String, val label: String, val members: Set<String>)
+
+/** The rows of one group, as shown. [group] is null for the rows that are in no group at all. */
+data class RowSection<S>(val group: RowGroup?, val rows: List<BrowseRow<S>>) {
+    /** Stable per section; "" for the rows in no group, which no group name can be. */
+    val key: String get() = group?.name.orEmpty()
+
+    /** The rows come worst first, so the first is the worst. */
+    val worst: S? get() = rows.firstOrNull()?.state
+
+    /** Something in it still needs someone: such a section starts open. */
+    val needsSomeone: Boolean get() = rows.any { it.handling != null && !it.isHandled }
+}
+
+/**
+ * The grouped views of the Hosts and Services tabs (pgmac-net/nagios-android#82).
+ *
+ * Grouping comes after the search, the state chips and the handled switch, so a group shows
+ * the members that are shown and a group with none of them is not shown at all. An object in
+ * several groups is in each of them, as it is in Nagios.
+ */
+object BrowseGroups {
+    fun hostGroups(groups: List<HostGroup>): List<RowGroup> =
+        groups.map { RowGroup(it.name, it.label, it.members.mapTo(HashSet()) { host -> rowKey(host, null) }) }
+
+    fun serviceGroups(groups: List<ServiceGroup>): List<RowGroup> = groups.map { group ->
+        RowGroup(group.name, group.label, group.members.mapTo(HashSet()) { rowKey(it.hostName, it.description) })
+    }
+
+    /** Groups by what people read, then the rows in no group at the end; empty sections are left out. */
+    fun <S> sections(shown: List<BrowseRow<S>>, groups: List<RowGroup>): List<RowSection<S>> {
+        val inAGroup = groups.flatMapTo(HashSet()) { it.members }
+        val grouped = groups
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, RowGroup::label).thenBy(RowGroup::name))
+            .map { group -> RowSection(group, shown.filter { it.key in group.members }) }
+        val loose = RowSection(null, shown.filter { it.key !in inAGroup })
+        return (grouped + loose).filter { it.rows.isNotEmpty() }
+    }
 }

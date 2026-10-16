@@ -23,10 +23,12 @@ import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
+import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServerInfo
+import net.pgmac.nagwatch.nagios.model.ServiceGroup
 import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
@@ -99,6 +101,20 @@ class FakeClient(
     override suspend fun fetchComments(ref: ObjectRef): NagiosResult<List<Comment>> = commentsResult(ref)
 
     override suspend fun fetchDowntimes(ref: ObjectRef): NagiosResult<List<Downtime>> = downtimesResult(ref)
+
+    var hostGroupsResult: () -> NagiosResult<List<HostGroup>> = { NagiosResult.Success(emptyList()) }
+    var serviceGroupsResult: () -> NagiosResult<List<ServiceGroup>> = { NagiosResult.Success(emptyList()) }
+    var groupFetches = 0
+
+    override suspend fun fetchHostGroups(): NagiosResult<List<HostGroup>> {
+        groupFetches++
+        return hostGroupsResult()
+    }
+
+    override suspend fun fetchServiceGroups(): NagiosResult<List<ServiceGroup>> {
+        groupFetches++
+        return serviceGroupsResult()
+    }
 }
 
 /** The status cache on an in-memory database. Close the database in the test's teardown. */
