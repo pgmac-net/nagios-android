@@ -30,12 +30,22 @@
     <string name="browse_groups_retry">Try again</string>
     <string name="browse_groups_none_defined">No groups are set up in this Nagios.</string>
     <string name="browse_group_none">Not in a group</string>
+    <string name="browse_mode_parents">Parents</string>
+    <string name="browse_parents_loading">Reading which hosts depend on which from Nagios\u2026</string>
+    <string name="browse_parents_failed">Couldn\u2019t read the hosts\u2019 parents. %1$s</string>
+    <string name="browse_tree_open">Show the hosts under %1$s</string>
+    <string name="browse_tree_close">Hide the hosts under %1$s</string>
+    <string name="browse_tree_also_under">Also under %1$s</string>
     <string name="browse_group_open">Open</string>
     <string name="browse_group_closed">Closed</string>
     <string name="browse_clear">Clear</string>
     <string name="browse_chip">%1$s (%2$d)</string>
     <string name="browse_handled">Handled (%1$d)</string>
     <string name="browse_none">Nothing matches.</string>
+    <plurals name="browse_tree_truncated">
+        <item quantity="one">Only the first %1$d line is shown: hosts here have so many ways down to them that drawing them all would take the app down. Search or open less to see the rest.</item>
+        <item quantity="other">Only the first %1$d lines are shown: hosts here have so many ways down to them that drawing them all would take the app down. Search or open less to see the rest.</item>
+    </plurals>
     <plurals name="browse_none_handled_hidden">
         <item quantity="one">Nothing here needs attention. %1$d handled problem is hidden: tap Handled to see it.</item>
         <item quantity="other">Nothing here needs attention. %1$d handled problems are hidden: tap Handled to see them.</item>

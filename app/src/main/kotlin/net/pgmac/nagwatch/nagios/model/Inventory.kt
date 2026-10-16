@@ -15,3 +15,6 @@ data class HostGroup(val name: String, val alias: String, val members: List<Stri
 data class ServiceGroup(val name: String, val alias: String, val members: List<ObjectRef>) {
     val label: String get() = alias.ifBlank { name }
 }
+
+/** A host as configured: for now, which hosts are its parents (`parent_hosts`). */
+data class HostConfig(val name: String, val parents: List<String>)

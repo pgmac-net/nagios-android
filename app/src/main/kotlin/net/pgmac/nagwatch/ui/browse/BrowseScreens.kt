@@ -65,10 +65,15 @@ object BrowseTags {
     const val GROUPS_PENDING = "browse_groups_pending"
     const val GROUPS_RETRY = "browse_groups_retry"
     const val GROUPS_NONE = "browse_groups_none"
+    const val TREE_TRUNCATED = "browse_tree_truncated"
 
     fun mode(mode: BrowseMode) = "browse_mode_${mode.name}"
 
     fun group(key: String) = "browse_group_$key"
+
+    fun tree(key: String) = "browse_tree_$key"
+
+    fun treeToggle(key: String) = "browse_tree_toggle_$key"
 
     fun chip(state: Enum<*>) = "browse_chip_${state.name}"
 
@@ -176,6 +181,7 @@ internal fun HostsTab(
         val part = remember(inv.hostGroups) { inv.hostGroups.mapValue(BrowseGroups::hostGroups) }
         GroupsSource(part, inv.loadHostGroups)
     }
+    val parents = inventory?.let { ParentsSource(it.hostConfigs, it.loadHostConfigs) }
     BrowseList(
         rows,
         HostStyle,
@@ -185,6 +191,7 @@ internal fun HostsTab(
         onAllowLocalNetwork = onAllowLocalNetwork,
         quick = quick,
         groups = groups,
+        parents = parents,
     )
 }
 
@@ -232,8 +239,10 @@ internal fun <S : Enum<S>> BrowseList(
     onAllowLocalNetwork: (() -> Unit)? = null,
     initialStates: Set<S> = style.defaultStates,
     quick: QuickMenu? = null,
-    /** Null: the tab has no grouped view, and no switch for one. */
+    /** Null: the tab has no grouped view. With neither, there is no switch. */
     groups: GroupsSource? = null,
+    /** Null: the tab has no Parents view. */
+    parents: ParentsSource? = null,
 ) {
     // Kept here rather than in the view model: what is typed must reach the text field in the
     // same frame, and the tab's saved state already outlives switching to another tab.
@@ -244,15 +253,17 @@ internal fun <S : Enum<S>> BrowseList(
         ViewStates(rememberSaveable { mutableStateOf(initialStates) }, rememberSaveable { mutableStateOf(emptySet()) })
     var showHandled by rememberSaveable { mutableStateOf(BrowseFilter<S>().showHandled) }
     var chosenMode by rememberSaveable { mutableStateOf(BrowseMode.ALL) }
-    val mode = if (groups == null) BrowseMode.ALL else chosenMode
+    val sources = listOfNotNull<ViewSource>(groups, parents)
+    val source = sources.firstOrNull { it.mode == chosenMode }
+    val mode = source?.mode ?: BrowseMode.ALL
     val states = chips.of(mode)
     val view = remember(rows, query, states, showHandled) { BrowseFilter(query, states, showHandled).apply(rows) }
     // Which groups the person opened or closed, against where each starts (open if it needs someone).
     var toggled by rememberSaveable { mutableStateOf(emptySet<String>()) }
-    val part = groups?.part
-    // The groups are read the first time they are wanted, and not again until a refresh.
+    val part = source?.part
+    // What a view needs is read the first time it is wanted, and not again until a refresh.
     LaunchedEffect(mode, part?.value == null, part?.loading, part?.error) {
-        if (mode == BrowseMode.GROUPS && groups?.wanted() == true) groups.load(false)
+        if (source?.wanted() == true) source.load(false)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -263,7 +274,9 @@ internal fun <S : Enum<S>> BrowseList(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    if (groups != null) ModeSwitch(mode) { chosenMode = it }
+                    if (sources.isNotEmpty()) {
+                        ModeSwitch(listOf(BrowseMode.ALL) + sources.map { it.mode }, mode) { chosenMode = it }
+                    }
                     FilterChips(
                         style = style,
                         view = view,
@@ -276,10 +289,8 @@ internal fun <S : Enum<S>> BrowseList(
                 }
             }
             item { StatusBanners(status, now, onAllowLocalNetwork) }
-            val grouped = mode == BrowseMode.GROUPS && groups != null &&
-                groupsBody(groups, view.rows, GroupOpenness(toggled) { toggled = it }, style) { row ->
-                    BrowseRowItem(row, style, now, onOpen, quick)
-                }
+            val viewRows = ViewRows(view.rows, rows, style) { row -> BrowseRowItem(row, style, now, onOpen, quick) }
+            val grouped = source?.draw(this, viewRows, GroupOpenness(toggled) { toggled = it }) == true
             if (!grouped && view.rows.isEmpty()) {
                 // Hiding handled problems is the default, so when that is all that stands between
                 // the person and a row, the list has to say so.

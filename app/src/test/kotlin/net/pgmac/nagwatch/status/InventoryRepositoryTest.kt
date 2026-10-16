@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.NagiosResult
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
@@ -76,6 +77,21 @@ class InventoryRepositoryTest {
 
         assertEquals("service groups twice, host groups never", 2, client.groupFetches)
         assertNull(repository.inventories.value.getValue(profile).hostGroups.value)
+    }
+
+    @Test
+    fun `hosts' parents are read once, and again on a refresh`() = runBlocking {
+        client.hostConfigsResult = { NagiosResult.Success(listOf(HostConfig("host02", listOf("host01")))) }
+
+        repository.loadHostConfigs(profile)
+        repository.loadHostConfigs(profile)
+        repository.refreshLoaded(profile)
+
+        assertEquals(2, client.groupFetches)
+        assertEquals(
+            listOf("host01"),
+            repository.inventories.value.getValue(profile).hostConfigs.value?.single()?.parents,
+        )
     }
 
     @Test

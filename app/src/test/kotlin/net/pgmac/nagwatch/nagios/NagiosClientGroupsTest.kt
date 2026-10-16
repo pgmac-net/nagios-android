@@ -45,6 +45,17 @@ class NagiosClientGroupsTest {
     }
 
     @Test
+    fun `hosts' parents come from the host list of the object CGI`() {
+        serve()
+
+        val hosts = runBlocking { client().fetchHostConfigs() }.valueOrFail()
+
+        assertEquals("hostlist", requests.single().param("query"))
+        assertEquals("/cgi-bin/objectjson.cgi", requests.single().url.encodedPath)
+        assertEquals(5, hosts.size)
+    }
+
+    @Test
     fun `a user who may not read the configuration gets an error, not an exception`() {
         server.respond { status(403) }
 
@@ -61,6 +72,7 @@ class NagiosClientGroupsTest {
         when (request.param("query")) {
             "hostgrouplist" -> ok(Fixtures.text("objectjson_hostgrouplist.json"))
             "servicegrouplist" -> ok(Fixtures.text("objectjson_servicegrouplist.json"))
+            "hostlist" -> ok(Fixtures.text("objectjson_hostlist.json"))
             else -> status(404)
         }
     }

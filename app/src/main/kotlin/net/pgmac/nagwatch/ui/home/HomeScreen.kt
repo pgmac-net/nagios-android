@@ -204,6 +204,8 @@ fun HomeScreen(
             serviceGroups = held.serviceGroups,
             loadHostGroups = { force -> inventoryViewModel.loadHostGroups(profileId, force) },
             loadServiceGroups = { force -> inventoryViewModel.loadServiceGroups(profileId, force) },
+            hostConfigs = held.hostConfigs,
+            loadHostConfigs = { force -> inventoryViewModel.loadHostConfigs(profileId, force) },
         )
     }
     HomeContent(state, actions, quick = quick, inventory = inventory)

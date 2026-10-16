@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.nagios.model.ServiceGroup
@@ -45,6 +46,18 @@ internal object ObjectParser {
                 }.distinct(),
             )
         }
+
+    /** `data.hostlist` from `objectjson.cgi` with `details=true`: host name -> host object. */
+    fun hostConfigs(body: JsonObject): List<HostConfig> = body.obj("data").obj("hostlist").mapNotNull { (key, entry) ->
+        val host = entry as? JsonObject ?: return@mapNotNull null
+        val name = host.string("name").ifBlank { key }
+        HostConfig(name = name, parents = host.names("parent_hosts").filter { it != name })
+    }
+
+    private fun JsonObject.names(key: String): List<String> = (this[key] as? JsonArray).orEmpty()
+        .mapNotNull { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content }
+        .filter(String::isNotEmpty)
+        .distinct()
 
     private fun JsonObject.members(): List<JsonElement> = this["members"] as? JsonArray ?: emptyList()
 }

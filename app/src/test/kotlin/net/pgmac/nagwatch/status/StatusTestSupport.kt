@@ -23,6 +23,7 @@ import net.pgmac.nagwatch.nagios.command.ServerDateFormat
 import net.pgmac.nagwatch.nagios.model.CheckStatus
 import net.pgmac.nagwatch.nagios.model.Comment
 import net.pgmac.nagwatch.nagios.model.Downtime
+import net.pgmac.nagwatch.nagios.model.HostConfig
 import net.pgmac.nagwatch.nagios.model.HostGroup
 import net.pgmac.nagwatch.nagios.model.HostState
 import net.pgmac.nagwatch.nagios.model.HostStatus
@@ -109,6 +110,13 @@ class FakeClient(
     override suspend fun fetchHostGroups(): NagiosResult<List<HostGroup>> {
         groupFetches++
         return hostGroupsResult()
+    }
+
+    var hostConfigsResult: () -> NagiosResult<List<HostConfig>> = { NagiosResult.Success(emptyList()) }
+
+    override suspend fun fetchHostConfigs(): NagiosResult<List<HostConfig>> {
+        groupFetches++
+        return hostConfigsResult()
     }
 
     override suspend fun fetchServiceGroups(): NagiosResult<List<ServiceGroup>> {

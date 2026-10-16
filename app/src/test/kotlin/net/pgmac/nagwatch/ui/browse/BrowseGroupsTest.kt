@@ -75,6 +75,24 @@ class BrowseGroupsTest {
         assertEquals(listOf(otherHost), sections.first { it.group == null }.rows)
     }
 
+    @Test
+    fun `two groups of one name are one group holding both their members, so nobody is lost`() {
+        val twice = BrowseGroups.hostGroups(
+            listOf(HostGroup("web", "A", listOf("web02")), HostGroup("web", "B", listOf("web01"))),
+        )
+
+        val sections = BrowseGroups.sections(listOf(web01, web02), twice)
+
+        assertEquals(1, sections.size)
+        assertEquals(
+            "the down host is still shown",
+            setOf("web01", "web02"),
+            sections.single().rows.map {
+                it.hostName
+            }.toSet(),
+        )
+    }
+
     private fun host(name: String, state: HostState) = BrowseRow(
         hostName = name,
         service = null,

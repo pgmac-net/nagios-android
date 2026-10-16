@@ -184,10 +184,19 @@ object BrowseGroups {
     /** Groups by what people read, then the rows in no group at the end; empty sections are left out. */
     fun <S> sections(shown: List<BrowseRow<S>>, groups: List<RowGroup>): List<RowSection<S>> {
         val inAGroup = groups.flatMapTo(HashSet()) { it.members }
-        val grouped = groups
+        val grouped = merged(groups)
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, RowGroup::label).thenBy(RowGroup::name))
             .map { group -> RowSection(group, shown.filter { it.key in group.members }) }
         val loose = RowSection(null, shown.filter { it.key !in inAGroup })
         return (grouped + loose).filter { it.rows.isNotEmpty() }
     }
+
+    /**
+     * Two groups of one name (a server can say so) become one, holding the members of both. One
+     * of them dropped would leave its members in a group nobody can see, and so in no section at
+     * all: a host that is down would vanish from the view.
+     */
+    private fun merged(groups: List<RowGroup>): List<RowGroup> = groups
+        .groupBy(RowGroup::name)
+        .map { (_, same) -> same.first().copy(members = same.flatMapTo(HashSet()) { it.members }) }
 }
