@@ -14,6 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -21,14 +24,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.pgmac.nagwatch.R
 import net.pgmac.nagwatch.notify.NOTIFICATION_PERMISSION
 import net.pgmac.nagwatch.notify.NotifyChannel
+import net.pgmac.nagwatch.notify.canScheduleExactAlarms
 import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.ui.PermissionRequest
 import net.pgmac.nagwatch.ui.appNotificationSettings
+import net.pgmac.nagwatch.ui.openAlarmPermissionSettings
 import net.pgmac.nagwatch.ui.openAppNotificationSettings
 import net.pgmac.nagwatch.ui.rememberPermissionRequest
 
@@ -39,6 +45,9 @@ object NotificationTags {
     const val UNHANDLED_ONLY = "notify_unhandled_only"
     const val UNREACHABLE = "notify_unreachable"
     const val SOUNDS = "notify_sounds"
+    const val LOUD_ALERTS = "notify_loud_alerts"
+    const val LOUD_ALERTS_BLOCKED = "notify_loud_alerts_blocked"
+    const val ALLOW_ALARMS = "notify_allow_alarms"
     const val OFFER = "notify_offer"
     const val OFFER_TURN_ON = "notify_offer_turn_on"
     const val OFFER_NOT_NOW = "notify_offer_not_now"
@@ -128,6 +137,7 @@ fun NotificationFields(settings: NotificationSettings, refused: Boolean, actions
     ) { checked -> actions.editNotifications { it.copy(tellUnreachable = checked) } }
     Text(stringResource(R.string.notify_unreachable_hint), style = MaterialTheme.typography.bodySmall)
     SoundsLink()
+    LoudAlertFields(settings.loudAlerts) { checked -> actions.editNotifications { it.copy(loudAlerts = checked) } }
 }
 
 /**
@@ -149,6 +159,41 @@ private fun SoundsLink() {
         Text(stringResource(R.string.notify_sounds))
     }
     Text(stringResource(R.string.notify_sounds_hint), style = MaterialTheme.typography.bodySmall)
+}
+
+/**
+ * The loud alerts switch, and what it needs from Android: the "Alarms & reminders" permission.
+ * Switching on without it goes to Android's page for it. With the switch on and the permission
+ * missing (refused there, or taken back later) the section says so, and offers the page again.
+ * It is looked at again each time the screen comes back, which is how a visit to that page is seen.
+ */
+@Composable
+private fun LoudAlertFields(on: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    var allowed by remember { mutableStateOf(canScheduleExactAlarms(context)) }
+    LifecycleResumeEffect(Unit) {
+        allowed = canScheduleExactAlarms(context)
+        onPauseOrDispose {}
+    }
+    LabelledSwitch(label = R.string.notify_loud_alerts, checked = on, tag = NotificationTags.LOUD_ALERTS) { checked ->
+        onChange(checked)
+        if (checked && !allowed) openAlarmPermissionSettings(context)
+    }
+    Text(stringResource(R.string.notify_loud_alerts_hint), style = MaterialTheme.typography.bodySmall)
+    if (on && !allowed) {
+        Text(
+            text = stringResource(R.string.notify_loud_alerts_blocked),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag(NotificationTags.LOUD_ALERTS_BLOCKED),
+        )
+        Button(
+            onClick = { openAlarmPermissionSettings(context) },
+            modifier = Modifier.testTag(NotificationTags.ALLOW_ALARMS),
+        ) {
+            Text(stringResource(R.string.action_allow_alarms))
+        }
+    }
 }
 
 @Composable

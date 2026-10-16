@@ -211,6 +211,10 @@
     <string name="quick_ack_comment">Acknowledgement comment</string>
     <string name="quick_ack_comment_hint">What an acknowledgement says when you make one from a list or a notification, without the form. Everyone who uses this Nagios will see it. Leave empty for “Acknowledged from Nagwatch”.</string>
     <string name="notify_sounds">Sounds and importance</string>
+    <string name="notify_loud_alerts">Loud alerts for down and critical</string>
+    <string name="notify_loud_alerts_hint">A new or worse down or critical problem plays your alarm sound for up to ten seconds, at the volume set in Settings, even on silent or in Do Not Disturb. Not if your Do Not Disturb mode blocks alarms too. Opening the app or swiping the notification away stops it.</string>
+    <string name="notify_loud_alerts_blocked">Android is not letting Nagwatch use alarms, so loud alerts cannot sound. Critical notifications make their usual sound instead.</string>
+    <string name="action_allow_alarms">Allow alarms</string>
     <string name="notify_sounds_hint">Android keeps the sound, importance and vibration for each kind of notification: down and critical, warning, unknown, recovered, can’t reach Nagios and summaries. Android lists them under “Other”. What you set there applies to every profile.</string>
     <string name="notify_acting_acknowledge">Acknowledging…</string>
     <string name="notify_acting_recheck">Asking for a check…</string>
@@ -224,6 +228,7 @@
     <string name="channel_recovered">Recovered</string>
     <string name="channel_outage">Can’t reach Nagios</string>
     <string name="channel_summary">Summaries</string>
+    <string name="channel_sounding">Loud alert sounding</string>
 
     <string name="notify_service_on_host">%1$s on %2$s</string>
     <string name="notify_down">DOWN: %1$s</string>
@@ -357,6 +362,14 @@
     <string name="settings_emoji_text">A symbol at the start of each notification, in case your phone does not colour the icon. It applies to every profile, from the next notification.</string>
     <string name="settings_large_icon_title">Coloured picture</string>
     <string name="settings_large_icon_text">A circle in the state\u2019s colour beside each notification. Where your phone draws the app\u2019s own icon there, this replaces it. It applies from the next notification.</string>
+    <string name="settings_loud_alert_title">Loud alert volume</string>
+    <string name="settings_loud_alert_text">How loud a loud alert is, as a share of your phone\u2019s highest alarm volume. Your alarm volume is put back when it ends. Loud alerts are switched on for each profile, in its Notifications.</string>
+    <string name="settings_loud_alert_volume">%1$d%%</string>
+    <string name="settings_loud_alert_test">Test</string>
+    <string name="settings_loud_alert_blocked">Android is not letting Nagwatch use alarms, so loud alerts cannot sound from the background. The test still plays.</string>
+    <string name="action_stop">Stop</string>
+    <string name="loud_alert_sounding_title">Loud alert</string>
+    <string name="loud_alert_sounding_text">Nagios has a down or critical problem.</string>
     <string name="emoji_set_none">None</string>
     <string name="emoji_set_circles">Coloured circles</string>
     <string name="emoji_set_signs">Signs</string>

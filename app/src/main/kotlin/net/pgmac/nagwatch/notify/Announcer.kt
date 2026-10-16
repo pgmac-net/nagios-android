@@ -62,7 +62,10 @@ object Announcer {
         val (recoveries, dealtWith) = gone(state, current, report).partition { it.recovered }
 
         val post = buildList {
-            if (summarised) add(Notice.Summary(loud.size, first = false))
+            if (summarised) {
+                val critical = loud.any { NotifyChannel.of(it.problem.severity) == NotifyChannel.CRITICAL }
+                add(Notice.Summary(loud.size, first = false, critical = critical))
+            }
             changes.forEach { seen -> seen.notice(summarised)?.let(::add) }
             recoveries.forEach { add(Notice.Recovered(it.ref)) }
         }

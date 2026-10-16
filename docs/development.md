@@ -236,6 +236,11 @@ Things to know:
   ```
   To try a button against a real Nagios, add `--el profile ID --es host HOST --es service SERVICE` (and `--el profile ID --es action clear` afterwards). **That sample's Acknowledge button is real**: it will acknowledge the service for everyone.
   Same permission as the poll receiver, and not in a release build. The app takes these down itself the next time it starts, as it does for any profile it does not know.
+- **A loud alert** (ADR 0013) has to be tried from the background, where Android 17's background audio hardening applies; the Settings Test plays from the foreground, where it does not. `LoudAlertNowReceiver` (`app/src/debug`) sounds one from a worker after a delay (15 s unless given), long enough to lock the phone or put it on silent or in Do Not Disturb:
+  ```
+  adb shell am broadcast -n net.pgmac.nagwatch.debug/net.pgmac.nagwatch.debug.LoudAlertNowReceiver --ei delay 20
+  ```
+  It sounds only if the app holds the exact-alarm permission, as the notifier does. Android 17 drops a background app's playback and volume changes **silently**; `adb logcat | grep -E 'AudioHardening|Background started FGS'` shows what was dropped and why: the service's start must say `code:ALARM_MANAGER_WHILE_IDLE` (a start in the 20 seconds after `adb install` says `PACKAGE_REPLACED` and proves nothing, so wait that out), and a loud alert's own lines say `exemption: 4`. `adb shell cmd audio set-enable-hardening throw` is documented to make dropped calls throw; on a Pixel 8a (Android 17) it changed nothing (`dumpsys audio` still shows `mHardeningOverride=0`). Read the alarm volume with `adb shell cmd media_session volume --stream 4 --get` before, during and after: it must come back to where it was. That phone ignored both `--set` and injected volume keys, so the person's own change during an alert has to be tried by hand. The exact-alarm permission can be taken back to try that path with `adb shell appops set net.pgmac.nagwatch.debug SCHEDULE_EXACT_ALARM deny` (`allow` to give it back).
 - **"Needs a network" means one Android has validated as having internet.** A Wi-Fi network with a Nagios on it and no way out does not count, and the job waits.
 
 ## The widget

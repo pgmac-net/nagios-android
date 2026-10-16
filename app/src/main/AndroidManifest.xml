@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Talking to the Nagios instances the user configures. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,12 +17,22 @@
     <!--
         Background polling is WorkManager's, and it brings three permissions of its own that the
         app does use: to stay awake for the length of one poll, to wait for a network, and to put
-        its schedule back after a restart. It also asks for this one, for long-running work shown
-        with a permanent notification. Nagwatch does none of that, so it is not asked for.
+        its schedule back after a restart. WorkManager also asks for FOREGROUND_SERVICE, which the
+        app now uses itself, below.
     -->
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE"
-        tools:node="remove" />
+
+    <!--
+        A loud alert (docs/adr/0013). From Android 17, an app in the background is heard only from
+        a foreground service, and only an app that holds the exact-alarm permission may play as an
+        alarm from it. A service cannot be started from the background either, except as an exact
+        alarm goes off, so the app sets one for now when a loud alert is due, and for nothing else. The person grants it, as
+        "Alarms & reminders", when they switch loud alerts on, and can take it back.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- A loud alert buzzes as well as sounding. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".NagwatchApplication"
@@ -88,6 +97,22 @@
         -->
         <receiver
             android:name=".notify.NotificationActionReceiver"
+            android:exported="false" />
+
+        <!-- Plays a loud alert, for at most ten seconds. Not exported: only the app starts it. -->
+        <service
+            android:name=".notify.LoudAlertService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Where the exact alarm that starts a loud alert goes off. Not exported. -->
+        <receiver
+            android:name=".notify.LoudAlertAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Stops a loud alert: its Stop button, or a loud notification swiped away. Not exported. -->
+        <receiver
+            android:name=".notify.StopLoudAlertReceiver"
             android:exported="false" />
 
         <activity-alias

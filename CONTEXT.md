@@ -65,8 +65,12 @@ A profile's Nagios cannot be polled. One that may pass by itself (no answer, a c
 _Avoid_: Downtime (that is scheduled, in Nagios), offline
 
 **Channel**:
-One kind of notification as Android's settings list it: down and critical, warning, unknown, recovered, can't reach Nagios, summaries. The person, not the app, decides how loud each is.
+One kind of notification as Android's settings list it: down and critical, warning, unknown, recovered, can't reach Nagios, summaries. The person, not the app, decides how loud each is (a loud alert is the one exception, and only where the person switched it on).
 _Avoid_: Category, type
+
+**Loud alert**:
+A down or critical notification, new or worse, whose sound the app plays itself on Android's alarm stream, at a volume set in the app, so that silent mode and Do Not Disturb do not stop it being heard. Switched on per profile, off by default. One per poll at most, and never for the first poll's summary.
+_Avoid_: DND override (the app does not turn Do Not Disturb off), alarm (that is the clock's), siren
 
 **Offer (of notifications)**:
 The one time the app asks, for a profile that has just loaded, whether to switch notifications on. Whatever the answer it is not made again for that profile, and nothing is switched on without a yes.

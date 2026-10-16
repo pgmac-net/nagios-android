@@ -124,6 +124,37 @@ class ProfileMigrationTest {
         }
 
     @Test
+    fun `a profile saved by version 5 survives the upgrade, with loud alerts off`() = runBlocking {
+        createVersion(5) { db ->
+            db.execSQL("UPDATE profiles SET notify = 1, ack_comment = 'On it'")
+        }
+
+        val profiles = open(*ProfileDatabase.MIGRATIONS.toTypedArray()).profiles()
+
+        val kept = checkNotNull(profiles.get(1))
+        assertEquals("Home", kept.name)
+        assertEquals("encrypted-password", kept.encryptedPassword)
+        assertEquals("what it chose is as it was", true to "On it", kept.notify to kept.ackComment)
+        assertEquals("nothing gets louder by itself", false, kept.loudAlerts)
+    }
+
+    @Test
+    fun `a version 5 database is refused without its own migration`() {
+        createVersion(5)
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                open(
+                    ProfileDatabase.MIGRATION_1_2,
+                    ProfileDatabase.MIGRATION_2_3,
+                    ProfileDatabase.MIGRATION_3_4,
+                    ProfileDatabase.MIGRATION_4_5,
+                ).profiles().get(1)
+            }
+        }
+    }
+
+    @Test
     fun `a version 4 database is refused without its own migration`() {
         createVersion(4)
 

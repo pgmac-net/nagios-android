@@ -15,6 +15,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.debug.DebugChrome
+import net.pgmac.nagwatch.notify.LoudAlert
 import net.pgmac.nagwatch.notify.NotificationTarget
 import net.pgmac.nagwatch.notify.TapTargets
 import net.pgmac.nagwatch.profile.SelectedProfile
@@ -28,6 +29,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var tapTargets: TapTargets
+
+    @Inject
+    lateinit var loudAlert: LoudAlert
 
     /** Where a tapped notification asked to go, until the screens have gone there. */
     private val target = MutableStateFlow<NotificationTarget?>(null)
@@ -46,6 +50,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Whoever is looking at the app has heard: a loud alert has done its job. */
+    override fun onResume() {
+        super.onResume()
+        loudAlert.stop()
     }
 
     /** A notification tapped while the app was already open. */

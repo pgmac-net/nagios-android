@@ -6,10 +6,12 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import net.pgmac.nagwatch.notify.AndroidLoudAlert
 import net.pgmac.nagwatch.notify.AndroidNotificationPermission
 import net.pgmac.nagwatch.notify.AndroidNotifier
 import net.pgmac.nagwatch.notify.DataStoreNotificationHistory
 import net.pgmac.nagwatch.notify.DataStoreNotifierSettings
+import net.pgmac.nagwatch.notify.LoudAlert
 import net.pgmac.nagwatch.notify.NotificationHistory
 import net.pgmac.nagwatch.notify.NotificationPermission
 import net.pgmac.nagwatch.notify.Notifier
@@ -31,6 +33,9 @@ abstract class NotifyModule {
 
     @Binds
     abstract fun settings(settings: DataStoreNotifierSettings): NotifierSettings
+
+    @Binds
+    abstract fun loudAlert(loudAlert: AndroidLoudAlert): LoudAlert
 
     @Binds
     abstract fun history(history: DataStoreNotificationHistory): NotificationHistory

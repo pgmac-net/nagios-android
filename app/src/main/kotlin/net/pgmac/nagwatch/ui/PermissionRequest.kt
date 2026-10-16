@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -67,6 +68,17 @@ fun appNotificationSettings(context: Context): Intent =
 
 /** Sends the person to the app's notification page in system settings, where each kind has its own sound. */
 fun openAppNotificationSettings(context: Context) = context.open(appNotificationSettings(context))
+
+/**
+ * Sends the person to Android's "Alarms & reminders" page for the app, which a loud alert needs
+ * (docs/adr/0013). Below Android 12 there is no such page, and nothing to allow.
+ */
+fun openAlarmPermissionSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    context.open(
+        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.fromParts("package", context.packageName, null)),
+    )
+}
 
 private fun Context.activity(): Activity? = when (this) {
     is Activity -> this

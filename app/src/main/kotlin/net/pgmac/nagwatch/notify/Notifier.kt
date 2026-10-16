@@ -79,6 +79,13 @@ enum class NotifyChannel(val id: String, val label: Int, val importance: Int) {
     RECOVERED("recovered", R.string.channel_recovered, NotificationManager.IMPORTANCE_LOW),
     OUTAGE("unreachable", R.string.channel_outage, NotificationManager.IMPORTANCE_DEFAULT),
     SUMMARY("summaries", R.string.channel_summary, NotificationManager.IMPORTANCE_DEFAULT),
+
+    /**
+     * Shown while a loud alert sounds, to stop it. Each notification is posted silent: the sound is
+     * the alert's. Default importance and not low, because a low one is filed under "Silent",
+     * folded, with its Stop button out of sight (seen on a Pixel 8a).
+     */
+    SOUNDING("loud_alert_sounding", R.string.channel_sounding, NotificationManager.IMPORTANCE_DEFAULT),
     ;
 
     companion object {
@@ -124,12 +131,14 @@ class AndroidNotifier internal constructor(
     private val emojiSet: () -> EmojiSet = { EmojiSet.DEFAULT },
     /** Whether to give a notification a large icon, read each time something is posted. */
     private val largeIcon: () -> Boolean = { true },
+    private val loudAlert: LoudAlert = LoudAlert.NONE,
 ) : Notifier {
     @Inject
     constructor(
         @ApplicationContext context: Context,
         permission: NotificationPermission,
         settings: NotifierSettings,
+        loudAlert: LoudAlert,
     ) : this(
         context,
         permission,
@@ -137,6 +146,7 @@ class AndroidNotifier internal constructor(
         // Posting runs on a worker, off the main thread, and a DataStore read is a small file.
         { runBlocking { settings.emojiSet.first() } },
         { runBlocking { settings.largeIcon.first() } },
+        loudAlert,
     )
 
     private val manager: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
@@ -152,7 +162,11 @@ class AndroidNotifier internal constructor(
         val posting = decision.post.isNotEmpty() && permission.isHeld()
         if (posting) {
             ensureChannels()
-            decision.post.forEach { post(profile, it, mayAct) }
+            // Asked once per poll: the notifications go silent only if the alert can be heard instead.
+            val loud = profile.notifications.loudAlerts && decision.post.any { it.isLoud() } && loudAlert.canSound()
+            decision.post.forEach { post(profile, it, mayAct, loud && it.isLoud()) }
+            // One for the whole poll, however many it raised.
+            if (loud) loudAlert.sound()
         }
         tidyGroup(profile.id, profile.name, takenDown, posting)
     }
@@ -287,21 +301,25 @@ class AndroidNotifier internal constructor(
         }
     }
 
-    private fun post(profile: Profile, notice: Notice, mayAct: Boolean) {
+    /**
+     * @param loud a loud alert stands in for this one's sound: it is posted silent, and swiping it
+     *   away stops the alert.
+     */
+    private fun post(profile: Profile, notice: Notice, mayAct: Boolean, loud: Boolean) {
         when (notice) {
             is Notice.Raised ->
-                manager.notify(problemTag(profile.id, notice.ref), ID_PROBLEM, raised(profile, notice, mayAct))
+                manager.notify(problemTag(profile.id, notice.ref), ID_PROBLEM, raised(profile, notice, mayAct, loud))
 
             is Notice.Recovered ->
                 manager.notify(problemTag(profile.id, notice.ref), ID_PROBLEM, recovered(profile, notice.ref))
 
-            is Notice.Summary -> manager.notify(profileTag(profile.id), ID_SUMMARY, summary(profile, notice))
+            is Notice.Summary -> manager.notify(profileTag(profile.id), ID_SUMMARY, summary(profile, notice, loud))
 
             is Notice.Outage -> manager.notify(profileTag(profile.id), ID_OUTAGE, outage(profile, notice))
         }
     }
 
-    private fun raised(profile: Profile, notice: Notice.Raised, mayAct: Boolean): Notification {
+    private fun raised(profile: Profile, notice: Notice.Raised, mayAct: Boolean, loud: Boolean): Notification {
         val what = context.getString(notice.problem.severity.word(), notice.ref.describe())
         val words = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
         val title = emojis().of(notice.problem.severity).before(words)
@@ -315,7 +333,8 @@ class AndroidNotifier internal constructor(
             .setContentTitle(title)
             .text(text)
             // An update says nothing new enough to interrupt for.
-            .setSilent(notice.change == Notice.Change.UPDATED)
+            .setSilent(notice.change == Notice.Change.UPDATED || loud)
+            .loud(loud)
         if (mayAct) {
             // The button carries what the notification says, so the answer can be drawn in its place.
             val request = ActionRequest(
@@ -346,12 +365,14 @@ class AndroidNotifier internal constructor(
             .build()
     }
 
-    private fun summary(profile: Profile, notice: Notice.Summary): Notification {
+    private fun summary(profile: Profile, notice: Notice.Summary, loud: Boolean): Notification {
         val title = if (notice.first) R.plurals.notify_summary_first else R.plurals.notify_summary_more
         return builder(profile, NotifyChannel.SUMMARY, NotificationTarget(profile.id))
             .setSmallIcon(R.drawable.ic_tab_problems)
             .setContentTitle(context.resources.getQuantityString(title, notice.count, notice.count, profile.name))
             .text(context.getString(R.string.notify_summary_text))
+            .setSilent(loud)
+            .loud(loud)
             .build()
     }
 
@@ -387,6 +408,10 @@ class AndroidNotifier internal constructor(
         @ColorInt glyphColor: Int,
     ): NotificationCompat.Builder =
         if (largeIcon()) setLargeIcon(LargeIcon.render(context, fill, glyph, glyphColor)) else this
+
+    /** Swiping away a notification that a loud alert is sounding for stops the alert: it has been seen. */
+    private fun NotificationCompat.Builder.loud(loud: Boolean): NotificationCompat.Builder =
+        if (loud) setDeleteIntent(StopLoudAlertReceiver.pendingIntent(context)) else this
 
     private fun NotificationCompat.Builder.text(text: String): NotificationCompat.Builder =
         if (text.isEmpty()) this else setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -432,6 +457,17 @@ class AndroidNotifier internal constructor(
     }
 
     private fun ensureChannels() = NotifyChannel.createAll(context)
+
+    /** Down or critical, new or worse, or a later summary that stands in for one (docs/adr/0013). */
+    private fun Notice.isLoud(): Boolean = when (this) {
+        is Notice.Raised ->
+            change != Notice.Change.UPDATED &&
+                NotifyChannel.of(problem.severity) == NotifyChannel.CRITICAL
+
+        is Notice.Summary -> critical && !first
+
+        is Notice.Recovered, is Notice.Outage -> false
+    }
 
     /**
      * The state colours the app's own screens use, in the variant for the phone's theme right now.

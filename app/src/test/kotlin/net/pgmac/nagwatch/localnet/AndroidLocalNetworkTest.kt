@@ -61,11 +61,16 @@ class AndroidLocalNetworkTest {
                 "android.permission.WAKE_LOCK",
                 "android.permission.ACCESS_NETWORK_STATE",
                 "android.permission.RECEIVE_BOOT_COMPLETED",
+                // Loud alerts (docs/adr/0013): a foreground service to play in, the exact-alarm
+                // permission Android 17 asks of anything heard from the background (the person
+                // grants it, when they switch loud alerts on), and the buzz.
+                "android.permission.FOREGROUND_SERVICE",
+                "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+                "android.permission.SCHEDULE_EXACT_ALARM",
+                "android.permission.VIBRATE",
             ),
             declared,
         )
-        // WorkManager would add this too, for work shown with a permanent notification. The app does none.
-        assertFalse("android.permission.FOREGROUND_SERVICE" in declared)
     }
 
     @Test

@@ -23,6 +23,15 @@
             android:name="net.pgmac.nagwatch.debug.SampleNotificationsReceiver"
             android:exported="true"
             android:permission="android.permission.DUMP" />
+
+        <!--
+            Debug builds only. Sounds a loud alert from a background worker after a delay, to try
+            it locked, on silent and in Do Not Disturb (docs/development.md). Same permission.
+        -->
+        <receiver
+            android:name="net.pgmac.nagwatch.debug.LoudAlertNowReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 
 </manifest>

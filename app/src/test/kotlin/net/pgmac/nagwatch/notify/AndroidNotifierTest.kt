@@ -14,6 +14,8 @@ import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import net.pgmac.nagwatch.nagios.ProblemClassifier
 import net.pgmac.nagwatch.nagios.command.Command
 import net.pgmac.nagwatch.nagios.command.Refusal
@@ -26,6 +28,7 @@ import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.nagios.model.ServiceStatus
 import net.pgmac.nagwatch.nagios.model.StatusSnapshot
 import net.pgmac.nagwatch.notify.Notice.Change
+import net.pgmac.nagwatch.profile.NotificationSettings
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.StatusError
@@ -35,6 +38,7 @@ import net.pgmac.nagwatch.ui.theme.LightStateColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -73,6 +77,7 @@ class AndroidNotifierTest {
                 "recovered" to NotificationManager.IMPORTANCE_LOW,
                 "unreachable" to NotificationManager.IMPORTANCE_DEFAULT,
                 "summaries" to NotificationManager.IMPORTANCE_DEFAULT,
+                "loud_alert_sounding" to NotificationManager.IMPORTANCE_DEFAULT,
             ),
             manager.notificationChannels.associate { it.id to it.importance },
         )
@@ -642,6 +647,127 @@ class AndroidNotifierTest {
         assertTrue(shown.flags and Notification.FLAG_AUTO_CANCEL != 0)
     }
 
+    // ---------------------------------------------------------------- loud alerts
+
+    private val alert = FakeLoudAlert()
+    private val loud = home.copy(notifications = NotificationSettings(enabled = true, loudAlerts = true))
+
+    private fun loudNotifier() = AndroidNotifier(context, { allowed }, loudAlert = alert).also { notifier = it }
+
+    @Test
+    fun `a new critical on a profile with loud alerts sounds one, and its notification is silent`() {
+        loudNotifier()
+
+        raise(disk, ServiceState.CRITICAL, profile = loud)
+
+        assertEquals(1, alert.sounded)
+        assertTrue("the alert is its sound", problem(disk, loud).isSilent())
+        assertNotNull("swiping it away stops the alert", problem(disk, loud).deleteIntent)
+    }
+
+    @Test
+    fun `a host going down is loud too, and getting worse is`() {
+        loudNotifier()
+
+        raiseHost("db01", HostState.DOWN, profile = loud)
+        raise(disk, ServiceState.CRITICAL, change = Change.WORSE, profile = loud)
+
+        assertEquals(2, alert.sounded)
+    }
+
+    @Test
+    fun `warnings, unknowns, recoveries, outages and updates are never loud`() {
+        loudNotifier()
+
+        raise(load, ServiceState.WARNING, profile = loud)
+        raise(ObjectRef("web01", "Odd"), ServiceState.UNKNOWN, profile = loud)
+        raise(disk, ServiceState.CRITICAL, change = Change.UPDATED, profile = loud)
+        deliver(loud, post = listOf(Notice.Recovered(load)))
+        deliver(loud, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))
+
+        assertEquals(0, alert.sounded)
+        assertFalse("a warning keeps its channel's sound", problem(ObjectRef("web01", "Odd"), loud).isSilent())
+    }
+
+    @Test
+    fun `many criticals in one poll are one loud alert`() {
+        loudNotifier()
+
+        deliver(loud, post = listOf(criticalNotice(disk), criticalNotice(load)))
+
+        assertEquals(1, alert.sounded)
+        assertTrue(problem(disk, loud).isSilent() && problem(load, loud).isSilent())
+    }
+
+    @Test
+    fun `a later summary that stands in for a critical is loud, and the first poll's never is`() {
+        loudNotifier()
+
+        deliver(loud, post = listOf(Notice.Summary(9, first = true)))
+        deliver(loud, post = listOf(Notice.Summary(6, first = false, critical = false)))
+        assertEquals(0, alert.sounded)
+
+        deliver(loud, post = listOf(Notice.Summary(6, first = false, critical = true)))
+        assertEquals(1, alert.sounded)
+        assertTrue(shown(loud, AndroidNotifier.ID_SUMMARY).isSilent())
+    }
+
+    @Test
+    fun `with loud alerts off the profile's criticals sound as they always did`() {
+        loudNotifier()
+
+        raise(disk, ServiceState.CRITICAL)
+
+        assertEquals(0, alert.sounded)
+        assertFalse(problem(disk).isSilent())
+        assertNull(problem(disk).deleteIntent)
+    }
+
+    @Test
+    fun `without the alarm permission a critical makes its channel's sound instead of none`() {
+        loudNotifier()
+        alert.can = false
+
+        raise(disk, ServiceState.CRITICAL, profile = loud)
+
+        assertEquals(0, alert.sounded)
+        assertFalse(problem(disk, loud).isSilent())
+    }
+
+    @Test
+    fun `with notifications not allowed there is nothing posted and nothing loud`() {
+        loudNotifier()
+        allowed = false
+
+        raise(disk, ServiceState.CRITICAL, profile = loud)
+
+        assertEquals(0, alert.sounded)
+    }
+
+    private fun criticalNotice(ref: ObjectRef): Notice.Raised {
+        val service = ServiceStatus(ref.hostName, checkNotNull(ref.description), ServiceState.CRITICAL, CheckStatus())
+        return Notice.Raised(
+            ref,
+            classify(listOf(HostStatus(ref.hostName, HostState.UP, CheckStatus())), listOf(service)),
+            Change.NEW,
+        )
+    }
+
+    private class FakeLoudAlert : LoudAlert {
+        var can = true
+        var sounded = 0
+
+        override val sounding: StateFlow<Boolean> = MutableStateFlow(false)
+
+        override fun canSound() = can
+
+        override fun sound() {
+            sounded++
+        }
+
+        override fun stop() = Unit
+    }
+
     // ----------------------------------------------------------------
 
     private fun deliver(
@@ -667,9 +793,9 @@ class AndroidNotifierTest {
         deliver(profile, post = listOf(raised), mayAct = mayAct)
     }
 
-    private fun raiseHost(name: String, state: HostState) {
+    private fun raiseHost(name: String, state: HostState, profile: Profile = home) {
         val host = HostStatus(name, state, CheckStatus(pluginOutput = "no reply"))
-        deliver(home, post = listOf(Notice.Raised(ObjectRef(name), classify(listOf(host), emptyList()), Change.NEW)))
+        deliver(profile, post = listOf(Notice.Raised(ObjectRef(name), classify(listOf(host), emptyList()), Change.NEW)))
     }
 
     private fun classify(hosts: List<HostStatus>, services: List<ServiceStatus>): Problem =
