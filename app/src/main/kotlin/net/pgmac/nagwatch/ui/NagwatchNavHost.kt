@@ -24,6 +24,8 @@ import net.pgmac.nagwatch.ui.graph.GraphViewerScreen
 import net.pgmac.nagwatch.ui.graph.rememberScreenTurn
 import net.pgmac.nagwatch.ui.home.HomeNavigation
 import net.pgmac.nagwatch.ui.home.HomeScreen
+import net.pgmac.nagwatch.ui.map.HostMapScreen
+import net.pgmac.nagwatch.ui.map.HostMapViewModel
 import net.pgmac.nagwatch.ui.profile.ProfileEditorScreen
 import net.pgmac.nagwatch.ui.profile.ProfileEditorViewModel
 import net.pgmac.nagwatch.ui.profile.ProfilesScreen
@@ -53,6 +55,16 @@ fun NagwatchNavHost(target: NotificationTarget? = null, onTargetOpened: () -> Un
             )
         }
         composable(Routes.SETTINGS) { SettingsScreen() }
+        composable(
+            route = Routes.MAP,
+            arguments = listOf(navArgument(HostMapViewModel.ARG_PROFILE) { type = NavType.LongType }),
+        ) { entry ->
+            val profileId = entry.arguments?.getLong(HostMapViewModel.ARG_PROFILE) ?: 0
+            HostMapScreen(
+                onBack = { navController.popBackStack() },
+                onOpen = { host -> navController.navigate(Routes.host(profileId, host)) },
+            )
+        }
         composable(
             route = Routes.PROFILE,
             arguments = listOf(navArgument(ProfileEditorViewModel.ARG_PROFILE_ID) { type = NavType.LongType }),
@@ -157,6 +169,8 @@ private fun homeNavigation(navController: NavHostController) = object : HomeNavi
     override fun editProfile(id: Long) = navController.navigate(Routes.profile(id))
 
     override fun manageProfiles() = navController.navigate(Routes.PROFILES)
+
+    override fun openMap(profileId: Long) = navController.navigate(Routes.map(profileId)) { launchSingleTop = true }
 
     override fun openSettings() = navController.navigate(Routes.SETTINGS)
 

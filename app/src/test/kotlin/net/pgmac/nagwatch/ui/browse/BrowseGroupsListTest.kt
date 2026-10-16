@@ -147,6 +147,9 @@ class BrowseGroupsListTest {
         composeRule.onNodeWithTag(BrowseTags.treeToggle(HostTree.key("", "db01"))).performClick()
         composeRule.onNodeWithTag(BrowseTags.tree(HostTree.key(HostTree.key("", "db01"), "web01"))).assertDoesNotExist()
         assertEquals("already known, not read again", emptyList<Boolean>(), parentLoads)
+
+        composeRule.onNodeWithTag(BrowseTags.MAP).performClick()
+        assertEquals(listOf("map"), opened)
     }
 
     @Test
@@ -188,7 +191,7 @@ class BrowseGroupsListTest {
                     onOpen = { opened += it.title },
                     initialStates = initialStates,
                     groups = GroupsSource(groups.mapValue(BrowseGroups::hostGroups)) { loads += it },
-                    parents = ParentsSource(parents) { parentLoads += it },
+                    parents = ParentsSource(parents, load = { parentLoads += it }, openMap = { opened += "map" }),
                 )
             }
         }
