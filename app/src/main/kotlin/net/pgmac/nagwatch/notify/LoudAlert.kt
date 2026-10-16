@@ -5,6 +5,7 @@ package net.pgmac.nagwatch.notify
 import android.app.AlarmManager
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -84,9 +85,32 @@ class AndroidLoudAlert @Inject constructor(
 
     override fun sound() {
         if (alarmSound.isSounding) return
+        if (!canSound()) {
+            // Only the Settings test gets here, from the foreground, where a service may start.
+            startService()
+            return
+        }
+        // An app in the background may not start a foreground service (Android 12), and Android
+        // 17 hears nothing from it without one. The way in is an exact alarm: as one goes off,
+        // Android lets the app start a foreground service for a few seconds. So the app sets one
+        // for now, and its receiver starts the service. Holding the permission is not enough by
+        // itself: started straight from a poll, the service was refused on a Pixel 8a.
         try {
-            // The service makes itself foreground and plays. Android 17 hears nothing from an app
-            // in the background without one; the exact-alarm permission is what lets it start.
+            context.getSystemService(AlarmManager::class.java).setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime(),
+                LoudAlertAlarmReceiver.pendingIntent(context),
+            )
+        } catch (refused: SecurityException) {
+            // Taken back since canSound() asked. The notification is posted; only the loud part is lost.
+            Log.w(TAG, "A loud alert could not be set", refused)
+        }
+    }
+
+    /** Starts the service that plays. From the foreground, or from the exact alarm's receiver. */
+    fun startService() {
+        try {
+            // The service makes itself foreground and plays.
             ContextCompat.startForegroundService(context, LoudAlertService.start(context))
         } catch (refused: IllegalStateException) {
             // ForegroundServiceStartNotAllowedException is one. The notification is already

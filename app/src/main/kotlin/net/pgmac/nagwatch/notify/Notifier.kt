@@ -80,8 +80,12 @@ enum class NotifyChannel(val id: String, val label: Int, val importance: Int) {
     OUTAGE("unreachable", R.string.channel_outage, NotificationManager.IMPORTANCE_DEFAULT),
     SUMMARY("summaries", R.string.channel_summary, NotificationManager.IMPORTANCE_DEFAULT),
 
-    /** Shown while a loud alert sounds, to stop it. Silent itself: the sound is the alert's. */
-    SOUNDING("loud_alert", R.string.channel_sounding, NotificationManager.IMPORTANCE_LOW),
+    /**
+     * Shown while a loud alert sounds, to stop it. Each notification is posted silent: the sound is
+     * the alert's. Default importance and not low, because a low one is filed under "Silent",
+     * folded, with its Stop button out of sight (seen on a Pixel 8a).
+     */
+    SOUNDING("loud_alert_sounding", R.string.channel_sounding, NotificationManager.IMPORTANCE_DEFAULT),
     ;
 
     companion object {

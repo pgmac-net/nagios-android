@@ -23,9 +23,9 @@
 
     <!--
         A loud alert (docs/adr/0013). From Android 17, an app in the background is heard only from
-        a foreground service, and only one that holds the exact-alarm permission may start that
-        service from the background and play as an alarm. The app schedules no alarms: the
-        permission is what Android asks of anything that wakes someone. The person grants it, as
+        a foreground service, and only an app that holds the exact-alarm permission may play as an
+        alarm from it. A service cannot be started from the background either, except as an exact
+        alarm goes off, so the app sets one for now when a loud alert is due, and for nothing else. The person grants it, as
         "Alarms & reminders", when they switch loud alerts on, and can take it back.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -104,6 +104,11 @@
             android:name=".notify.LoudAlertService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Where the exact alarm that starts a loud alert goes off. Not exported. -->
+        <receiver
+            android:name=".notify.LoudAlertAlarmReceiver"
+            android:exported="false" />
 
         <!-- Stops a loud alert: its Stop button, or a loud notification swiped away. Not exported. -->
         <receiver

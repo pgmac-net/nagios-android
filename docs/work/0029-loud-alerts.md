@@ -27,7 +27,8 @@ Ticket: pgmac-net/nagios-android#109. One pull request. Decision recorded in [AD
 
 - **Android 17 background audio hardening** (found while building, before the phone spike). For an app targeting API 37, playback and volume changes from the background are silently dropped unless a foreground service is running and the app holds the exact-alarm permission and plays as `USAGE_ALARM`. The plan said "no new permission". Agreed with the maintainer: `SCHEDULE_EXACT_ALARM`, asked for when loud alerts are switched on, revocable, plus a ten-second `mediaPlayback` foreground service with a Stop button. `USE_EXACT_ALARM` was rejected (granted at install, cannot be revoked, Play-restricted). Posted on the ticket.
 - **New manifest entries**: `FOREGROUND_SERVICE` (previously removed from WorkManager's merged manifest, now used), `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `SCHEDULE_EXACT_ALARM`, `VIBRATE`; the service and a non-exported stop receiver.
-- **A seventh channel**, "Loud alert sounding" (low importance), for the service's notification.
+- **A seventh channel**, "Loud alert sounding", for the service's notification; default importance after the phone check (low put it under "Silent", folded).
+- **An exact alarm for now** starts the service, found on the phone: a poll may not start a foreground service, permission or not.
 - **Order**: the spike ran after the build (no phone was attached), using the real code through the debug receiver.
 
 ## Tests
@@ -40,4 +41,11 @@ Ticket: pgmac-net/nagios-android#109. One pull request. Decision recorded in [AD
 
 ## On a phone
 
-See the pull request: what was tried on the Pixel 8a (Android 17), and what was not.
+Pixel 8a, Android 17 (API 37), debug build, through `LoudAlertNowReceiver` from the background:
+
+- **Without "Alarms & reminders"** (Android's default for a new install): the worker ran, nothing started, the volume was untouched.
+- **With it, sound started straight from the worker: refused.** `Background started FGS: Disallowed ... BFGS denied: true`. Holding the permission is not the exemption; an exact alarm going off is. Fixed by setting an exact alarm for now and starting the service from its receiver. Allowed as `ALARM_MANAGER_WHILE_IDLE`, about five seconds after the poll. (A first retry was allowed only by the 20-second window after `adb install`, `PACKAGE_REPLACED`, and was run again after it.)
+- **Heard, and felt**, with the phone on silent and in Do Not Disturb, the app in the background, confirmed by the maintainer, twice. The alarm volume went from 5 to 6 (80% of 7, rounded up) for the ten seconds and back to 5.
+- **Stop** on the "Loud alert" notification ended it at once, and the volume went back. That notification was first filed under "Silent", folded, Stop hidden; its channel is now default importance (posted silent), under a new id, and it shows at the top with Stop in sight.
+- **Opening the app** ended it.
+- **Not tried there**: a person's own volume change during an alert (adb's `--set` and injected volume keys were both ignored by the phone; covered by `AlarmSoundTest`); swiping a loud problem notification away (needs a real critical; the delete intent is checked in `AndroidNotifierTest`); Bedtime mode; the Settings Test button.

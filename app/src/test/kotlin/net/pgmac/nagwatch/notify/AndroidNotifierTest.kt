@@ -77,7 +77,7 @@ class AndroidNotifierTest {
                 "recovered" to NotificationManager.IMPORTANCE_LOW,
                 "unreachable" to NotificationManager.IMPORTANCE_DEFAULT,
                 "summaries" to NotificationManager.IMPORTANCE_DEFAULT,
-                "loud_alert" to NotificationManager.IMPORTANCE_LOW,
+                "loud_alert_sounding" to NotificationManager.IMPORTANCE_DEFAULT,
             ),
             manager.notificationChannels.associate { it.id to it.importance },
         )

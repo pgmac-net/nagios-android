@@ -86,6 +86,27 @@ class LoudAlertService : Service() {
 }
 
 /**
+ * Where the exact alarm [AndroidLoudAlert] sets for now goes off. Android lets the app start a
+ * foreground service while it handles one, which a poll in the background cannot. Not exported.
+ */
+@AndroidEntryPoint
+class LoudAlertAlarmReceiver : BroadcastReceiver() {
+    @Inject
+    lateinit var loudAlert: AndroidLoudAlert
+
+    override fun onReceive(context: Context, intent: Intent) = loudAlert.startService()
+
+    companion object {
+        fun pendingIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(context, LoudAlertAlarmReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+}
+
+/**
  * Stops a loud alert: the Stop button on its own notification, and a loud notification swiped away.
  * Not exported. A broadcast, not the service, so that a stop with nothing sounding starts nothing.
  */
