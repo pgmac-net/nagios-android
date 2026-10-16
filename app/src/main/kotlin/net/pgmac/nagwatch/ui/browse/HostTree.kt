@@ -105,40 +105,39 @@ object HostTree {
             // the way down and no more, however many children a host has or however deep it goes.
             val path = ArrayDeque<Frame>()
             val roots = roots().iterator()
-            while (true) {
-                val top = path.lastOrNull()
-                val name = when {
-                    top != null && top.next.hasNext() -> top.next.next()
-
-                    top != null -> {
-                        path.removeLast()
-                        continue
-                    }
-
-                    roots.hasNext() -> roots.next()
-
-                    else -> break
+            var name = next(path, roots)
+            while (name != null && lines.size < MAX_LINES) {
+                if (name in relevant && path.none { it.name == name }) {
+                    val line = line(name, path)
+                    lines += line
+                    val deep = path.size >= MAX_DEPTH - 1
+                    if (deep && below(name).isNotEmpty()) truncated = true
+                    if (line.open) path.addLast(Frame(name, line.key, below(name).iterator()))
                 }
-                if (name !in relevant || path.any { it.name == name }) continue
-                if (lines.size == MAX_LINES) return TreeLines(lines, truncated = true)
-
-                val key = key(top?.key.orEmpty(), name)
-                val children = below(name)
-                val deep = path.size >= MAX_DEPTH - 1
-                if (deep && children.isNotEmpty()) truncated = true
-                val open = !deep && children.isNotEmpty() && isOpen(key, startsOpen(name))
-                lines += TreeLine(
-                    row = rows.getValue(name),
-                    depth = path.size,
-                    key = key,
-                    hasChildren = !deep && children.isNotEmpty(),
-                    open = open,
-                    alsoUnder = parents[name].orEmpty().filter { it != top?.name },
-                    context = name !in picked,
-                )
-                if (open) path.addLast(Frame(name, key, children.iterator()))
+                name = next(path, roots)
             }
-            return TreeLines(lines, truncated)
+            return TreeLines(lines, truncated || name != null)
+        }
+
+        /** The next host to consider: the open level's next child, or else a level up, or the next root. */
+        private fun next(path: ArrayDeque<Frame>, roots: Iterator<String>): String? {
+            while (path.isNotEmpty() && !path.last().next.hasNext()) path.removeLast()
+            return path.lastOrNull()?.next?.next() ?: roots.takeIf { it.hasNext() }?.next()
+        }
+
+        private fun line(name: String, path: ArrayDeque<Frame>): TreeLine<S> {
+            val above = path.lastOrNull()
+            val key = key(above?.key.orEmpty(), name)
+            val openable = path.size < MAX_DEPTH - 1 && below(name).isNotEmpty()
+            return TreeLine(
+                row = rows.getValue(name),
+                depth = path.size,
+                key = key,
+                hasChildren = openable,
+                open = openable && isOpen(key, startsOpen(name)),
+                alsoUnder = parents[name].orEmpty().filter { it != above?.name },
+                context = name !in picked,
+            )
         }
 
         private class Frame(val name: String, val key: String, val next: Iterator<String>)
