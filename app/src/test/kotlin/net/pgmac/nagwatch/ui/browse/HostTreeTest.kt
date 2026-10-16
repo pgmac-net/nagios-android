@@ -125,7 +125,20 @@ class HostTreeTest {
 
         val tree = HostTree.lines(listOf(chain.last()), chain, configs, everythingOpen)
 
-        assertTrue("cut short at the line limit, without a stack overflow", tree.truncated)
+        assertTrue("cut short, without a stack overflow", tree.truncated)
+        assertEquals("no deeper than the limit", HostTree.MAX_DEPTH - 1, tree.lines.maxOf { it.depth })
+    }
+
+    @Test
+    fun `a host with a great many children is walked one child at a time and cut at the line limit`() {
+        val hub = host("hub")
+        val leaves = (0 until 100_000).map { host("leaf$it") }
+        val configs = leaves.map { HostConfig(it.hostName, listOf("hub")) }
+
+        val tree = HostTree.lines(listOf(hub) + leaves, listOf(hub) + leaves, configs, everythingOpen)
+
+        assertTrue(tree.truncated)
+        assertEquals(HostTree.MAX_LINES, tree.lines.size)
     }
 
     @Test

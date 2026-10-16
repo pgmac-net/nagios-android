@@ -39,6 +39,13 @@ object HostTree {
      */
     const val MAX_LINES = 2_000
 
+    /**
+     * The deepest a host is drawn. Each level is a step of the way down in every key below it,
+     * and a frame of the walk; a real install is a handful deep. A host at this depth is drawn
+     * but not opened, and the tree says it was cut short.
+     */
+    const val MAX_DEPTH = 32
+
     fun <S> lines(
         shown: List<BrowseRow<S>>,
         all: List<BrowseRow<S>>,
@@ -73,50 +80,68 @@ object HostTree {
         private val relevant = upFrom(picked)
 
         /** An unhandled problem that was picked, or above one. */
-        private val needsSomeone =
-            upFrom(
-                picked.filterTo(HashSet()) {
-                    rows.getValue(it).let { r ->
-                        r.handling != null &&
-                            !r.isHandled
-                    }
-                },
-            )
+        private val needsSomeone = upFrom(
+            picked.filterTo(HashSet()) { name -> rows.getValue(name).let { it.handling != null && !it.isHandled } },
+        )
+
+        /**
+         * Each host's children worth drawing, and whether its branch starts open: worked out once
+         * per host, not once per line, since a host can be on many lines and have many children.
+         * A child that is already on the way down (a loop) is skipped when it comes up.
+         */
+        private val below = HashMap<String, List<String>>()
+        private val startsOpen = HashMap<String, Boolean>()
+
+        private fun below(name: String): List<String> =
+            below.getOrPut(name) { children[name].orEmpty().filter { it in relevant && it != name } }
+
+        private fun startsOpen(name: String): Boolean =
+            startsOpen.getOrPut(name) { below(name).any { it in needsSomeone } }
 
         fun build(): TreeLines<S> {
             val lines = mutableListOf<TreeLine<S>>()
-            // Depth first, by hand: a server could make the chain of parents as long as the host
-            // list, and the call stack is not that deep.
-            val stack = ArrayDeque(roots().reversed().map { Visit(it, 0, null, "", emptySet()) })
-            while (stack.isNotEmpty()) {
+            var truncated = false
+            // One frame per open level, each taking its children one at a time: the walk holds
+            // the way down and no more, however many children a host has or however deep it goes.
+            val path = ArrayDeque<Frame>()
+            val roots = roots().iterator()
+            while (true) {
+                val top = path.lastOrNull()
+                val name = when {
+                    top != null && top.next.hasNext() -> top.next.next()
+
+                    top != null -> {
+                        path.removeLast()
+                        continue
+                    }
+
+                    roots.hasNext() -> roots.next()
+
+                    else -> break
+                }
+                if (name !in relevant || path.any { it.name == name }) continue
                 if (lines.size == MAX_LINES) return TreeLines(lines, truncated = true)
-                val visit = stack.removeLast()
-                if (visit.name !in relevant) continue
-                val here = visit.onPath + visit.name
-                val below = children[visit.name].orEmpty().filter { it !in here && it in relevant }
-                val key = key(visit.path, visit.name)
-                val open = below.isNotEmpty() && isOpen(key, below.any { it in needsSomeone })
+
+                val key = key(top?.key.orEmpty(), name)
+                val children = below(name)
+                val deep = path.size >= MAX_DEPTH - 1
+                if (deep && children.isNotEmpty()) truncated = true
+                val open = !deep && children.isNotEmpty() && isOpen(key, startsOpen(name))
                 lines += TreeLine(
-                    row = rows.getValue(visit.name),
-                    depth = visit.depth,
+                    row = rows.getValue(name),
+                    depth = path.size,
                     key = key,
-                    hasChildren = below.isNotEmpty(),
+                    hasChildren = !deep && children.isNotEmpty(),
                     open = open,
-                    alsoUnder = parents[visit.name].orEmpty().filter { it != visit.under },
-                    context = visit.name !in picked,
+                    alsoUnder = parents[name].orEmpty().filter { it != top?.name },
+                    context = name !in picked,
                 )
-                if (open) below.reversed().forEach { stack.addLast(Visit(it, visit.depth + 1, visit.name, key, here)) }
+                if (open) path.addLast(Frame(name, key, children.iterator()))
             }
-            return TreeLines(lines, truncated = false)
+            return TreeLines(lines, truncated)
         }
 
-        private class Visit(
-            val name: String,
-            val depth: Int,
-            val under: String?,
-            val path: String,
-            val onPath: Set<String>,
-        )
+        private class Frame(val name: String, val key: String, val next: Iterator<String>)
 
         /** Hosts with no parent, then any host no root leads to, each taking those it leads to. */
         private fun roots(): List<String> {
