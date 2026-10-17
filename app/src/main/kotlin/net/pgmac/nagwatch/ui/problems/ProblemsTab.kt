@@ -48,6 +48,8 @@ import net.pgmac.nagwatch.ui.quick.QuickActionRow
 import net.pgmac.nagwatch.ui.quick.QuickMenu
 import net.pgmac.nagwatch.ui.quick.QuickTarget
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
+import net.pgmac.nagwatch.ui.theme.of
+import net.pgmac.nagwatch.ui.theme.shortWord
 
 /** The Problems tab: what needs attention now, worst first, with the handled ones folded away. */
 @Composable
@@ -211,15 +213,7 @@ private fun RolledUpService(problem: ServiceProblem) {
 
 @Composable
 private fun SeverityBadge(severity: Severity) {
-    val colors = NagwatchTheme.stateColors
-    val (label, color) = when (severity) {
-        Severity.HOST_DOWN -> R.string.severity_down to colors.critical
-        Severity.HOST_UNREACHABLE -> R.string.severity_unreachable to colors.unknown
-        Severity.CRITICAL -> R.string.severity_critical to colors.critical
-        Severity.WARNING -> R.string.severity_warning to colors.warning
-        Severity.UNKNOWN -> R.string.severity_unknown to colors.unknown
-    }
-    StateBadge(label, color)
+    StateBadge(severity.shortWord(), NagwatchTheme.stateColors.of(severity))
 }
 
 /** Stable per row, so scrolling and expanding keep their place across refreshes. */

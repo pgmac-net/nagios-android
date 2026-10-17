@@ -96,7 +96,7 @@ class AndroidNotifierTest {
         assertEquals("problems_warning", problem(load).channelId)
         assertEquals("problems_unknown", problem(ObjectRef("web01", "Odd")).channelId)
         assertEquals("problems_critical", problem(ObjectRef("db01")).channelId)
-        assertEquals("problems_critical", problem(ObjectRef("db02")).channelId)
+        assertEquals("problems_unknown", problem(ObjectRef("db02")).channelId) // unreachable: ADR 0014
     }
 
     // ---------------------------------------------------------------- colour
@@ -114,7 +114,7 @@ class AndroidNotifierTest {
         assertEquals(light.warning.toArgb(), problem(load).color)
         assertEquals(light.unknown.toArgb(), problem(ObjectRef("web01", "Odd")).color)
         assertEquals(light.critical.toArgb(), problem(ObjectRef("db01")).color)
-        assertEquals(light.critical.toArgb(), problem(ObjectRef("db02")).color)
+        assertEquals(light.unknown.toArgb(), problem(ObjectRef("db02")).color)
     }
 
     @Test
@@ -173,7 +173,7 @@ class AndroidNotifierTest {
         raiseHost("db02", HostState.UNREACHABLE)
 
         assertEquals("\uD83D\uDD34 DOWN: db01", problem(ObjectRef("db01")).title())
-        assertEquals("\uD83D\uDD34 UNREACHABLE: db02", problem(ObjectRef("db02")).title())
+        assertEquals("\uD83D\uDFE0 UNREACHABLE: db02", problem(ObjectRef("db02")).title())
     }
 
     @Test
@@ -676,11 +676,12 @@ class AndroidNotifierTest {
     }
 
     @Test
-    fun `warnings, unknowns, recoveries, outages and updates are never loud`() {
+    fun `warnings, unknowns, unreachable hosts, recoveries, outages and updates are never loud`() {
         loudNotifier()
 
         raise(load, ServiceState.WARNING, profile = loud)
         raise(ObjectRef("web01", "Odd"), ServiceState.UNKNOWN, profile = loud)
+        raiseHost("db02", HostState.UNREACHABLE, profile = loud)
         raise(disk, ServiceState.CRITICAL, change = Change.UPDATED, profile = loud)
         deliver(loud, post = listOf(Notice.Recovered(load)))
         deliver(loud, post = listOf(Notice.Outage(OutageCause.UNREACHABLE, StatusError.InvalidUrl, quiet = false)))

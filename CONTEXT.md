@@ -9,7 +9,7 @@ One saved connection to a Nagios instance: base URL, credentials, optional Cloud
 _Avoid_: Server, account, connection, instance
 
 **Problem**:
-A host in DOWN or UNREACHABLE, or a service in WARNING, CRITICAL or UNKNOWN.
+A host in DOWN or UNREACHABLE, or a service in WARNING, CRITICAL or UNKNOWN. An UNREACHABLE host could not be checked, so it is drawn and notified as unknown, not as down (ADR 0014), though it still sorts above every service.
 _Avoid_: Alert, incident, issue
 
 **Unhandled problem**:

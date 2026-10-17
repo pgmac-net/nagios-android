@@ -9,7 +9,7 @@
 <resources>
     <string-array name="emoji_set_circles" translatable="false">
         <item>🔴</item>
-        <item>🔴</item>
+        <item>🟠</item>
         <item>🔴</item>
         <item>🟡</item>
         <item>🟠</item>
@@ -27,7 +27,7 @@
     </string-array>
     <string-array name="emoji_set_squares" translatable="false">
         <item>🟥</item>
-        <item>🟥</item>
+        <item>🟧</item>
         <item>🟥</item>
         <item>🟨</item>
         <item>🟧</item>

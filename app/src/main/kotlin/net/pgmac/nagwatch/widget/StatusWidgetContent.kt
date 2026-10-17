@@ -53,6 +53,9 @@ import net.pgmac.nagwatch.notify.NotificationTarget
 import net.pgmac.nagwatch.ui.problems.formatAge
 import net.pgmac.nagwatch.ui.theme.DarkStateColors
 import net.pgmac.nagwatch.ui.theme.LightStateColors
+import net.pgmac.nagwatch.ui.theme.StateColors
+import net.pgmac.nagwatch.ui.theme.of
+import net.pgmac.nagwatch.ui.theme.shortWord
 import net.pgmac.nagwatch.ui.widget.WidgetConfigActivity
 
 /**
@@ -323,7 +326,7 @@ private fun ProblemRow(view: WidgetView, row: WidgetRow, index: Int, withOutput:
             val plain = GlanceTheme.colors.onSurfaceVariant
             val wordColor = if (view.content.isDemoted) plain else row.severity.textColor()
             Text(
-                text = context.getString(row.severity.word()),
+                text = context.getString(row.severity.shortWord()),
                 style = TextStyle(
                     color = wordColor,
                     fontSize = SMALL.sp,
@@ -446,35 +449,15 @@ private fun text(size: Int, bold: Boolean = false) = TextStyle(
     fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
 )
 
-private fun Severity.word(): Int = when (this) {
-    Severity.HOST_DOWN -> R.string.severity_down
-    Severity.HOST_UNREACHABLE -> R.string.severity_unreachable
-    Severity.CRITICAL -> R.string.severity_critical
-    Severity.WARNING -> R.string.severity_warning
-    Severity.UNKNOWN -> R.string.severity_unknown
-}
-
 // State colours carry meaning, so they are the app's own and fixed: they follow light and dark
 // and nothing else, on every version of Android (design section 8).
-private fun Severity.color(): ColorProvider = when (this) {
-    Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> stateColor { it.critical }
-    Severity.WARNING -> stateColor { it.warning }
-    Severity.UNKNOWN -> stateColor { it.unknown }
-}
+private fun Severity.color(): ColorProvider = stateColor { it.of(this) }
 
 /** For a state word on the widget's own background: the same hues, the other way round for contrast. */
-private fun Severity.textColor(): ColorProvider = when (this) {
-    Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> ColorProvider(
-        LightStateColors.critical,
-        DarkStateColors.critical,
-    )
+private fun Severity.textColor(): ColorProvider =
+    if (this == Severity.WARNING) ColorProvider(WARNING_ON_LIGHT, DarkStateColors.warning) else color()
 
-    Severity.WARNING -> ColorProvider(WARNING_ON_LIGHT, DarkStateColors.warning)
-
-    Severity.UNKNOWN -> ColorProvider(LightStateColors.unknown, DarkStateColors.unknown)
-}
-
-private fun stateColor(pick: (net.pgmac.nagwatch.ui.theme.StateColors) -> Color): ColorProvider =
+private fun stateColor(pick: (StateColors) -> Color): ColorProvider =
     ColorProvider(pick(LightStateColors), pick(DarkStateColors))
 
 private val OK = stateColor { it.ok }
