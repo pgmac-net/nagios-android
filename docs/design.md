@@ -86,7 +86,7 @@ All reads go through `statusjson.cgi` / `objectjson.cgi` (JSON). All writes go t
 
 ### Reads
 
-Measured against Nagios Core 4.5.9 with a read-only user (2026-10-09). Sanitised captures are in `app/src/test/resources/fixtures/`.
+Measured against Nagios Core 4.5.9 with a read-only user (2026-10-09). Sanitised captures are in `nagios/src/test/resources/fixtures/`.
 
 | Need | Call |
 |---|---|

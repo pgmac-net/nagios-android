@@ -64,6 +64,8 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver3", version.ref = "okhttp" }
 okhttp-tls = { module = "com.squareup.okhttp3:okhttp-tls", version.ref = "okhttp" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+javax-inject = { module = "javax.inject:javax.inject", version = "1" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
@@ -81,6 +83,12 @@ hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-view
 
 # Fuzzing. Test-only: neither is in the APK. See docs/development.md, "Fuzzing".
 jazzer = { module = "com.code-intelligence:jazzer", version.ref = "jazzer" }
+
+# Gradle plugins: not dependencies of the app. build-logic compiles against them; the build
+# applies them by id, at the versions in [plugins] below.
+kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+detekt-gradlePlugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+ktlint-gradlePlugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintGradle" }
 
 # Security floors (see the versions above). Bouncy Castle, Jackson and logback are each a family
 # released together, so every member in use is raised, not only the one with the advisory.

@@ -47,7 +47,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          # Must match jvmToolchain() in app/build.gradle.kts. Renovate does not
+          # Must match JAVA_TOOLCHAIN in build-logic (KotlinQualityPlugin). Renovate does not
           # raise major bumps for this on its own (see renovate.json).
           java-version: "21"
 
@@ -56,13 +56,13 @@ jobs:
       - name: Fuzz ${{ matrix.target }}
         run: |
           [[ "$FUZZ_SECONDS" =~ ^[0-9]+$ ]] || { echo "seconds must be a number, got: $FUZZ_SECONDS"; exit 1; }
-          ./gradlew --console=plain ":app:fuzz${{ matrix.target }}" -PfuzzSeconds="$FUZZ_SECONDS"
+          ./gradlew --console=plain ":nagios:fuzz${{ matrix.target }}" -PfuzzSeconds="$FUZZ_SECONDS"
 
       - name: Upload the input that crashed it
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-crash-${{ matrix.target }}
-          path: app/build/fuzz/${{ matrix.target }}/crashes/
+          path: nagios/build/fuzz/${{ matrix.target }}/crashes/
           if-no-files-found: warn
           retention-days: 30

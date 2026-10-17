@@ -34,7 +34,7 @@ If a dependency you need fails:
 Add a dependency only in the change that uses it, then refresh and commit the lockfile:
 
 ```
-./gradlew :app:resolveAndLockAll --write-locks
+./gradlew resolveAndLockAll --write-locks
 ```
 
 ## Pull requests

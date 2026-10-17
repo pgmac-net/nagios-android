@@ -17,7 +17,7 @@ export NAGWATCH_URL="${1:?usage: live-smoke-test.sh NAGIOS_BASE_URL}"
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
 status=0
-./gradlew --console=plain :app:testDebugUnitTest \
+./gradlew --console=plain :nagios:test \
   --tests 'net.pgmac.nagwatch.nagios.LiveSmokeTest' \
   -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
 

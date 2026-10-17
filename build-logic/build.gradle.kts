@@ -11,6 +11,11 @@ plugins {
 dependencies {
     // For the Kotlin extensions on Gradle's API (`tasks.register<T>` and friends).
     implementation(gradleKotlinDsl())
+    // The plugins the convention plugins configure. compileOnly: the build puts them on the
+    // classpath itself (the root build script), at the versions in the catalogue.
+    compileOnly(libs.kotlin.gradlePlugin)
+    compileOnly(libs.detekt.gradlePlugin)
+    compileOnly(libs.ktlint.gradlePlugin)
 }
 
 kotlin {
@@ -22,6 +27,10 @@ gradlePlugin {
         register("fossCheck") {
             id = "nagwatch.foss-check"
             implementationClass = "net.pgmac.nagwatch.buildlogic.FossCheckPlugin"
+        }
+        register("kotlinQuality") {
+            id = "nagwatch.kotlin-quality"
+            implementationClass = "net.pgmac.nagwatch.buildlogic.KotlinQualityPlugin"
         }
     }
 }

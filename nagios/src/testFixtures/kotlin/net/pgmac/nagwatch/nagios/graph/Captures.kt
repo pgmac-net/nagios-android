@@ -9,6 +9,7 @@ object Captures {
 }
 
 /** The first bytes of a PNG that says it is [width] by [height], and nothing a decoder could use. */
+@Suppress("MagicNumber") // The numbers are the definition: a PNG's signature and header.
 fun png(width: Int, height: Int): ByteArray {
     fun int(value: Int) = ByteArray(4) { index -> (value ushr (8 * (3 - index))).toByte() }
     val signature = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)

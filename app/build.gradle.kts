@@ -2,19 +2,17 @@
 
 import net.pgmac.nagwatch.buildlogic.CheckReadmeBadgesTask
 import net.pgmac.nagwatch.buildlogic.FossCheckPlugin
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
-    alias(libs.plugins.detekt)
-    alias(libs.plugins.ktlint)
     alias(libs.plugins.licensee)
     alias(libs.plugins.cyclonedx)
     alias(libs.plugins.kover)
     id("nagwatch.foss-check")
+    id("nagwatch.kotlin-quality")
 }
 
 android {
@@ -99,137 +97,6 @@ tasks.withType<Test>().matching { it.name == "testReleaseUnitTest" }.configureEa
     filter.includeTestsMatching("net.pgmac.nagwatch.debug.DebugChromeTest")
 }
 
-kotlin {
-    jvmToolchain(21)
-    compilerOptions {
-        jvmTarget = JvmTarget.JVM_17
-        allWarningsAsErrors = true
-    }
-}
-
-// Tools that run during the build have classpaths of their own, separate from the app's
-// and from the build script's. The same security floors are applied to them here.
-// See "Security floors" in docs/development.md.
-val toolFloors = mapOf(
-    "androidLintTool" to listOf(
-        libs.floor.bcprov,
-        libs.floor.bcpkix,
-        libs.floor.bcutil,
-        libs.floor.commons.lang3,
-        libs.floor.httpclient,
-    ),
-    "ktlint" to listOf(libs.floor.logback.core, libs.floor.logback.classic),
-)
-configurations.matching { it.name in toolFloors }.configureEach {
-    val configurationName = name
-    toolFloors.getValue(configurationName).forEach { floor ->
-        project.dependencies.constraints.add(configurationName, floor) {
-            because("security floor: the tool asks for a version with a known vulnerability")
-        }
-    }
-}
-
-// Fuzzing (docs/development.md, "Fuzzing"). The fuzzer is a plain Java program on a
-// classpath of its own, so it never touches the app's or the unit tests'. The targets are
-// ordinary test classes and need nothing from it: it finds them by name.
-val fuzzer = configurations.create("fuzzer") {
-    description = "Jazzer, the fuzzing engine. Test tooling: not in the APK."
-    isCanBeConsumed = false
-    isCanBeResolved = true
-}
-
-val fuzzTargets = listOf("ResponseBody", "StatusParser", "AnnotationParser", "CommandPage", "Graph", "ListFetcher")
-
-val fuzzTasks = fuzzTargets.map { name ->
-    tasks.register<JavaExec>("fuzz$name") {
-        group = "verification"
-        description = "Fuzzes $name for -PfuzzSeconds (default 60). Crash inputs land in app/build/fuzz/$name/crashes."
-        val unitTests = tasks.named<Test>("testDebugUnitTest")
-        // The compiled app, the compiled targets, and everything they run against.
-        classpath = files(fuzzer, unitTests.map { it.classpath })
-        mainClass = "com.code_intelligence.jazzer.Jazzer"
-
-        val seconds = providers.gradleProperty("fuzzSeconds").getOrElse("60")
-        val work = layout.buildDirectory.dir("fuzz/$name").get().asFile
-        val seedDirs = listOf(
-            "src/test/resources/fixtures",
-            "src/test/resources/commandpages",
-            "src/test/resources/fuzz/corpus",
-            "src/test/resources/graphs",
-            "src/test/resources/fuzz/crashes",
-        )
-            .map { layout.projectDirectory.dir(it).asFile }
-        val replay = providers.gradleProperty("fuzzReplay").orNull
-
-        doFirst {
-            // libFuzzer writes what it finds to the first corpus directory; keep that out of the repository.
-            File(work, "corpus").mkdirs()
-            File(work, "crashes").mkdirs()
-        }
-        argumentProviders += CommandLineArgumentProvider {
-            buildList {
-                add("--target_class=net.pgmac.nagwatch.fuzz.${name}FuzzTarget")
-                // Only the code under test: coverage of the JDK and of OkHttp would drown it.
-                add("--instrumentation_includes=net.pgmac.nagwatch.nagios.**:kotlinx.serialization.json.**")
-                add("-artifact_prefix=${File(work, "crashes").path}/")
-                // Without this a stand-alone Java reproducer is written to the working directory, which is the module.
-                add("--reproducer_path=${File(work, "crashes").path}")
-                // Whatever one input does, it must be quick and small. A hang is a finding.
-                add("-timeout=10")
-                // libFuzzer's resident-size limit is off: the JVM and Jazzer's native side sit at about 2.7 GB
-                // before the first input, so it cannot tell the code's memory from theirs. The heap cap
-                // below does that job, and turns a runaway into an OutOfMemoryError.
-                add("-rss_limit_mb=0")
-                add("-max_len=262144")
-                if (replay != null) {
-                    add(replay)
-                } else {
-                    add("-max_total_time=$seconds")
-                    add(File(work, "corpus").path)
-                    seedDirs.filter { it.isDirectory }.forEach { add(it.path) }
-                }
-            }
-        }
-        // A heap cap, so memory that one input makes the code ask for becomes an OutOfMemoryError
-        // (a finding) and the collector runs. Left alone the JVM grows its heap into the machine's
-        // RAM, and libFuzzer's resident-size limit then reports the JVM, not the code.
-        maxHeapSize = "512m"
-        // The JVM flag the unit tests need, for the same reason (Robolectric is on this classpath).
-        jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
-    }
-}
-
-tasks.register("fuzz") {
-    group = "verification"
-    description = "Fuzzes every target in turn for -PfuzzSeconds each (default 60). Not part of check."
-    dependsOn(fuzzTasks)
-    // One after another, so a crash in one is not hidden by a crash in the next being reported first.
-    fuzzTasks.zipWithNext().forEach { (first, second) -> second.configure { mustRunAfter(first) } }
-}
-
-// Locked so builds are reproducible and the FOSS checks see a fixed graph.
-// Refresh with: ./gradlew :app:resolveAndLockAll --write-locks
-// The self-test deliberately adds an unlocked, banned dependency.
-if (!FossCheckPlugin.isSelfTest(project)) {
-    dependencyLocking {
-        lockAllConfigurations()
-    }
-}
-
-tasks.register("resolveAndLockAll") {
-    group = "help"
-    description = "Resolves every resolvable configuration; run with --write-locks to refresh gradle.lockfile."
-    notCompatibleWithConfigurationCache("Resolves configurations at execution time.")
-    doFirst {
-        require(gradle.startParameter.isWriteDependencyLocks) { "Run with --write-locks." }
-    }
-    doLast {
-        // Graph resolution is what locking records; resolving files would need
-        // artifact attributes that many AGP configurations only get from their tasks.
-        configurations.filter { it.isCanBeResolved }.forEach { it.incoming.resolutionResult.root }
-    }
-}
-
 // The SBOM attached to a release (docs/development.md, "Releasing"): what is in the APK and
 // nothing else. Build tools, test libraries and the fuzzer are not shipped, so they are not listed.
 tasks.cyclonedxDirectBom {
@@ -268,19 +135,9 @@ licensee {
     bundleAndroidAsset = true
 }
 
-detekt {
-    buildUponDefaultConfig = true
-    allRules = false
-    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
-    source.setFrom("src/main/kotlin", "src/test/kotlin")
-}
-
-ktlint {
-    version = libs.versions.ktlint
-    android = true
-}
-
 dependencies {
+    // The Nagios client, a plain Kotlin module of its own (docs/adr/0015).
+    implementation(project(":nagios"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.compose.bom))
@@ -316,14 +173,23 @@ dependencies {
     testImplementation(libs.okhttp.tls)
     testImplementation(libs.work.testing)
     testImplementation(libs.glance.appwidget.testing)
+    // The graph captures, for the graph screens' tests.
+    testImplementation(testFixtures(project(":nagios")))
 
-    // The fuzzing engine itself; see the "fuzzer" configuration above.
-    add("fuzzer", libs.jazzer)
+    // One coverage report for the app and the client together: the one Codecov reads.
+    kover(project(":nagios"))
 }
 
 // Coverage is read, not enforced: it goes to Codecov as information (codecov.yml). Generated code is
 // left out so the number is about code somebody wrote.
 kover {
+    // The report Codecov reads (koverXmlReportApp): the debug build's tests and, through the
+    // variant of the same name in :nagios, the client's.
+    currentProject {
+        createVariant("app") {
+            add("debug")
+        }
+    }
     reports {
         filters {
             excludes {

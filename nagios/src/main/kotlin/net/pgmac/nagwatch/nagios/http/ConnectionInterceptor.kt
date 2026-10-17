@@ -23,7 +23,7 @@ internal class PolicyViolationException(val error: NagiosError) : IOException("R
  * - Cloudflare Access credentials never over `http://`;
  * - credentials only to the origin the user configured.
  */
-internal class ConnectionInterceptor(private val settings: ConnectionSettings) : Interceptor {
+class ConnectionInterceptor(private val settings: ConnectionSettings) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val url = request.url
