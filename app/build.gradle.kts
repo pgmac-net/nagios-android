@@ -24,8 +24,9 @@ android {
         applicationId = "net.pgmac.nagwatch"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.3.0"
+        // Both in gradle.properties, which :nagios reads too. See docs/development.md, "Releasing".
+        versionCode = providers.gradleProperty("nagwatch.versionCode").get().toInt()
+        versionName = providers.gradleProperty("nagwatch.versionName").get()
     }
 
     buildTypes {
