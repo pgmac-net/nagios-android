@@ -18,8 +18,10 @@ val fuzzer = configurations.create("fuzzer") {
     isCanBeResolved = true
 }
 
-// Part of the app, not published on its own: the release SBOM lists it under the app's group.
+// Part of the app, not published on its own: the release SBOM lists it under the app's group and
+// at the app's version (gradle.properties).
 group = "net.pgmac"
+version = providers.gradleProperty("nagwatch.versionName").get()
 
 // Coverage: the app's "app" report variant, the one Codecov reads, merges the variant of the same
 // name from each dependency. Here that is this module's tests on the JVM.

@@ -77,7 +77,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           if [[ "$TAG" != "v$VERSION" ]]; then
-            echo "::error::Tag $TAG does not match versionName $VERSION in app/build.gradle.kts. Delete the tag, merge the version bump, tag again."
+            echo "::error::Tag $TAG does not match versionName $VERSION in gradle.properties. Delete the tag, merge the version bump, tag again."
             exit 1
           fi
           # Only what has been through review and the required checks is released.
