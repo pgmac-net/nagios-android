@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,115 +25,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import net.pgmac.nagwatch.R
-import net.pgmac.nagwatch.nagios.model.HostState
-import net.pgmac.nagwatch.nagios.model.ObjectRef
-import net.pgmac.nagwatch.nagios.model.ServiceState
 import net.pgmac.nagwatch.status.ProfileStatus
-import net.pgmac.nagwatch.ui.home.StateBadge
 import net.pgmac.nagwatch.ui.home.StateChip
 import net.pgmac.nagwatch.ui.home.StatusBanners
 import net.pgmac.nagwatch.ui.home.UpdatedLabel
-import net.pgmac.nagwatch.ui.home.checkNotes
-import net.pgmac.nagwatch.ui.problems.formatAge
-import net.pgmac.nagwatch.ui.quick.QuickActionRow
 import net.pgmac.nagwatch.ui.quick.QuickMenu
-import net.pgmac.nagwatch.ui.quick.QuickTarget
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
-import net.pgmac.nagwatch.ui.theme.StateColors
 import net.pgmac.nagwatch.ui.theme.of
-import net.pgmac.nagwatch.ui.theme.shortWord
-
-object BrowseTags {
-    const val SEARCH = "browse_search"
-    const val CLEAR = "browse_clear"
-    const val LIST = "browse_list"
-    const val HANDLED = "browse_handled"
-    const val EMPTY = "browse_empty"
-    const val EMPTY_HANDLED_HIDDEN = "browse_empty_handled_hidden"
-    const val MODES = "browse_modes"
-    const val GROUPS_PENDING = "browse_groups_pending"
-    const val GROUPS_RETRY = "browse_groups_retry"
-    const val GROUPS_NONE = "browse_groups_none"
-    const val TREE_TRUNCATED = "browse_tree_truncated"
-    const val MAP = "browse_map"
-
-    fun mode(mode: BrowseMode) = "browse_mode_${mode.name}"
-
-    fun group(key: String) = "browse_group_$key"
-
-    fun tree(key: String) = "browse_tree_$key"
-
-    fun treeToggle(key: String) = "browse_tree_toggle_$key"
-
-    fun chip(state: Enum<*>) = "browse_chip_${state.name}"
-
-    fun row(title: String) = "browse_row_$title"
-}
-
-/** The chips of one list: every state in chip order, and which are special. */
-internal class BrowseChips<S : Enum<S>>(
-    val states: List<S>,
-    /** States with a chip only while something is in them, to keep the row of chips short. */
-    val rare: Set<S>,
-    /**
-     * The chips that are on when the tab is first opened: what is wrong. Everything else is a
-     * tap away, and its chip says how many there are.
-     */
-    val onByDefault: Set<S>,
-)
-
-/** How one kind of object is drawn: its chips, and the words and colour for each state. */
-internal class BrowseStyle<S : Enum<S>>(
-    val chips: BrowseChips<S>,
-    @param:StringRes val searchHint: Int,
-    @param:StringRes val emptyText: Int,
-    val label: (S) -> Int,
-    val color: (S, StateColors) -> Color,
-) {
-    val defaultStates: Set<S> get() = chips.onByDefault
-}
-
-internal val HostStyle = BrowseStyle(
-    chips = BrowseChips(
-        states = listOf(HostState.UP, HostState.DOWN, HostState.UNREACHABLE, HostState.PENDING),
-        rare = setOf(HostState.PENDING),
-        onByDefault = setOf(HostState.DOWN, HostState.UNREACHABLE),
-    ),
-    searchHint = R.string.browse_search_hosts,
-    emptyText = R.string.browse_empty_hosts,
-    label = HostState::shortWord,
-    color = { state, colors -> colors.of(state) },
-)
-
-internal val ServiceStyle = BrowseStyle(
-    chips = BrowseChips(
-        states = listOf(
-            ServiceState.OK,
-            ServiceState.WARNING,
-            ServiceState.CRITICAL,
-            ServiceState.UNKNOWN,
-            ServiceState.PENDING,
-        ),
-        rare = setOf(ServiceState.PENDING),
-        onByDefault = setOf(ServiceState.WARNING, ServiceState.CRITICAL),
-    ),
-    searchHint = R.string.browse_search_services,
-    emptyText = R.string.browse_empty_services,
-    label = ServiceState::shortWord,
-    color = { state, colors -> colors.of(state) },
-)
 
 @Composable
 internal fun HostsTab(
@@ -378,56 +284,4 @@ private fun Empty(@StringRes text: Int) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(24.dp).testTag(BrowseTags.EMPTY),
     )
-}
-
-@Composable
-internal fun <S : Enum<S>> BrowseRowItem(
-    row: BrowseRow<S>,
-    style: BrowseStyle<S>,
-    now: Instant,
-    onOpen: (BrowseRow<S>) -> Unit,
-    quick: QuickMenu?,
-) {
-    // A row that is not a problem can still be rechecked; only a problem can be acknowledged.
-    val target = QuickTarget(
-        ref = ObjectRef(row.hostName, row.service),
-        isProblem = row.handling != null,
-        acknowledged = row.check?.acknowledged == true,
-    )
-    QuickActionRow(target, quick, onOpen = { onOpen(row) }) { gestures ->
-        BrowseRowContent(row, style, now, gestures)
-    }
-}
-
-@Composable
-private fun <S : Enum<S>> BrowseRowContent(row: BrowseRow<S>, style: BrowseStyle<S>, now: Instant, modifier: Modifier) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(modifier)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .testTag(BrowseTags.row(row.title)),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StateBadge(style.label(row.state), style.color(row.state, NagwatchTheme.stateColors))
-            Text(
-                text = row.title,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // How long it has been in this state. Unknown when only the state was fetched.
-            Text(formatAge(row.check?.lastStateChange, now), style = MaterialTheme.typography.labelMedium)
-        }
-        val output = row.check?.pluginOutput?.lineSequence()?.firstOrNull().orEmpty()
-        if (output.isNotEmpty()) {
-            Text(output, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        val notes = checkNotes(row.markers, row.handling, row.check)
-        if (notes.isNotEmpty()) {
-            Text(notes, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
 }
