@@ -68,11 +68,11 @@ import net.pgmac.nagwatch.status.StatusRepository
 import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.browse.BrowseRow
 import net.pgmac.nagwatch.ui.browse.BrowseRows
-import net.pgmac.nagwatch.ui.browse.HostStyle
 import net.pgmac.nagwatch.ui.graph.Zoom
 import net.pgmac.nagwatch.ui.home.message
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.ui.theme.StateColors
+import net.pgmac.nagwatch.ui.theme.of
 
 object HostMapTags {
     const val CANVAS = "map_canvas"
@@ -297,7 +297,7 @@ private fun DrawScope.drawMap(
         val point = at(node)
         val big = row?.needsSomeone() == true
         val radius = (if (big) BIG_DOT else DOT).toPx()
-        val color = row?.let { HostStyle.color(it.state, look.states) } ?: look.states.pending
+        val color = row?.let { look.states.of(it.state) } ?: look.states.pending
         drawCircle(color, radius = radius, center = point)
         if (big) drawCircle(color, radius = radius + RING_GAP.toPx(), center = point, style = Stroke(thin))
 

@@ -204,7 +204,7 @@ private fun LabelledSwitch(label: Int, checked: Boolean, tag: String, onChange: 
     }
 }
 
-private fun PollInterval.label(): Int = when (this) {
+internal fun PollInterval.label(): Int = when (this) {
     PollInterval.FIFTEEN_MINUTES -> R.string.notify_interval_15
     PollInterval.THIRTY_MINUTES -> R.string.notify_interval_30
     PollInterval.ONE_HOUR -> R.string.notify_interval_60

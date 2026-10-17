@@ -53,6 +53,7 @@ import net.pgmac.nagwatch.profile.PollInterval
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.profile.ProfileRepository
 import net.pgmac.nagwatch.ui.NagwatchTopAppBar
+import net.pgmac.nagwatch.ui.notify.label
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.widget.OPAQUE
 import net.pgmac.nagwatch.widget.WidgetBackground
@@ -247,9 +248,3 @@ private fun Preview(opacity: Int) {
 private const val STEP = 5
 private val PREVIEW_HEIGHT = 120.dp
 private val STRIPE = 14.dp
-
-private fun PollInterval.label(): Int = when (this) {
-    PollInterval.FIFTEEN_MINUTES -> R.string.notify_interval_15
-    PollInterval.THIRTY_MINUTES -> R.string.notify_interval_30
-    PollInterval.ONE_HOUR -> R.string.notify_interval_60
-}

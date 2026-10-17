@@ -53,6 +53,8 @@ import net.pgmac.nagwatch.ui.quick.QuickMenu
 import net.pgmac.nagwatch.ui.quick.QuickTarget
 import net.pgmac.nagwatch.ui.theme.NagwatchTheme
 import net.pgmac.nagwatch.ui.theme.StateColors
+import net.pgmac.nagwatch.ui.theme.of
+import net.pgmac.nagwatch.ui.theme.shortWord
 
 object BrowseTags {
     const val SEARCH = "browse_search"
@@ -112,22 +114,8 @@ internal val HostStyle = BrowseStyle(
     ),
     searchHint = R.string.browse_search_hosts,
     emptyText = R.string.browse_empty_hosts,
-    label = { state ->
-        when (state) {
-            HostState.UP -> R.string.state_up
-            HostState.DOWN -> R.string.severity_down
-            HostState.UNREACHABLE -> R.string.state_unreachable_short
-            HostState.PENDING -> R.string.state_pending
-        }
-    },
-    color = { state, colors ->
-        when (state) {
-            HostState.UP -> colors.ok
-            HostState.DOWN -> colors.critical
-            HostState.UNREACHABLE -> colors.unknown
-            HostState.PENDING -> colors.pending
-        }
-    },
+    label = HostState::shortWord,
+    color = { state, colors -> colors.of(state) },
 )
 
 internal val ServiceStyle = BrowseStyle(
@@ -144,24 +132,8 @@ internal val ServiceStyle = BrowseStyle(
     ),
     searchHint = R.string.browse_search_services,
     emptyText = R.string.browse_empty_services,
-    label = { state ->
-        when (state) {
-            ServiceState.OK -> R.string.state_ok
-            ServiceState.WARNING -> R.string.severity_warning
-            ServiceState.CRITICAL -> R.string.severity_critical
-            ServiceState.UNKNOWN -> R.string.severity_unknown
-            ServiceState.PENDING -> R.string.state_pending
-        }
-    },
-    color = { state, colors ->
-        when (state) {
-            ServiceState.OK -> colors.ok
-            ServiceState.WARNING -> colors.warning
-            ServiceState.CRITICAL -> colors.critical
-            ServiceState.UNKNOWN -> colors.unknown
-            ServiceState.PENDING -> colors.pending
-        }
-    },
+    label = ServiceState::shortWord,
+    color = { state, colors -> colors.of(state) },
 )
 
 @Composable

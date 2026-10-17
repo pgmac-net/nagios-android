@@ -31,6 +31,7 @@ import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.ui.theme.DarkStateColors
 import net.pgmac.nagwatch.ui.theme.LightStateColors
 import net.pgmac.nagwatch.ui.theme.StateColors
+import net.pgmac.nagwatch.ui.theme.of
 
 /** Puts a poll's [Decision] in front of the person. What to say was decided already; this is only how. */
 interface Notifier {
@@ -105,9 +106,9 @@ enum class NotifyChannel(val id: String, val label: Int, val importance: Int) {
         }
 
         fun of(severity: Severity): NotifyChannel = when (severity) {
-            Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> CRITICAL
+            Severity.HOST_DOWN, Severity.CRITICAL -> CRITICAL
             Severity.WARNING -> WARNING
-            Severity.UNKNOWN -> UNKNOWN
+            Severity.HOST_UNREACHABLE, Severity.UNKNOWN -> UNKNOWN
         }
     }
 }
@@ -324,7 +325,7 @@ class AndroidNotifier internal constructor(
         val words = if (notice.change == Notice.Change.WORSE) context.getString(R.string.notify_now, what) else what
         val title = emojis().of(notice.problem.severity).before(words)
         val channel = NotifyChannel.of(notice.problem.severity)
-        val color = stateColors().of(notice.problem.severity)
+        val color = stateColors().of(notice.problem.severity).toArgb()
         val text = notice.problem.check.firstOutputLine()
         val drawn = builder(profile, channel, NotificationTarget(profile.id, notice.ref))
             .setSmallIcon(R.drawable.ic_tab_problems)
@@ -479,12 +480,6 @@ class AndroidNotifier internal constructor(
         val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         return if (night == Configuration.UI_MODE_NIGHT_YES) DarkStateColors else LightStateColors
     }
-
-    private fun StateColors.of(severity: Severity): Int = when (severity) {
-        Severity.HOST_DOWN, Severity.HOST_UNREACHABLE, Severity.CRITICAL -> critical
-        Severity.WARNING -> warning
-        Severity.UNKNOWN -> unknown
-    }.toArgb()
 
     /**
      * The set the person chose, for the next notification. A second signal in the title for a shade

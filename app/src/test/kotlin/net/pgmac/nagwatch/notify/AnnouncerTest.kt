@@ -317,6 +317,18 @@ class AnnouncerTest {
     }
 
     @Test
+    fun `a summary of unreachable hosts stands in for nothing critical`() {
+        val hosts = (0..Announcer.CEILING).map { host("web$it", HostState.UNREACHABLE) }
+
+        val decision = poll(quiet, report(hosts = hosts))
+
+        assertEquals(
+            listOf<Notice>(Notice.Summary(count = Announcer.CEILING + 1, first = false, critical = false)),
+            decision.post,
+        )
+    }
+
+    @Test
     fun `six at once are one summary, and none of them has a notification of its own`() {
         val decision = poll(quiet, report(*criticals(Announcer.CEILING + 1)))
 
