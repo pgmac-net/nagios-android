@@ -79,7 +79,7 @@ interface NagiosClient {
 }
 
 @Singleton
-class NagiosClientFactory internal constructor(
+class NagiosClientFactory(
     private val baseClient: OkHttpClient,
     private val json: Json,
     private val io: CoroutineDispatcher,

@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          # Must match jvmToolchain() in app/build.gradle.kts. Renovate does not
+          # Must match JAVA_TOOLCHAIN in build-logic (KotlinQualityPlugin). Renovate does not
           # raise major bumps for this on its own (see renovate.json).
           java-version: "21"
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Build debug and release, run unit tests, write the coverage report
         run: |
-          ./gradlew --console=plain assembleDebug assembleRelease testDebugUnitTest koverXmlReportDebug
+          ./gradlew --console=plain assembleDebug assembleRelease testDebugUnitTest :nagios:test :app:koverXmlReportApp
           # The signed release must not gain the debug indicator (docs/development.md, "Debug builds").
           # Only the tests about the release build run here; the rest are written against debug.
           ./gradlew --console=plain testReleaseUnitTest
@@ -54,7 +54,7 @@ jobs:
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: app/build/reports/kover/reportDebug.xml
+          files: app/build/reports/kover/reportApp.xml
           fail_ci_if_error: false
           disable_search: true
 
@@ -71,7 +71,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-reports
-          path: app/build/reports/tests/
+          path: |
+            app/build/reports/tests/
+            nagios/build/reports/tests/
           retention-days: 14
 
   lint:
@@ -86,7 +88,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          # Must match jvmToolchain() in app/build.gradle.kts. Renovate does not
+          # Must match JAVA_TOOLCHAIN in build-logic (KotlinQualityPlugin). Renovate does not
           # raise major bumps for this on its own (see renovate.json).
           java-version: "21"
 
@@ -100,7 +102,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lint-reports
-          path: app/build/reports/
+          path: |
+            app/build/reports/
+            nagios/build/reports/
           retention-days: 14
 
   foss:
@@ -115,7 +119,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          # Must match jvmToolchain() in app/build.gradle.kts. Renovate does not
+          # Must match JAVA_TOOLCHAIN in build-logic (KotlinQualityPlugin). Renovate does not
           # raise major bumps for this on its own (see renovate.json).
           java-version: "21"
 

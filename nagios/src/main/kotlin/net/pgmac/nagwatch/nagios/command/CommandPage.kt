@@ -9,7 +9,7 @@ package net.pgmac.nagwatch.nagios.command
  * `cmd.cgi` has no JSON form. It answers a request with a page, and the only way to
  * know what happened is to recognise the page. This is the most fragile thing in the
  * app, so it is kept in one place, tested against pages captured from a real Nagios
- * (`app/src/test/resources/commandpages`), and fuzzed. If a future Nagios rewords a
+ * (`nagios/src/test/resources/commandpages`), and fuzzed. If a future Nagios rewords a
  * message, the fix is here and nowhere else.
  *
  * The rule that matters most: **a page that is not recognised is never success.** Only

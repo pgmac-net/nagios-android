@@ -77,7 +77,7 @@ internal inline fun <T, R> NagiosResult<T>.flatMap(transform: (T) -> NagiosResul
     is NagiosResult.Failure -> this
 }
 
-internal inline fun <T, R> NagiosResult<T>.map(transform: (T) -> R): NagiosResult<R> = when (this) {
+inline fun <T, R> NagiosResult<T>.map(transform: (T) -> R): NagiosResult<R> = when (this) {
     is NagiosResult.Success -> NagiosResult.Success(transform(value))
     is NagiosResult.Failure -> this
 }

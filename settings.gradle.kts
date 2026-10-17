@@ -26,3 +26,4 @@ dependencyResolutionManagement {
 rootProject.name = "nagwatch"
 
 include(":app")
+include(":nagios")

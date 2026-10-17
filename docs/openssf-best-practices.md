@@ -114,7 +114,7 @@ Project page: <https://www.bestpractices.dev/projects/15514> (project ID 15514).
 
 | Criterion | | Answer | Why | Evidence |
 |---|---|---|---|---|
-| `test` | MUST | Met | JUnit and Robolectric suites in `app/src/test`, run with `./gradlew testDebugUnitTest`, documented and run in CI. | [docs/development.md#tests](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#tests); [ci.yml](https://github.com/pgmac-net/nagios-android/blob/main/.github/workflows/ci.yml) |
+| `test` | MUST | Met | JUnit and Robolectric suites in `app/src/test` and `nagios/src/test`, run with `./gradlew testDebugUnitTest :nagios:test`, documented and run in CI. | [docs/development.md#tests](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#tests); [ci.yml](https://github.com/pgmac-net/nagios-android/blob/main/.github/workflows/ci.yml) |
 | `test_invocation` | SHOULD | Met | The standard Gradle `test` task and `./gradlew check`. | [docs/development.md#everyday-commands](https://github.com/pgmac-net/nagios-android/blob/main/docs/development.md#everyday-commands) |
 | `test_most` | SUGGESTED | Met | 86% coverage on Codecov (91% of lines locally with Kover). | [Codecov](https://codecov.io/gh/pgmac-net/nagios-android) |
 | `test_continuous_integration` | SUGGESTED | Met | CI builds and tests on every pull request and push to `main`. | [ci.yml](https://github.com/pgmac-net/nagios-android/blob/main/.github/workflows/ci.yml) |
@@ -131,7 +131,7 @@ Project page: <https://www.bestpractices.dev/projects/15514> (project ID 15514).
 
 | Criterion | | Answer | Why | Evidence |
 |---|---|---|---|---|
-| `warnings` | MUST | Met | Kotlin `allWarningsAsErrors`, Android lint `warningsAsErrors`, ktlint and detekt. | [app/build.gradle.kts](https://github.com/pgmac-net/nagios-android/blob/main/app/build.gradle.kts) |
+| `warnings` | MUST | Met | Kotlin `allWarningsAsErrors`, Android lint `warningsAsErrors`, ktlint and detekt. | [KotlinQualityPlugin.kt](https://github.com/pgmac-net/nagios-android/blob/main/build-logic/src/main/kotlin/net/pgmac/nagwatch/buildlogic/KotlinQualityPlugin.kt), [app/build.gradle.kts](https://github.com/pgmac-net/nagios-android/blob/main/app/build.gradle.kts) |
 | `warnings_fixed` | MUST | Met | Warnings are errors and there is no baseline, so none are carried. | [CONTRIBUTING.md](https://github.com/pgmac-net/nagios-android/blob/main/CONTRIBUTING.md) |
 | `warnings_strict` | SUGGESTED | Met | Warnings are errors; suppressions must be narrow and explained. | [CONTRIBUTING.md](https://github.com/pgmac-net/nagios-android/blob/main/CONTRIBUTING.md) |
 

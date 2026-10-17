@@ -33,11 +33,14 @@ for combo in "${combos[@]}"; do
   fi
   status=0
   NAGWATCH_TEST_NAGIOS="http://127.0.0.1:8089/nagios" NAGWATCH_TEST_DATE_FORMAT="$1" NAGWATCH_TEST_TIMEZONE="$2" \
-    ./gradlew --console=plain :app:testDebugUnitTest \
+    ./gradlew --console=plain \
+    :nagios:test \
     --tests 'net.pgmac.nagwatch.nagios.command.CommandLiveTest' \
-    --tests 'net.pgmac.nagwatch.status.CommandRepositoryLiveTest' \
     --tests 'net.pgmac.nagwatch.nagios.ControlCharactersLiveTest' \
-    --tests 'net.pgmac.nagwatch.nagios.graph.GraphLiveTest' -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
+    --tests 'net.pgmac.nagwatch.nagios.graph.GraphLiveTest' \
+    :app:testDebugUnitTest \
+    --tests 'net.pgmac.nagwatch.status.CommandRepositoryLiveTest' \
+    -PnagwatchLive=true --rerun >"$log" 2>&1 || status=$?
   grep -E 'live:|LiveTest > .* (FAILED|SKIPPED)|AssertionError|IllegalStateException|^BUILD' "$log" | sed 's/^ */   /' || true
   [ "$status" -eq 0 ] || failed=1
 done

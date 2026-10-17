@@ -6,15 +6,24 @@
 - The **Android SDK**. Either Android Studio, or the command-line tools with `ANDROID_HOME` set (or `sdk.dir` in an untracked `local.properties`). The build needs the platform and build-tools for the `compileSdk` in `app/build.gradle.kts`; with licences accepted, the Android Gradle Plugin fetches missing pieces itself.
 - Nothing else. Gradle comes from the wrapper (`./gradlew`), pinned by checksum.
 
+## Modules
+
+Two Gradle modules ([ADR 0015](adr/0015-the-nagios-client-is-a-plain-jvm-module.md)):
+
+- **`:nagios`** (`nagios/`): the Nagios client. The model, HTTP, the parsers, commands and graphs, in `net.pgmac.nagwatch.nagios`. Plain Kotlin on the JVM, with no Android: its tests run as plain JUnit, without Robolectric, and the fuzzer lives here. Its test fixtures (`src/testFixtures`: the graph captures) are shared with the app's tests.
+- **`:app`** (`app/`): everything else, which depends on `:nagios`. Its packages import one another, so splitting it further would mean moving types first (pgmac-net/nagios-android#115).
+
+What both modules hold themselves to is one convention plugin, `nagwatch.kotlin-quality` in `build-logic`: the JDK 21 toolchain, Java 17 bytecode, compiler warnings as errors, detekt, ktlint, the tools' security floors and dependency locking. The app's own checks (Android Lint, Licensee, the FOSS denylist, the SBOM) run on `:app`, whose release classpath includes `:nagios` and what it brings.
+
 ## Everyday commands
 
 | Task | Command |
 |---|---|
 | Build a debug APK | `./gradlew assembleDebug` (output in `app/build/outputs/apk/debug/`) |
-| Unit tests | `./gradlew testDebugUnitTest` |
+| Unit tests | `./gradlew testDebugUnitTest :nagios:test` |
 | Everything CI runs | `./gradlew check assembleDebug assembleRelease` then `scripts/foss-self-test.sh` |
 | Auto-format Kotlin | `./gradlew ktlintFormat` |
-| Refresh the lockfile | `./gradlew :app:resolveAndLockAll --write-locks` |
+| Refresh the lockfiles | `./gradlew resolveAndLockAll --write-locks` (one `gradle.lockfile` per module) |
 | The SBOM a release would carry | `./gradlew :app:cyclonedxDirectBom` (output in `app/build/reports/sbom/`) |
 
 The debug build installs as `net.pgmac.nagwatch.debug`, labelled "Nagwatch (debug)", with an amber icon carrying a "D" (the release icon is green), so it sits beside a release build and the two can be told apart. The icon is two resources under `app/src/debug/res` that override the release ones.
@@ -32,7 +41,7 @@ Inside the app a debug build also draws in the same amber (`#FF8F00`, the icon's
 | Licence allowlist | `licensee` | Allowed SPDX ids in `app/build.gradle.kts` |
 | Dependency denylist | `checkFossDependencies` | Prefixes in `config/foss-denylist.txt` |
 | SPDX headers | `checkSpdxHeaders` | First line of every `.kt` / `.kts` |
-| Locked dependencies | (resolution) | Any dependency not in `app/gradle.lockfile` fails the build |
+| Locked dependencies | (resolution) | Any dependency not in the module's `gradle.lockfile` (`app/`, `nagios/`) fails the build |
 | No leaked fixtures | `testDebugUnitTest` (`FixtureLeakTest`) | Fixtures must be sanitised |
 
 `scripts/foss-self-test.sh` adds a known-banned dependency (`-PfossSelfTest=true`) and asserts that the licence and denylist checks both **fail**. CI runs it on every PR, so a silently broken check turns CI red.
@@ -49,10 +58,10 @@ Inside the app a debug build also draws in the same amber (`#FF8F00`, the icon's
 Build tools bring libraries of their own, and a tool's latest release can still ask for a version with a known vulnerability. None of these is in the APK: they run on the machine doing the build. They are still raised, because an alert left open teaches everyone to ignore alerts.
 
 - The versions are the `floor...` entries in `gradle/libs.versions.toml`, so Renovate keeps them moving.
-- They are applied as **constraints** in three places, because Gradle has three separate classpaths here: the build script's (`build.gradle.kts`, for what the Android Gradle plugin brings), and the lint tool's and ktlint's (`app/build.gradle.kts`). A constraint adds nothing: it only applies where something already asks for that library.
+- They are applied as **constraints** in three places, because Gradle has three separate classpaths here: the build script's (`build.gradle.kts`, for what the Android Gradle plugin brings), and the lint tool's and ktlint's (the `nagwatch.kotlin-quality` convention plugin in `build-logic`). A constraint adds nothing: it only applies where something already asks for that library.
 - Where a library is one of a family released together (Bouncy Castle, Jackson, logback), every member in use is raised, not only the one named in the advisory.
 - `build-logic` does not use the `kotlin-dsl` plugin, because that brings the Kotlin Gradle plugin of whichever version Gradle embeds, which cannot be raised without a new Gradle. It uses the project's own Kotlin plugin instead. The cost: in `build-logic`, a lambda passed to a Gradle `Action` takes its argument as a parameter (`{ task -> task.dependsOn(...) }`), not as an implicit receiver.
-- **When an alert appears:** find where the version comes from (`./gradlew buildEnvironment` for the build script, `./gradlew :app:dependencies` for everything else), add or raise a floor, refresh the lockfile, and run the full `check`: a raised library is being run by a tool that was not released against it.
+- **When an alert appears:** find where the version comes from (`./gradlew buildEnvironment` for the build script, `./gradlew :app:dependencies` or `:nagios:dependencies` for everything else), add or raise a floor, refresh the lockfile, and run the full `check`: a raised library is being run by a tool that was not released against it.
 - **When to remove one:** when the tool that needed it asks for a fixed version itself. FreeMarker is raised for Kover's HTML and XML report generator (CVE-2026-84939, #85): remove it once Kover ships a release that asks for 2.3.35 or later. A floor below what is already resolved does nothing and can go.
 
 ## The About screen
@@ -66,7 +75,7 @@ Reached from the profile menu, under Settings (`ui/about`). Three screens: About
 
 ## Tests
 
-JVM unit tests only, for now. Compose screens are tested under Robolectric (`app/src/test`), which is how CI stands in for "the app launches" without an emulator. Robolectric is pinned to an Android version in `app/src/test/resources/robolectric.properties`; it trails `targetSdk` deliberately.
+JVM unit tests only, for now. The Nagios client's tests (`nagios/src/test`) are plain JUnit. Compose screens are tested under Robolectric (`app/src/test`), which is how CI stands in for "the app launches" without an emulator. Robolectric is pinned to an Android version in `app/src/test/resources/robolectric.properties`; it trails `targetSdk` deliberately.
 
 A real-device launch is checked by hand: download the `nagwatch-debug-apk` artifact from a CI run and install it.
 
@@ -82,7 +91,7 @@ Parser and client tests replay responses captured from a real Nagios. This repos
 
 ```
 NAGWATCH_URL=https://nagios.example.org/nagios/cgi-bin scripts/capture-fixtures.sh /tmp/nagwatch-raw
-scripts/sanitise_fixtures.py /tmp/nagwatch-raw app/src/test/resources/fixtures
+scripts/sanitise_fixtures.py /tmp/nagwatch-raw nagios/src/test/resources/fixtures
 ```
 
 - Raw captures name real hosts. Keep them outside the repository (the capture script refuses to write inside it) and delete them afterwards.
@@ -177,7 +186,7 @@ scripts/test-nagios/stop.sh
 
 - The passwords in `start.sh` are not secrets: they protect a made-up instance and exist because `cmd.cgi` refuses to work without authentication.
 - **One of its five services prints control characters** (`web01` / `Control chars`, from `control-chars.sh`): a bell, a vertical tab and real backslashes beside an `a` and a bell. It is how pgmac-net/nagios-android#23 was seen for the first time, and `ControlCharactersLiveTest` runs the app's client against it. Nagios takes one level of backslash off a plugin's output itself, so the script prints two to get one into the JSON; if you change what it prints, look at what Nagios writes (`curl` the `query=service` response) before trusting a test.
-- The two real responses it produces are in `app/src/test/resources/invalid_escapes`, apart from `fixtures/` because the leak check parses everything there strictly and these are not valid JSON. Their README says how they were captured.
+- The two real responses it produces are in `nagios/src/test/resources/invalid_escapes`, apart from `fixtures/` because the leak check parses everything there strictly and these are not valid JSON. Their README says how they were captured.
 - `CommandLiveTest` sends real commands. Before it sends anything it checks that the server is on this machine and is the made-up one, and refuses otherwise.
 - `--lan` makes it reachable from a phone on the same network, over plain http. Stop it when the check is done.
 - `NAGWATCH_TEST_IMAGE` selects the image (default `jasonrivers/nagios:latest`).
@@ -287,7 +296,7 @@ nagiosgraph's pictures, on service detail (`nagios/graph/`, `status/GraphReposit
 - **A failure that may pass takes nothing away.** `GraphState.Unavailable` is not `None`. With the server stopped, choosing a period not yet fetched emptied the whole section, chips and all, and left the profile on a period it could not show. Now the picture stays and the period goes back to the one the picture is of. Only the viewer says "could not be fetched".
 - **Zooming is about the fingers** (`Zoom.moved` and `toggled` take a focus): the part of the picture under them stays under them, as far as the edges allow. Asked for on the phone; from the middle, whatever was being looked at slides away.
 - **The test Nagios' access log is the best witness** of what the app asked for: `docker exec nagwatch-test-nagios grep showgraph /var/log/apache2/access.log`. It is how the wrong period and the size steps were seen.
-- **The captures** in `app/src/test/resources/graphs` are real answers from the test Nagios; its README says how each was asked for. `GraphRulesTest` and `GraphClientTest` run on them. Do not add one from a real installation.
+- **The captures** in `nagios/src/testFixtures/resources/graphs` (test fixtures, so the app's graph screen tests use them too) are real answers from the test Nagios; its README says how each was asked for. `GraphRulesTest` and `GraphClientTest` run on them. Do not add one from a real installation.
 - **The test Nagios draws graphs**: three of `web01`'s made-up checks print performance data (no thresholds: a semicolon starts a comment in an object file). `db01`'s `Replication` prints none. nagiosgraph writes its first file a check or two after start, so `GraphLiveTest` waits for it.
 - **Fuzzing**: the `Graph` target feeds bytes to the header reader and the rule, and the same bytes as text to `GraphPath`, checking that an accepted path never leaves the profile's server.
 
@@ -314,7 +323,7 @@ nagiosgraph's pictures, on service detail (`nagios/graph/`, `status/GraphReposit
 
 What a Nagios server sends back is the app's main untrusted input, so it is fuzzed with [Jazzer](https://github.com/CodeIntelligenceTesting/jazzer).
 
-**What is covered.** Six targets, in `app/src/test/kotlin/net/pgmac/nagwatch/fuzz`:
+**What is covered.** Six targets, in `nagios/src/test/kotlin/net/pgmac/nagwatch/fuzz`:
 
 | Target | Takes arbitrary bytes through |
 |---|---|
@@ -333,15 +342,15 @@ The contract under test is "a result or a `NagiosError`, nothing else". The `Res
 
 **Two ways it runs:**
 
-- **On every build**, `FuzzCorpusTest` replays every sanitised fixture, the hand-made corpus (`app/src/test/resources/fuzz/corpus`) and every input that ever crashed a fuzzer (`app/src/test/resources/fuzz/crashes`) through every entry point, with the graph captures as well. It takes seconds and is part of `testDebugUnitTest`.
-- **The fuzzer itself**, `./gradlew :app:fuzz` (every target) or `:app:fuzz<Target>`, for `-PfuzzSeconds` each (default 60). It is not part of `check`. Its working files are under `app/build/fuzz/<Target>`. CI runs it in `fuzz.yml`: 60 seconds per target on every pull request, 10 minutes per target weekly, and by hand. **It is not a required check:** it is random, and must not be able to block a merge that did not cause what it found.
+- **On every build**, `FuzzCorpusTest` replays every sanitised fixture, the hand-made corpus (`nagios/src/test/resources/fuzz/corpus`) and every input that ever crashed a fuzzer (`nagios/src/test/resources/fuzz/crashes`) through every entry point, with the graph captures as well. It takes seconds and is part of `:nagios:test`.
+- **The fuzzer itself**, `./gradlew :nagios:fuzz` (every target) or `:nagios:fuzz<Target>`, for `-PfuzzSeconds` each (default 60). It is not part of `check`. Its working files are under `nagios/build/fuzz/<Target>`. CI runs it in `fuzz.yml`: 60 seconds per target on every pull request, 10 minutes per target weekly, and by hand. **It is not a required check:** it is random, and must not be able to block a merge that did not cause what it found.
 
 **When it finds something:**
 
-1. The input is written to `app/build/fuzz/<Target>/crashes/` (in CI, uploaded as the `fuzz-crash-<Target>` artifact), beside a `Crash_*.java` stand-alone reproducer.
-2. Replay it: `./gradlew :app:fuzz<Target> -PfuzzReplay=<path to the file>`. The stack trace is printed.
+1. The input is written to `nagios/build/fuzz/<Target>/crashes/` (in CI, uploaded as the `fuzz-crash-<Target>` artifact), beside a `Crash_*.java` stand-alone reproducer.
+2. Replay it: `./gradlew :nagios:fuzz<Target> -PfuzzReplay=<path to the file>`. The stack trace is printed.
 3. Fix the code, not the target.
-4. Copy the input into `app/src/test/resources/fuzz/crashes/` under a name that says what it was (`json-nesting-100k.json`, not `crash-3fa9...`). `FuzzCorpusTest` now keeps it fixed. Inputs there must contain nothing from a real Nagios: if a crash came from a captured response, reduce it to the minimum that reproduces it.
+4. Copy the input into `nagios/src/test/resources/fuzz/crashes/` under a name that says what it was (`json-nesting-100k.json`, not `crash-3fa9...`). `FuzzCorpusTest` now keeps it fixed. Inputs there must contain nothing from a real Nagios: if a crash came from a captured response, reduce it to the minimum that reproduces it.
 
 **Things learned setting it up**
 
@@ -381,7 +390,7 @@ All traffic to Nagios goes through one OkHttp interceptor (`ConnectionIntercepto
 
 `.github/workflows/ci.yml` has three jobs, `build`, `lint` and `foss`, on GitHub-hosted runners. **Those job names are required status checks** on `main`, set in `pgmac-net/terraform-github`. Rename one there first, or every merge blocks.
 
-Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `jvmToolchain()` in `app/build.gradle.kts`; Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `dependency-submission.yml` runs on each push to `main`, and `scorecard.yml` weekly and on demand; neither is required. Their findings appear under the repository's Security tab. Scorecard is deliberately not run on push: it only accepts that the Gradle wrapper is verified if the newest commit already has a finished CI run, and on a push it starts alongside CI and looks too early, so the alert would reopen on every merge. To see its verdict on a change straight away, run it by hand once CI on `main` has finished (`gh workflow run scorecard.yml`).
+Actions are pinned by commit SHA and kept current by Renovate. The JDK that CI installs (`java-version`) must match `JAVA_TOOLCHAIN` in `build-logic` (`KotlinQualityPlugin`); Renovate is told not to bump its major, so moving to a newer JDK is one change to both. `dependency-submission.yml` runs on each push to `main`, and `scorecard.yml` weekly and on demand; neither is required. Their findings appear under the repository's Security tab. Scorecard is deliberately not run on push: it only accepts that the Gradle wrapper is verified if the newest commit already has a finished CI run, and on a push it starts alongside CI and looks too early, so the alert would reopen on every merge. To see its verdict on a change straight away, run it by hand once CI on `main` has finished (`gh workflow run scorecard.yml`).
 
 
 Beside those three, and not required for a merge:
@@ -394,7 +403,7 @@ Beside those three, and not required for a merge:
 
 The README's badge row is a view of things that already run; none of them is a required check.
 
-- **Coverage.** `koverXmlReportDebug` runs in the `build` job after the unit tests, and `codecov/codecov-action` uploads `app/build/reports/kover/reportDebug.xml` with the organisation's `CODECOV_TOKEN`. It is informational: `codecov.yml` makes the project and patch statuses informational and turns pull request comments off, and the upload step does not fail the build. Generated code (Hilt, Room, `BuildConfig`, Compose singletons, previews) is excluded in `app/build.gradle.kts`. Locally: `./gradlew koverXmlReportDebug`.
+- **Coverage.** `:app:koverXmlReportApp` runs in the `build` job after the unit tests, and `codecov/codecov-action` uploads `app/build/reports/kover/reportApp.xml`: the debug build's tests and the client's together, through a Kover variant named `app` in both modules with the organisation's `CODECOV_TOKEN`. It is informational: `codecov.yml` makes the project and patch statuses informational and turns pull request comments off, and the upload step does not fail the build. Generated code (Hilt, Room, `BuildConfig`, Compose singletons, previews) is excluded in `app/build.gradle.kts`. Locally: `./gradlew :app:koverXmlReportApp`.
 - **Scorecard.** `scorecard.yml` is this repository's own workflow, not the shared `pg-actions` one, because the shared one sets `publish_results: false` and the badge needs a published result. The Scorecard API rejects a result from a workflow that breaks its rules (no workflow-level env or defaults, no workflow-level write permissions, only checkout, upload-artifact, upload-sarif and scorecard-action in the job, no `run` steps), and `fail_on_publish_error: true` makes a rejection fail the run. Weekly and by hand, never on push (see the comment in the file). After changing it, run it by hand and check `https://api.scorecard.dev/projects/github.com/pgmac-net/nagios-android` answers.
 - **Dependency-Track.** See [Releasing](#releasing): the badge names a released version and `checkReadmeBadges` keeps it honest.
 - **OpenSSF Best Practices.** [`docs/openssf-best-practices.md`](openssf-best-practices.md) is the answer sheet for the badge, with the evidence for each criterion. Revisit it on each release, and when a process it describes changes.
