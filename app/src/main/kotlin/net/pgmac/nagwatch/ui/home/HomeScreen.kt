@@ -5,67 +5,49 @@ package net.pgmac.nagwatch.ui.home
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import net.pgmac.nagwatch.R
-import net.pgmac.nagwatch.nagios.NagiosError
 import net.pgmac.nagwatch.nagios.model.ObjectRef
 import net.pgmac.nagwatch.profile.Profile
 import net.pgmac.nagwatch.status.ActionProgress
 import net.pgmac.nagwatch.status.Inventory
 import net.pgmac.nagwatch.status.ProfileStatus
-import net.pgmac.nagwatch.status.StatusError
 import net.pgmac.nagwatch.ui.NagwatchTopAppBar
 import net.pgmac.nagwatch.ui.browse.BrowseInventory
 import net.pgmac.nagwatch.ui.browse.HostsTab
 import net.pgmac.nagwatch.ui.browse.InventoryViewModel
 import net.pgmac.nagwatch.ui.browse.ServicesTab
-import net.pgmac.nagwatch.ui.localnet.AllowLocalNetworkButton
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkActions
 import net.pgmac.nagwatch.ui.localnet.LocalNetworkExplanation
 import net.pgmac.nagwatch.ui.localnet.rememberLocalNetworkRequest
@@ -301,85 +283,6 @@ private fun HomeTabs(current: HomeTab, onSelect: (HomeTab) -> Unit) {
     }
 }
 
-@Composable
-private fun ProfileSwitcher(state: HomeUiState, actions: HomeActions) {
-    var open by rememberSaveable { mutableStateOf(false) }
-    Box {
-        TextButton(onClick = { open = true }, modifier = Modifier.testTag(HomeTags.PROFILE_MENU)) {
-            Text(
-                text = state.selected?.name ?: stringResource(R.string.app_name),
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            state.profiles.forEach { profile ->
-                DropdownMenuItem(
-                    text = { Text(profile.name) },
-                    onClick = {
-                        open = false
-                        actions.selectProfile(profile.id)
-                    },
-                )
-            }
-            HorizontalDivider()
-            state.selected?.let { selected ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.problems_edit_profile)) },
-                    onClick = {
-                        open = false
-                        actions.editProfile(selected.id)
-                    },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.problems_manage_profiles)) },
-                onClick = {
-                    open = false
-                    actions.manageProfiles()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.problems_settings)) },
-                onClick = {
-                    open = false
-                    actions.openSettings()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.problems_about)) },
-                modifier = Modifier.testTag(HomeTags.ABOUT),
-                onClick = {
-                    open = false
-                    actions.openAbout()
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun Loading() {
-    Text(stringResource(R.string.problems_loading), modifier = Modifier.padding(24.dp).testTag(HomeTags.LOADING))
-}
-
-/** First run: nothing to show until a profile exists, so say what to do. */
-@Composable
-private fun NoProfiles(actions: HomeActions) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(HomeTags.NO_PROFILES),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(stringResource(R.string.profiles_empty_title), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.profiles_empty_text))
-        Button(onClick = actions::addProfile, modifier = Modifier.testTag(HomeTags.ADD_PROFILE)) {
-            Text(stringResource(R.string.profiles_add))
-        }
-    }
-}
-
 /**
  * One profile's status, a page for each tab. Every tab loads, fails and refreshes the same way,
  * so there is one pull to refresh over all of them, and while there is nothing to show yet
@@ -428,27 +331,5 @@ private fun TabBody(
 
         HomeTab.SERVICES ->
             ServicesTab(status, state.now, actions::openService, actions::allowLocalNetwork, quick, inventory)
-    }
-}
-
-/** The first fetch failed, so there is no earlier result to fall back on. */
-@Composable
-private fun FirstFailure(error: StatusError?, profile: Profile, actions: HomeActions) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).testTag(HomeTags.ERROR),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(stringResource(R.string.problems_failed_title), style = MaterialTheme.typography.titleLarge)
-        Text(error.message())
-        if (error is StatusError.Nagios && error.error == NagiosError.LocalNetworkBlocked) {
-            AllowLocalNetworkButton(onClick = actions::allowLocalNetwork)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = actions::refresh) { Text(stringResource(R.string.action_retry)) }
-            OutlinedButton(onClick = { actions.editProfile(profile.id) }) {
-                Text(stringResource(R.string.problems_edit_profile))
-            }
-        }
     }
 }
