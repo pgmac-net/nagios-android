@@ -5,9 +5,7 @@ package net.pgmac.nagwatch.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.ColorFilter
@@ -46,16 +44,9 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import net.pgmac.nagwatch.R
-import net.pgmac.nagwatch.nagios.model.Severity
 import net.pgmac.nagwatch.notify.NotificationTarget
-import net.pgmac.nagwatch.ui.problems.formatAge
-import net.pgmac.nagwatch.ui.theme.DarkStateColors
-import net.pgmac.nagwatch.ui.theme.LightStateColors
-import net.pgmac.nagwatch.ui.theme.StateColors
 import net.pgmac.nagwatch.ui.theme.of
-import net.pgmac.nagwatch.ui.theme.shortWord
 import net.pgmac.nagwatch.ui.widget.WidgetConfigActivity
 
 /**
@@ -250,113 +241,6 @@ private fun AllClear(content: WidgetContent) {
 }
 
 /**
- * The four counts: in one row where there is the width for it, two by two where there is not.
- * Never a row that runs off the edge. On a phone, four across in a widget two cells wide showed
- * two kinds and hid the other two, which reads as "no warnings" when nobody said so.
- */
-@Composable
-private fun Chips(content: WidgetContent, across: Boolean) {
-    val counts = content.counts ?: return
-    val chips = listOf(
-        ChipSpec("down", R.string.severity_down, counts.hostsDown, Severity.HOST_DOWN),
-        ChipSpec("critical", R.string.severity_critical, counts.critical, Severity.CRITICAL),
-        ChipSpec("warning", R.string.severity_warning, counts.warning, Severity.WARNING),
-        ChipSpec("unknown", R.string.severity_unknown, counts.unknown, Severity.UNKNOWN),
-    )
-    Column(modifier = GlanceModifier.fillMaxWidth()) {
-        chips.chunked(if (across) chips.size else NARROW_CHIPS_PER_ROW).forEachIndexed { line, row ->
-            if (line > 0) Spacer(GlanceModifier.height(GAP.dp))
-            // A gap is a spacer: padding is inside a view's background, so it would only make the chip wider.
-            Row(
-                modifier = GlanceModifier.fillMaxWidth().semantics { testTag = WidgetTags.CHIP_ROW },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                row.forEachIndexed { index, chip ->
-                    if (index > 0) Spacer(GlanceModifier.width(GAP.dp))
-                    Chip(chip, content.isDemoted)
-                }
-            }
-        }
-    }
-}
-
-private class ChipSpec(val kind: String, val label: Int, val count: Int, val severity: Severity)
-
-@Composable
-private fun Chip(chip: ChipSpec, demoted: Boolean) {
-    val count = chip.count
-    // A kind with nothing in it is drawn plain, so that the eye goes to the ones that have something.
-    val active = count > 0 && !demoted
-    Text(
-        text = "${LocalContext.current.getString(chip.label)} $count",
-        style = TextStyle(
-            color = if (active) ON_STATE else GlanceTheme.colors.onSurfaceVariant,
-            fontSize = SMALL.sp,
-            fontWeight = if (count > 0) FontWeight.Bold else FontWeight.Normal,
-        ),
-        maxLines = 1,
-        modifier = GlanceModifier
-            .background(
-                if (active) {
-                    chip.severity.color()
-                } else if (count > 0) {
-                    DEMOTED_CHIP
-                } else {
-                    TRANSPARENT
-                },
-            )
-            .cornerRadius(CHIP_CORNER.dp)
-            .padding(horizontal = GAP.dp, vertical = 1.dp)
-            .semantics { testTag = WidgetTags.count(chip.kind) },
-    )
-}
-
-@Composable
-private fun ProblemRow(view: WidgetView, row: WidgetRow, index: Int, withOutput: Boolean) {
-    val context = LocalContext.current
-    val profileId = view.profileId ?: return
-    val name = row.ref.description?.let { "${row.ref.hostName} / $it" } ?: row.ref.hostName
-    Column(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp)
-            .clickable(open(context, NotificationTarget(profileId, row.ref)))
-            .semantics { testTag = WidgetTags.row(index) },
-    ) {
-        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Old or unconfirmed, the state word loses its colour with everything else.
-            val plain = GlanceTheme.colors.onSurfaceVariant
-            val wordColor = if (view.content.isDemoted) plain else row.severity.textColor()
-            Text(
-                text = context.getString(row.severity.shortWord()),
-                style = TextStyle(
-                    color = wordColor,
-                    fontSize = SMALL.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                maxLines = 1,
-            )
-            Spacer(GlanceModifier.width(GAP.dp))
-            Text(name, style = text(BODY), maxLines = 1, modifier = GlanceModifier.defaultWeight())
-            Text(formatAge(row.since, view.now), style = text(SMALL), maxLines = 1)
-        }
-        if (withOutput && row.output.isNotEmpty()) Text(row.output, style = text(SMALL), maxLines = 1)
-    }
-}
-
-@Composable
-private fun StatusLine(content: WidgetContent) {
-    Text(
-        text = statusText(LocalContext.current, content),
-        style = TextStyle(
-            color = if (content.isDemoted) WARN_TEXT else GlanceTheme.colors.onSurfaceVariant,
-            fontSize = SMALL.sp,
-            fontWeight = if (content.isDemoted) FontWeight.Bold else FontWeight.Normal,
-        ),
-        maxLines = 1,
-        modifier = GlanceModifier.semantics { testTag = WidgetTags.STATUS },
-    )
-}
-
-/**
  * The one line that says how far what is shown can be trusted. Plain, so that it can be tested
  * without drawing anything.
  */
@@ -392,97 +276,10 @@ fun rowsThatFit(heightDp: Float, chipRows: Int = 1): Int =
 private fun clockTime(instant: Instant, zone: ZoneId): String = TIME.format(instant.atZone(zone))
 
 /** Through the same door a notification's tap uses: nothing else is believed by the app. */
-private fun open(context: Context, target: NotificationTarget): Action = actionStartActivity(target.toIntent(context))
+internal fun open(context: Context, target: NotificationTarget): Action = actionStartActivity(target.toIntent(context))
 
 private fun configure(context: Context, appWidgetId: Int): Action = actionStartActivity(
     Intent(context, WidgetConfigActivity::class.java)
         .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
 )
-
-/**
- * The widget's own background, set by every layout on its outermost view, never left to be
- * inherited.
- *
- * Android redraws a widget by applying the new layout to the views it already has, and a
- * property the new layout does not mention keeps the value it had. A widget is drawn as a badge
- * for a moment while it is being placed, and a badge's whole background is the state colour. A
- * layout that set no background of its own stayed that colour: a row of counts that was solid
- * red (found on a phone; nothing in a unit test can see it). The rule that follows: **anything a
- * layout does not set, it inherits from whatever was drawn there before.**
- */
-@Composable
-private fun surface(content: WidgetContent, opacity: Int): ColorProvider {
-    val (baseDay, baseNight) = GlanceTheme.colors.widgetBackground.inEach()
-    // Nothing known is not "all well": a message gets no wash, and so no green.
-    val wash = when {
-        content.counts == null -> null
-        content.isDemoted -> DEMOTED
-        else -> content.worst?.color() ?: OK
-    }
-    val (stateDay, stateNight) = wash?.inEach() ?: (baseDay to baseNight)
-    return ColorProvider(
-        WidgetBackground.surface(baseDay, stateDay, opacity, content.isDemoted),
-        WidgetBackground.surface(baseNight, stateNight, opacity, content.isDemoted),
-    )
-}
-
-/**
- * This colour as it is drawn in a light theme and in a dark one. The widget's own surface is the
- * system's (Material You on Android 12 and later), so it is read back for each, not assumed.
- */
-@Composable
-private fun ColorProvider.inEach(): Pair<Color, Color> {
-    val context = LocalContext.current
-    fun at(night: Int): Color {
-        val config = Configuration(context.resources.configuration)
-        config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or night
-        return getColor(context.createConfigurationContext(config))
-    }
-    return at(Configuration.UI_MODE_NIGHT_NO) to at(Configuration.UI_MODE_NIGHT_YES)
-}
-
-@Composable
-private fun text(size: Int, bold: Boolean = false) = TextStyle(
-    color = GlanceTheme.colors.onSurface,
-    fontSize = size.sp,
-    fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-)
-
-// State colours carry meaning, so they are the app's own and fixed: they follow light and dark
-// and nothing else, on every version of Android (design section 8).
-private fun Severity.color(): ColorProvider = stateColor { it.of(this) }
-
-/** For a state word on the widget's own background: the same hues, the other way round for contrast. */
-private fun Severity.textColor(): ColorProvider =
-    if (this == Severity.WARNING) ColorProvider(WARNING_ON_LIGHT, DarkStateColors.warning) else color()
-
-private fun stateColor(pick: (StateColors) -> Color): ColorProvider =
-    ColorProvider(pick(LightStateColors), pick(DarkStateColors))
-
-private val OK = stateColor { it.ok }
-private val DEMOTED = stateColor { it.pending }
-private val DEMOTED_CHIP = ColorProvider(Color(0x33757575), Color(0x33BDBDBD))
-private val TRANSPARENT = ColorProvider(Color.Transparent)
-private val ON_STATE = ColorProvider(LightStateColors.onState, DarkStateColors.onState)
-
-/** Amber is unreadable as text on a light background; this is the same hue, darker. */
-private val WARNING_ON_LIGHT = Color(0xFF9A6700)
-private val WARN_TEXT = ColorProvider(Color(0xFFB3261E), Color(0xFFF2B8B5))
-
-private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private const val CORNER = 16
-private const val CHIP_CORNER = 6
-private const val PAD = 8
-private const val GAP = 4
-private const val ICON = 16
-private const val BIG_ICON = 28
-private const val NUMBER = 20
-private const val BODY = 13
-private const val SMALL = 11
-private const val SHORT_LIST_CHROME = 56f
-private const val SHORT_LIST_ROW = 22f
-private const val CHIP_ROW = 20f
-private const val NARROW_CHIPS_PER_ROW = 2
-private const val MIN_SHORT_ROWS = 2
-private const val MAX_SHORT_ROWS = 4
