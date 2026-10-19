@@ -36,7 +36,7 @@ jazzer = "0.30.0"
 # a version with a known vulnerability. The build raises them to these versions; see the "floor-"
 # libraries below and docs/development.md. Each can go once its tool catches up.
 floorBouncycastle = "1.85"
-floorCommonsLang3 = "3.18.0"
+floorCommonsLang3 = "3.21.0"
 floorFreemarker = "2.3.35"
 floorHttpclient = "4.5.14"
 floorJackson = "2.22.4"
