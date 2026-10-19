@@ -10,13 +10,16 @@
   "schedule": ["before 9am on monday"],
   "timezone": "Australia/Brisbane",
   "automerge": false,
+  "constraints": {
+    "java": "21"
+  },
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 9am on monday"]
   },
   "packageRules": [
     {
-      "description": "The CI JDK must match JAVA_TOOLCHAIN in build-logic (KotlinQualityPlugin). A new JDK major is one deliberate change to both, never a Renovate PR on its own.",
+      "description": "The CI JDK, and Renovate's own (constraints.java, for the lockfiles), must match JAVA_TOOLCHAIN in build-logic (KotlinQualityPlugin). A new JDK major is one deliberate change to both, never a Renovate PR on its own.",
       "matchDepNames": ["java-jdk"],
       "matchUpdateTypes": ["major"],
       "enabled": false
