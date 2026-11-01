@@ -2,6 +2,7 @@
 
 package net.pgmac.nagwatch.buildlogic
 
+import io.gitlab.arturbosch.detekt.Detekt
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
@@ -20,7 +21,7 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 /**
  * What every Kotlin module of the app holds itself to, in one place (pgmac-net/nagios-android#115):
  *
- * - Java 21 to build with, Java 17 bytecode, and every compiler warning an error.
+ * - Java 25 to build with, Java 17 bytecode, and every compiler warning an error.
  * - detekt with the project's configuration, and ktlint.
  * - The security floors for the tools those bring (docs/development.md, "Security floors").
  * - Locked dependencies, refreshed with `./gradlew resolveAndLockAll --write-locks`.
@@ -59,6 +60,9 @@ class KotlinQualityPlugin : Plugin<Project> {
                         .filter { file(it).isDirectory },
                 )
             }
+            // detekt 1.23 accepts --jvm-target up to 22, so it cannot follow the JDK 25 toolchain.
+            // The code is Java 17 bytecode, so that is the target it analyses against.
+            tasks.withType<Detekt>().configureEach { it.jvmTarget = "17" }
             extensions.configure<KtlintExtension> {
                 version.set(libs.findVersion("ktlint").get().requiredVersion)
                 android.set(false)
@@ -108,6 +112,6 @@ class KotlinQualityPlugin : Plugin<Project> {
 
     private companion object {
         /** The JDK that builds the app. CI's setup-java must name the same one. */
-        const val JAVA_TOOLCHAIN = 21
+        const val JAVA_TOOLCHAIN = 25
     }
 }

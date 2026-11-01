@@ -97,7 +97,7 @@ Signed APKs on GitHub Releases (see [Install](#install)). F-Droid planned after 
 
 ## Building
 
-Needs a full JDK 21 and the Android SDK. Then:
+Needs a full JDK 25 and the Android SDK. Then:
 
 ```
 ./gradlew assembleDebug
