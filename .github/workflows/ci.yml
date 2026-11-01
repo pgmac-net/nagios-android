@@ -43,7 +43,7 @@ jobs:
 
       - name: Build debug and release, run unit tests, write the coverage report
         run: |
-          ./gradlew --console=plain --stacktrace assembleDebug assembleRelease testDebugUnitTest :nagios:test :app:koverXmlReportApp
+          ./gradlew --console=plain --stacktrace --no-build-cache assembleDebug assembleRelease testDebugUnitTest :nagios:test :app:koverXmlReportApp
           # The signed release must not gain the debug indicator (docs/development.md, "Debug builds").
           # Only the tests about the release build run here; the rest are written against debug.
           ./gradlew --console=plain testReleaseUnitTest
