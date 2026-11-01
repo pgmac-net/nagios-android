@@ -2,7 +2,7 @@
 
 package net.pgmac.nagwatch.buildlogic
 
-import io.gitlab.arturbosch.detekt.extensions.DetektExtension
+import dev.detekt.gradle.extensions.DetektExtension
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -20,7 +20,7 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 /**
  * What every Kotlin module of the app holds itself to, in one place (pgmac-net/nagios-android#115):
  *
- * - Java 21 to build with, Java 17 bytecode, and every compiler warning an error.
+ * - Java 25 to build with, Java 17 bytecode, and every compiler warning an error.
  * - detekt with the project's configuration, and ktlint.
  * - The security floors for the tools those bring (docs/development.md, "Security floors").
  * - Locked dependencies, refreshed with `./gradlew resolveAndLockAll --write-locks`.
@@ -30,7 +30,7 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 class KotlinQualityPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         with(project) {
-            pluginManager.apply("io.gitlab.arturbosch.detekt")
+            pluginManager.apply("dev.detekt")
             pluginManager.apply("org.jlleitschuh.gradle.ktlint")
             val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
@@ -51,8 +51,8 @@ class KotlinQualityPlugin : Plugin<Project> {
             }
 
             extensions.configure<DetektExtension> {
-                buildUponDefaultConfig = true
-                allRules = false
+                buildUponDefaultConfig.set(true)
+                allRules.set(false)
                 config.setFrom(rootProject.file("config/detekt/detekt.yml"))
                 source.setFrom(
                     listOf("src/main/kotlin", "src/test/kotlin", "src/testFixtures/kotlin")
@@ -108,6 +108,6 @@ class KotlinQualityPlugin : Plugin<Project> {
 
     private companion object {
         /** The JDK that builds the app. CI's setup-java must name the same one. */
-        const val JAVA_TOOLCHAIN = 21
+        const val JAVA_TOOLCHAIN = 25
     }
 }
