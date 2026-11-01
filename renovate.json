@@ -25,6 +25,12 @@
       "enabled": false
     },
     {
+      "description": "plexus-utils 4 dropped the XmlPull classes that Maven 3 (brought by the licensee and cyclonedx plugins) still uses, so a 4.x floor breaks the build. The floor guards a CVE fixed in 3.6.1; 4.x adds nothing. Revisit when those plugins move to Maven 4.",
+      "matchPackageNames": ["org.codehaus.plexus:plexus-utils"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Kotlin, KSP and the Compose compiler plugin must move together",
       "matchPackageNames": ["org.jetbrains.kotlin**", "com.google.devtools.ksp**"],
       "matchUpdateTypes": ["minor", "patch"],
