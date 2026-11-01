@@ -43,7 +43,7 @@ floorJackson = "2.22.4"
 floorJdom2 = "2.0.6.1"
 floorJose4j = "0.9.7"
 floorLogback = "1.6.6"
-floorPlexusUtils = "3.6.2"
+floorPlexusUtils = "4.1.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
