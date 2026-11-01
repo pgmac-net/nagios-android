@@ -9,7 +9,7 @@ hilt = "2.60.1"
 composeBom = "2026.09.00"
 activityCompose = "1.13.0"
 coreKtx = "1.19.1"
-detekt = "1.23.8"
+detekt = "2.0.0-alpha.6"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 licensee = "1.14.1"
@@ -87,7 +87,7 @@ jazzer = { module = "com.code-intelligence:jazzer", version.ref = "jazzer" }
 # Gradle plugins: not dependencies of the app. build-logic compiles against them; the build
 # applies them by id, at the versions in [plugins] below.
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
-detekt-gradlePlugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+detekt-gradlePlugin = { module = "dev.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 ktlint-gradlePlugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintGradle" }
 
 # Security floors (see the versions above). Bouncy Castle, Jackson and logback are each a family
@@ -114,7 +114,7 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
-detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
 licensee = { id = "app.cash.licensee", version.ref = "licensee" }
 cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }

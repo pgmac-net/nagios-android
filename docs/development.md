@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- A full **JDK 21** (with `javac`; a JRE is not enough).
+- A full **JDK 25** (with `javac`; a JRE is not enough).
 - The **Android SDK**. Either Android Studio, or the command-line tools with `ANDROID_HOME` set (or `sdk.dir` in an untracked `local.properties`). The build needs the platform and build-tools for the `compileSdk` in `app/build.gradle.kts`; with licences accepted, the Android Gradle Plugin fetches missing pieces itself.
 - Nothing else. Gradle comes from the wrapper (`./gradlew`), pinned by checksum.
 
@@ -13,7 +13,7 @@ Two Gradle modules ([ADR 0015](adr/0015-the-nagios-client-is-a-plain-jvm-module.
 - **`:nagios`** (`nagios/`): the Nagios client. The model, HTTP, the parsers, commands and graphs, in `net.pgmac.nagwatch.nagios`. Plain Kotlin on the JVM, with no Android: its tests run as plain JUnit, without Robolectric, and the fuzzer lives here. Its test fixtures (`src/testFixtures`: the graph captures) are shared with the app's tests.
 - **`:app`** (`app/`): everything else, which depends on `:nagios`. Its packages import one another, so splitting it further would mean moving types first (pgmac-net/nagios-android#115).
 
-What both modules hold themselves to is one convention plugin, `nagwatch.kotlin-quality` in `build-logic`: the JDK 21 toolchain, Java 17 bytecode, compiler warnings as errors, detekt, ktlint, the tools' security floors and dependency locking. The app's own checks (Android Lint, Licensee, the FOSS denylist, the SBOM) run on `:app`, whose release classpath includes `:nagios` and what it brings.
+What both modules hold themselves to is one convention plugin, `nagwatch.kotlin-quality` in `build-logic`: the JDK 25 toolchain, Java 17 bytecode, compiler warnings as errors, detekt, ktlint, the tools' security floors and dependency locking. The app's own checks (Android Lint, Licensee, the FOSS denylist, the SBOM) run on `:app`, whose release classpath includes `:nagios` and what it brings.
 
 ## Everyday commands
 

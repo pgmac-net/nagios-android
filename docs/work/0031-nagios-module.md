@@ -5,7 +5,7 @@ Ticket: pgmac-net/nagios-android#115 (stage 2 of the refactor in #114). One pull
 ## What was done
 
 - **`:nagios`** (`nagios/`) holds `net.pgmac.nagwatch.nagios.*`: the model, HTTP, parsers, commands and graphs. It is plain Kotlin/JVM. `git mv` from `app/`, with no package or import changes. Its tests, the six fuzz targets, the fixtures, command pages, invalid-escape captures and fuzz corpus moved with it. The graph captures and `Captures`/`png()` are now test fixtures (`src/testFixtures`), shared with the app's graph screen tests.
-- **`nagwatch.kotlin-quality`**, a convention plugin in `build-logic`, holds what both modules hold themselves to: JDK 21 toolchain, Java 17 bytecode, warnings as errors, detekt, ktlint, the tool security floors, dependency locking and `resolveAndLockAll`. Those blocks left `app/build.gradle.kts`.
+- **`nagwatch.kotlin-quality`**, a convention plugin in `build-logic`, holds what both modules hold themselves to: JDK 25 toolchain, Java 17 bytecode, warnings as errors, detekt, ktlint, the tool security floors, dependency locking and `resolveAndLockAll`. Those blocks left `app/build.gradle.kts`.
 - **Fuzzing** moved to `:nagios` (`:nagios:fuzz<Target>`, working files under `nagios/build/fuzz`).
 - **Coverage**: a Kover variant named `app` in both modules. `:app:koverXmlReportApp` writes `reportApp.xml`, which covers the app's debug tests and the client's, and is what Codecov now reads.
 - **Widened from `internal` to public**, as the compiler asked: `ConnectionInterceptor`, `NagiosResult.map`, and `NagiosClientFactory`'s full constructor, which the app's command live test uses.

@@ -13,7 +13,7 @@ style:
     ignoreAnnotated: ["Composable", "Preview"]
     ignorePropertyDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
-  UnusedPrivateMember:
+  UnusedPrivateFunction:
     ignoreAnnotated: ["Preview"]
 
   # Result-returning code reads best as a run of guard clauses ("?: return failure").
