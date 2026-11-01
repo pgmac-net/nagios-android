@@ -2,8 +2,7 @@
 
 package net.pgmac.nagwatch.buildlogic
 
-import io.gitlab.arturbosch.detekt.Detekt
-import io.gitlab.arturbosch.detekt.extensions.DetektExtension
+import dev.detekt.gradle.extensions.DetektExtension
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -31,7 +30,7 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 class KotlinQualityPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         with(project) {
-            pluginManager.apply("io.gitlab.arturbosch.detekt")
+            pluginManager.apply("dev.detekt")
             pluginManager.apply("org.jlleitschuh.gradle.ktlint")
             val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
@@ -52,17 +51,14 @@ class KotlinQualityPlugin : Plugin<Project> {
             }
 
             extensions.configure<DetektExtension> {
-                buildUponDefaultConfig = true
-                allRules = false
+                buildUponDefaultConfig.set(true)
+                allRules.set(false)
                 config.setFrom(rootProject.file("config/detekt/detekt.yml"))
                 source.setFrom(
                     listOf("src/main/kotlin", "src/test/kotlin", "src/testFixtures/kotlin")
                         .filter { file(it).isDirectory },
                 )
             }
-            // detekt 1.23 accepts --jvm-target up to 22, so it cannot follow the JDK 25 toolchain.
-            // The code is Java 17 bytecode, so that is the target it analyses against.
-            tasks.withType<Detekt>().configureEach { it.jvmTarget = "17" }
             extensions.configure<KtlintExtension> {
                 version.set(libs.findVersion("ktlint").get().requiredVersion)
                 android.set(false)
