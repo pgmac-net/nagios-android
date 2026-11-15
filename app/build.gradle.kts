@@ -160,6 +160,11 @@ dependencies {
     implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    constraints {
+        // Security floor (docs/development.md): the Hilt and Room processors ask for a
+        // Guava with a known vulnerability. Build-time only; nothing here is in the APK.
+        ksp(libs.floor.guava) { because("security floor: the processor asks for a version with a known vulnerability") }
+    }
 
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)

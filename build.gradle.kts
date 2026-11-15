@@ -13,6 +13,7 @@ buildscript {
                 libs.floor.bcutil,
                 libs.floor.commons.lang3,
                 libs.floor.freemarker,
+                libs.floor.guava,
                 libs.floor.httpclient,
                 libs.floor.jackson.core,
                 libs.floor.jackson.databind,
