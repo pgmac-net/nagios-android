@@ -70,7 +70,7 @@ class KotlinQualityPlugin : Plugin<Project> {
             // Tools that run during the build have classpaths of their own, separate from the
             // module's and from the build script's. The same security floors are applied to them.
             val toolFloors = mapOf(
-                "androidLintTool" to listOf("floor-bcprov", "floor-bcpkix", "floor-bcutil", "floor-commons-lang3", "floor-httpclient"),
+                "androidLintTool" to listOf("floor-bcprov", "floor-bcpkix", "floor-bcutil", "floor-commons-lang3", "floor-guava", "floor-httpclient"),
                 "ktlint" to listOf("floor-logback-core", "floor-logback-classic"),
             )
             configurations.matching { it.name in toolFloors }.configureEach { configuration ->

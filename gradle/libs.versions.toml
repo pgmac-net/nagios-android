@@ -38,6 +38,7 @@ jazzer = "0.30.0"
 floorBouncycastle = "1.87"
 floorCommonsLang3 = "3.22.0"
 floorFreemarker = "2.3.35"
+floorGuava = "33.7.2-jre"
 floorHttpclient = "4.5.14"
 floorJackson = "2.23.0"
 floorJdom2 = "2.0.6.1"
@@ -97,6 +98,7 @@ floor-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "floo
 floor-bcutil = { module = "org.bouncycastle:bcutil-jdk18on", version.ref = "floorBouncycastle" }
 floor-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "floorCommonsLang3" }
 floor-freemarker = { module = "org.freemarker:freemarker", version.ref = "floorFreemarker" }
+floor-guava = { module = "com.google.guava:guava", version.ref = "floorGuava" }
 floor-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "floorHttpclient" }
 floor-jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "floorJackson" }
 floor-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "floorJackson" }
