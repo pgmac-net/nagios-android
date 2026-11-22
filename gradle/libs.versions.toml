@@ -2,7 +2,7 @@
 # Every entry here is licence-checked (Licensee), denylist-checked and locked.
 
 [versions]
-agp = "9.5.1"
+agp = "9.5.2"
 kotlin = "2.4.21"
 ksp = "2.3.14"
 hilt = "2.60.1"
