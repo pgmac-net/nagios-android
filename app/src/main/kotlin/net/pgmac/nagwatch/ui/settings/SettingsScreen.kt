@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -228,11 +229,19 @@ private fun LoudAlertFields(section: LoudAlertSection) {
     Text(stringResource(R.string.settings_loud_alert_title), style = MaterialTheme.typography.titleMedium)
     Text(stringResource(R.string.settings_loud_alert_text), style = MaterialTheme.typography.bodyMedium)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        val slider = remember(section.volume) {
+            SliderState(
+                value = section.volume.toFloat(),
+                trackRange = AlarmVolume.LOWEST.toFloat()..AlarmVolume.HIGHEST.toFloat(),
+            )
+        }
         Slider(
-            value = dragging,
-            onValueChange = { dragging = it },
+            state = slider,
+            onValueChange = {
+                dragging = it
+                slider.value = it
+            },
             onValueChangeFinished = { section.onVolume(dragging.roundToInt()) },
-            valueRange = AlarmVolume.LOWEST.toFloat()..AlarmVolume.HIGHEST.toFloat(),
             modifier = Modifier.weight(1f).testTag(SettingsTags.LOUD_ALERT_VOLUME),
         )
         Text(

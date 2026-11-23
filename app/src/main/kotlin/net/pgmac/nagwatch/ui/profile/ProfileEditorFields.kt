@@ -6,18 +6,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.drop
 import net.pgmac.nagwatch.R
 
 @Composable
@@ -28,7 +33,6 @@ internal fun Field(
     isError: Boolean = false,
     supporting: Int? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
     onChange: (String) -> Unit,
 ) {
     OutlinedTextField(
@@ -38,7 +42,6 @@ internal fun Field(
         supportingText = supporting?.let { { Text(stringResource(it)) } },
         isError = isError,
         singleLine = true,
-        visualTransformation = visualTransformation,
         // Credentials and URLs must not be learned by the keyboard.
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, autoCorrectEnabled = false),
         modifier = modifier.fillMaxWidth(),
@@ -59,12 +62,10 @@ internal fun SecretInputField(
     onChange: (SecretField) -> Unit,
 ) {
     if (field.editing) {
-        Field(
+        MaskedField(
             label = label,
             value = field.input,
             isError = isError,
-            keyboardType = KeyboardType.Password,
-            visualTransformation = PasswordVisualTransformation(),
             modifier = if (fieldTag != null) Modifier.testTag(fieldTag) else Modifier,
         ) { onChange(field.copy(input = it)) }
     } else {
@@ -78,4 +79,26 @@ internal fun SecretInputField(
             }
         }
     }
+}
+
+/** A masked single-line input. [value] seeds the field; every edit is reported through [onChange]. */
+@Composable
+private fun MaskedField(
+    label: Int,
+    value: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    onChange: (String) -> Unit,
+) {
+    val state = rememberTextFieldState(value)
+    val latest by rememberUpdatedState(onChange)
+    LaunchedEffect(state) {
+        snapshotFlow { state.text.toString() }.drop(1).collect { latest(it) }
+    }
+    OutlinedSecureTextField(
+        state = state,
+        label = { Text(stringResource(label)) },
+        isError = isError,
+        modifier = modifier.fillMaxWidth(),
+    )
 }
