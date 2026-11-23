@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -20,8 +21,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.requestFocus
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.pgmac.nagwatch.nagios.NagiosError
@@ -134,9 +138,14 @@ class ProfileScreensTest {
         showEditor(ProfileEditorState.from(storedProfile))
 
         composeRule.onAllNodesWithText("Replace")[0].performClick()
-        composeRule.onNodeWithTag(ProfileEditorTags.PASSWORD).performTextInput("new-password")
+        // A secure field takes no text through semantics (that is the point of it), so type as a keyboard does.
+        composeRule.onNodeWithTag(ProfileEditorTags.PASSWORD).requestFocus().performKeyInput {
+            pressKey(Key.N)
+            pressKey(Key.E)
+            pressKey(Key.W)
+        }
 
-        assertEquals("new-password", state.password.input)
+        assertEquals("new", state.password.input)
         // Masking is visual; what marks the field as a password is this semantic,
         // which is also what keeps it out of accessibility read-outs.
         composeRule.onNodeWithTag(ProfileEditorTags.PASSWORD)

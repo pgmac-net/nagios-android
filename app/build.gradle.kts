@@ -17,7 +17,12 @@ plugins {
 
 android {
     namespace = "net.pgmac.nagwatch"
-    compileSdk = 37
+    // Compose 1.13 needs the 37.1 minor API level.
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 1
+        }
+    }
 
     defaultConfig {
         // Changing applicationId after release creates a different app. See docs/adr/0003.

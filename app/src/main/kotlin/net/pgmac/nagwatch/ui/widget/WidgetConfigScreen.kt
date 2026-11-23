@@ -22,12 +22,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -181,11 +184,14 @@ private fun BackgroundChoice(opacity: Int, onChange: (Int) -> Unit) {
         style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.testTag(WidgetConfigTags.OPACITY_LABEL),
     )
+    val slider = remember {
+        SliderState(value = opacity.toFloat(), steps = OPAQUE / STEP - 1, trackRange = 0f..OPAQUE.toFloat())
+    }
+    // The saved value is the source of truth: a snapped or rejected change pulls the thumb back.
+    LaunchedEffect(opacity) { slider.value = opacity.toFloat() }
     Slider(
-        value = opacity.toFloat(),
+        state = slider,
         onValueChange = { onChange((it / STEP).roundToInt() * STEP) },
-        valueRange = 0f..OPAQUE.toFloat(),
-        steps = OPAQUE / STEP - 1,
         modifier = Modifier.testTag(WidgetConfigTags.OPACITY),
     )
     Text(stringResource(R.string.widget_config_background_hint), style = MaterialTheme.typography.bodySmall)
